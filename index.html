@@ -1,0 +1,3655 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Why Convolution Isn’t That Expensive: A Musical Journey</title>
+  <style>
+    :root {
+      --ink: #161616;
+      --muted: #66635f;
+      --paper: #fbfaf7;
+      --line: #ded8cf;
+      --soft: #f0ebe3;
+      --soft-2: #e7f0ed;
+      --blue: #315d8d;
+      --green: #2f765f;
+      --red: #9a4a3c;
+      --gold: #92742f;
+      --shadow: 0 18px 45px rgba(30, 28, 25, 0.09);
+      --font: "Victory", "Victor Mono", "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+      --mono: "Victory", "Victor Mono", "SFMono-Regular", Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(22, 22, 22, 0.035) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(22, 22, 22, 0.03) 1px, transparent 1px),
+        var(--paper);
+      background-size: 28px 28px;
+      font-family: var(--font);
+      letter-spacing: 0;
+      overflow-x: hidden;
+    }
+
+    .shell {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0 64px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 0;
+      background: rgba(251, 250, 247, 0.88);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid rgba(222, 216, 207, 0.72);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      font-weight: 760;
+    }
+
+    .mark {
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--ink);
+      display: grid;
+      place-items: center;
+      background: var(--paper);
+      box-shadow: 4px 4px 0 var(--ink);
+      flex: 0 0 auto;
+    }
+
+    .mark svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    .nav {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .nav a {
+      color: var(--muted);
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.56);
+      padding: 8px 10px;
+      text-decoration: none;
+      font-size: 13px;
+    }
+
+    .nav a:hover {
+      color: var(--ink);
+      border-color: var(--ink);
+    }
+
+    .intro {
+      padding: 56px 0 24px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+      gap: 28px;
+      align-items: end;
+    }
+
+    .music-hero {
+      min-height: min(720px, calc(100vh - 96px));
+      margin-top: 18px;
+      padding: 56px;
+      display: grid;
+      align-items: end;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--ink);
+      background:
+        linear-gradient(90deg, rgba(12, 11, 10, 0.82) 0%, rgba(12, 11, 10, 0.58) 42%, rgba(12, 11, 10, 0.08) 100%),
+        url("assets/violin-hero.png") center / cover no-repeat;
+      box-shadow: var(--shadow);
+    }
+
+    .music-hero:after {
+      content: "";
+      position: absolute;
+      inset: auto 0 0;
+      height: 28%;
+      background: linear-gradient(180deg, transparent, rgba(251, 250, 247, 0.88));
+      pointer-events: none;
+    }
+
+    .hero-copy {
+      position: relative;
+      z-index: 1;
+      max-width: 720px;
+      color: #fff;
+    }
+
+    .hero-copy .section-label {
+      color: #f2c767;
+    }
+
+    .hero-copy h1 {
+      color: #fff;
+      text-shadow: 0 2px 28px rgba(0, 0, 0, 0.28);
+    }
+
+    .hero-copy .lead {
+      color: rgba(255, 255, 255, 0.84);
+    }
+
+    .story-strip {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      font-family: var(--mono);
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    .story-strip div {
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      background: rgba(255, 255, 255, 0.09);
+      padding: 12px;
+      backdrop-filter: blur(10px);
+    }
+
+    .story-strip strong {
+      display: block;
+      color: #fff;
+      margin-bottom: 5px;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 760px;
+      font-size: clamp(44px, 6vw, 82px);
+      line-height: 0.95;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 18px;
+      font-size: clamp(28px, 3vw, 42px);
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      line-height: 1.18;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.62;
+    }
+
+    .lead {
+      max-width: 760px;
+      margin-top: 22px;
+      font-size: 19px;
+      color: #3d3a36;
+    }
+
+    .truth {
+      border: 1px solid var(--ink);
+      background: #fff;
+      box-shadow: var(--shadow);
+      padding: 20px;
+    }
+
+    .truth .label,
+    .section-label {
+      color: var(--gold);
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 760;
+      text-transform: uppercase;
+      letter-spacing: 0;
+      margin-bottom: 10px;
+    }
+
+    .truth strong {
+      color: var(--ink);
+      font-weight: 780;
+    }
+
+    .equation {
+      font-family: var(--mono);
+      background: #fff;
+      border: 1px solid var(--line);
+      padding: 14px 16px;
+      overflow-x: auto;
+      white-space: nowrap;
+      line-height: 1.5;
+      color: #24211e;
+    }
+
+    .equation.big {
+      border-color: var(--ink);
+      box-shadow: 5px 5px 0 var(--ink);
+      font-size: 19px;
+    }
+
+    .section {
+      margin-top: 52px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+      scroll-margin-top: 118px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
+      gap: 24px;
+      align-items: start;
+    }
+
+    .band {
+      background: rgba(255, 255, 255, 0.62);
+      border: 1px solid var(--line);
+      padding: 22px;
+    }
+
+    .note {
+      color: var(--ink);
+      font-size: 15px;
+      background: var(--soft-2);
+      border-left: 4px solid var(--green);
+      padding: 14px 16px;
+      margin-top: 16px;
+    }
+
+    .sound-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 0.92fr) minmax(340px, 1.08fr);
+      gap: 22px;
+      align-items: start;
+    }
+
+    .waveform-lab {
+      background: #fff;
+      border: 1px solid var(--ink);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .audio-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .waveform-card {
+      border: 1px solid var(--line);
+      background: var(--paper);
+      padding: 12px;
+    }
+
+    .waveform-card svg,
+    .convolution-card svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+
+    .waveform-card text,
+    .convolution-card text {
+      font-family: var(--mono);
+      fill: var(--ink);
+      font-size: 12px;
+    }
+
+    .waveform-card .muted,
+    .convolution-card .muted {
+      fill: var(--muted);
+      font-size: 11px;
+    }
+
+    .wave-path {
+      fill: none;
+      stroke: var(--blue);
+      stroke-width: 2.2;
+    }
+
+    .wave-path.reverb {
+      stroke: var(--red);
+    }
+
+    .impulse-stem {
+      stroke: var(--green);
+      stroke-width: 3;
+      stroke-linecap: round;
+    }
+
+    .music-pipeline {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .pipeline-step {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 12px;
+      min-height: 116px;
+      display: grid;
+      align-content: start;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .pipeline-step strong {
+      color: var(--ink);
+      font-size: 15px;
+    }
+
+    .pipeline-step.hot {
+      border-color: var(--ink);
+      box-shadow: 3px 3px 0 var(--ink);
+    }
+
+    .convolution-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(340px, 1.1fr);
+      gap: 22px;
+      align-items: start;
+    }
+
+    .convolution-card {
+      background: #fff;
+      border: 1px solid var(--ink);
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    .conv-matrix {
+      display: grid;
+      grid-template-columns: 44px repeat(8, minmax(28px, 1fr));
+      gap: 6px;
+      margin-top: 14px;
+      font-family: var(--mono);
+      font-size: 12px;
+      align-items: center;
+    }
+
+    .conv-cell {
+      border: 1px solid var(--line);
+      background: var(--soft);
+      min-height: 34px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+    }
+
+    .conv-cell.head {
+      background: #fff;
+      color: var(--ink);
+      font-weight: 760;
+    }
+
+    .conv-cell.use {
+      background: rgba(154, 74, 60, 0.13);
+      border-color: rgba(154, 74, 60, 0.46);
+      color: var(--ink);
+    }
+
+    .conv-cell.hot {
+      background: rgba(47, 118, 95, 0.16);
+      border-color: rgba(47, 118, 95, 0.5);
+    }
+
+    .cost-route {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
+      font-family: var(--mono);
+    }
+
+    .cost-row {
+      display: grid;
+      grid-template-columns: 126px minmax(0, 1fr) 118px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .cost-label,
+    .cost-value {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 10px;
+      font-size: 13px;
+    }
+
+    .cost-bar {
+      border: 1px solid var(--line);
+      background: var(--soft);
+      height: 34px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cost-fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      background: rgba(49, 93, 141, 0.24);
+      border-right: 1px solid rgba(49, 93, 141, 0.42);
+    }
+
+    .cost-row.hot .cost-fill {
+      background: rgba(47, 118, 95, 0.24);
+      border-color: rgba(47, 118, 95, 0.5);
+    }
+
+    .wave-lab {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(320px, 0.86fr);
+      gap: 22px;
+      align-items: start;
+    }
+
+    .wave-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .wave-card {
+      background: #fff;
+      border: 1px solid var(--line);
+      padding: 12px;
+      min-height: 156px;
+      display: grid;
+      grid-template-rows: auto 86px auto;
+      gap: 8px;
+    }
+
+    .wave-card.active {
+      border-color: var(--ink);
+      box-shadow: 4px 4px 0 var(--ink);
+    }
+
+    .wave-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .wave-meta strong {
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    .wave-svg {
+      width: 100%;
+      height: 86px;
+      display: block;
+      background: linear-gradient(180deg, transparent 49%, rgba(22, 22, 22, 0.12) 50%, transparent 51%);
+    }
+
+    .wave-svg path {
+      fill: none;
+      stroke: var(--blue);
+      stroke-width: 2.2;
+    }
+
+    .wave-card.active .wave-svg path {
+      stroke: var(--ink);
+      stroke-width: 2.7;
+    }
+
+    .wave-card.silent .wave-svg path {
+      stroke: #aaa39a;
+      stroke-dasharray: 4 4;
+    }
+
+    .wave-note {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    .reconstruction {
+      background: #fff;
+      border: 1px solid var(--ink);
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 42px repeat(8, 1fr);
+      gap: 6px;
+      align-items: end;
+      margin-top: 14px;
+    }
+
+    .bar-label {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      align-self: center;
+    }
+
+    .bar {
+      min-height: 112px;
+      border: 1px solid var(--line);
+      background: var(--soft);
+      display: grid;
+      align-items: end;
+      padding: 5px;
+      position: relative;
+    }
+
+    .bar-fill {
+      width: 100%;
+      background: var(--ink);
+      min-height: 10px;
+    }
+
+    .bar span {
+      position: absolute;
+      top: 7px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .addition-stack {
+      display: grid;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .add-row {
+      display: grid;
+      grid-template-columns: 78px repeat(8, 1fr);
+      gap: 5px;
+      align-items: stretch;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    .add-name,
+    .add-cell {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 8px 6px;
+      text-align: center;
+      min-width: 0;
+    }
+
+    .add-name {
+      color: var(--muted);
+      text-align: left;
+    }
+
+    .add-row.total .add-cell {
+      border-color: var(--ink);
+      font-weight: 760;
+    }
+
+    .slow-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 0.85fr) minmax(320px, 1.15fr);
+      gap: 22px;
+      align-items: start;
+    }
+
+    .tile-matrix {
+      background: #fff;
+      border: 1px solid var(--ink);
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .tile-grid {
+      display: grid;
+      grid-template-columns: 44px repeat(8, minmax(28px, 1fr));
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 12px;
+      align-items: center;
+    }
+
+    .tile {
+      min-height: 34px;
+      border: 1px solid var(--line);
+      background: var(--soft);
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+    }
+
+    .tile.head {
+      background: #fff;
+      color: var(--ink);
+      font-weight: 760;
+    }
+
+    .tile.work {
+      background: rgba(49, 93, 141, 0.13);
+      border-color: rgba(49, 93, 141, 0.38);
+    }
+
+    .tile.work.hot {
+      background: rgba(154, 74, 60, 0.14);
+      border-color: rgba(154, 74, 60, 0.5);
+    }
+
+    .reuse-lab {
+      background: #fff;
+      border: 1px solid var(--ink);
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    .pair-tabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .pair-tab.active {
+      background: var(--ink);
+      color: #fff;
+    }
+
+    .reuse-stage {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .reuse-circle {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      padding: 12px;
+    }
+
+    .reuse-circle svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .reuse-circle text {
+      font-family: var(--mono);
+      font-size: 12px;
+      fill: var(--ink);
+    }
+
+    .reuse-circle .muted {
+      fill: var(--muted);
+      font-size: 11px;
+    }
+
+    .reuse-circle .ring {
+      fill: #fff;
+      stroke: var(--line);
+      stroke-width: 1.2;
+    }
+
+    .reuse-circle .point {
+      fill: #fff;
+      stroke: var(--muted);
+      stroke-width: 1.1;
+    }
+
+    .reuse-circle .point.active-a {
+      fill: var(--gold);
+      stroke: var(--ink);
+    }
+
+    .reuse-circle .point.active-b {
+      fill: var(--red);
+      stroke: var(--ink);
+    }
+
+    .reuse-circle .ray-a {
+      stroke: var(--gold);
+      stroke-width: 3;
+    }
+
+    .reuse-circle .ray-b {
+      stroke: var(--red);
+      stroke-width: 3;
+    }
+
+    .shared-tray {
+      display: grid;
+      gap: 12px;
+    }
+
+    .eo-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .split-box {
+      border: 1px solid var(--line);
+      background: var(--soft);
+      padding: 12px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .split-box strong {
+      display: block;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+
+    .shared-box {
+      border: 1px solid var(--ink);
+      background: #fff;
+      box-shadow: 4px 4px 0 var(--ink);
+      padding: 14px;
+      text-align: center;
+      font-family: var(--mono);
+    }
+
+    .shared-values {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .shared-values div {
+      border: 1px solid var(--line);
+      background: var(--soft-2);
+      padding: 10px;
+      font-size: 16px;
+      font-weight: 760;
+    }
+
+    .reuse-outputs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .output-box {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 13px;
+      font-family: var(--mono);
+      min-height: 138px;
+    }
+
+    .output-box strong {
+      display: block;
+      font-size: 22px;
+      margin-bottom: 8px;
+    }
+
+    .output-box .formula {
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 13px;
+    }
+
+    .output-box.hot {
+      border-color: var(--ink);
+    }
+
+    .reuse-punchline {
+      background: var(--soft-2);
+      border-left: 4px solid var(--green);
+      padding: 14px 16px;
+      font-family: var(--mono);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .circle-story {
+      display: grid;
+      grid-template-columns: minmax(0, 0.88fr) minmax(340px, 1.12fr);
+      gap: 22px;
+      align-items: start;
+    }
+
+    .unit-circle {
+      background: #fff;
+      border: 1px solid var(--ink);
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+
+    .unit-circle svg,
+    .mini-turn svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .unit-circle text,
+    .mini-turn text {
+      font-family: var(--mono);
+      fill: var(--ink);
+      font-size: 12px;
+    }
+
+    .unit-circle .muted,
+    .mini-turn .muted {
+      fill: var(--muted);
+      font-size: 11px;
+    }
+
+    .unit-circle .ring,
+    .mini-turn .ring {
+      fill: #fff;
+      stroke: var(--line);
+      stroke-width: 1.2;
+    }
+
+    .unit-circle .axis,
+    .mini-turn .axis {
+      stroke: rgba(22, 22, 22, 0.14);
+      stroke-width: 1;
+    }
+
+    .unit-circle .dot,
+    .mini-turn .dot {
+      fill: #fff;
+      stroke: var(--muted);
+      stroke-width: 1.1;
+    }
+
+    .unit-circle .dot.hot,
+    .mini-turn .dot.hot {
+      fill: var(--gold);
+      stroke: var(--ink);
+    }
+
+    .unit-circle .dot.hot-two,
+    .mini-turn .dot.hot-two {
+      fill: var(--red);
+      stroke: var(--ink);
+    }
+
+    .unit-circle .ray,
+    .mini-turn .ray {
+      stroke: var(--gold);
+      stroke-width: 2.8;
+    }
+
+    .unit-circle .ray-two,
+    .mini-turn .ray-two {
+      stroke: var(--red);
+      stroke-width: 2.8;
+    }
+
+    .basics-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .basic-card {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 13px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .basic-card strong {
+      color: var(--ink);
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .number-lab {
+      background: #fff;
+      border: 1px solid var(--ink);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      margin-top: 22px;
+      scroll-margin-top: 118px;
+    }
+
+    .shared-number-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .mini-turn {
+      border: 1px solid var(--line);
+      background: var(--paper);
+      padding: 12px;
+    }
+
+    .dot-product {
+      display: grid;
+      grid-template-columns: 62px repeat(4, 1fr) 70px;
+      gap: 6px;
+      align-items: stretch;
+      margin-top: 10px;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    .dot-product div {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 8px 6px;
+      text-align: center;
+    }
+
+    .dot-product .label {
+      color: var(--muted);
+      text-align: left;
+    }
+
+    .dot-product .answer {
+      border-color: var(--ink);
+      font-weight: 760;
+    }
+
+    .scan-compare {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .scan-card {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 14px;
+    }
+
+    .scan-card.hot {
+      border-color: var(--ink);
+      box-shadow: 4px 4px 0 var(--ink);
+    }
+
+    .scan-table {
+      display: grid;
+      grid-template-columns: 46px 46px minmax(98px, 1fr) minmax(92px, 1fr);
+      gap: 5px;
+      margin-top: 12px;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    .scan-table div {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 7px 6px;
+      min-height: 34px;
+    }
+
+    .scan-table .head {
+      background: var(--soft);
+      color: var(--muted);
+      font-weight: 760;
+    }
+
+    .scan-table .even {
+      background: rgba(49, 93, 141, 0.1);
+      border-color: rgba(49, 93, 141, 0.38);
+    }
+
+    .scan-table .odd {
+      background: rgba(47, 118, 95, 0.1);
+      border-color: rgba(47, 118, 95, 0.38);
+    }
+
+    .visual-equation {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .visual-equation div {
+      border: 1px solid var(--line);
+      background: var(--soft);
+      padding: 9px 10px;
+    }
+
+    .visual-equation .final {
+      background: #fff;
+      border-color: var(--ink);
+      font-weight: 760;
+    }
+
+    .vector-compare {
+      background: #fff;
+      border: 1px solid var(--ink);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      margin-top: 22px;
+    }
+
+    .vector-controls {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin: 16px 0 18px;
+    }
+
+    .vector-mode.active {
+      background: var(--ink);
+      color: #fff;
+    }
+
+    .vector-panels {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .vector-panel {
+      border: 1px solid var(--line);
+      background: var(--paper);
+      padding: 14px;
+    }
+
+    .vector-panel svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+
+    .vector-panel text {
+      font-family: var(--mono);
+      fill: var(--ink);
+      font-size: 12px;
+    }
+
+    .vector-panel .muted {
+      fill: var(--muted);
+      font-size: 11px;
+    }
+
+    .vector-panel .scale-ring {
+      fill: none;
+      stroke: rgba(22, 22, 22, 0.12);
+      stroke-width: 1.1;
+    }
+
+    .vector-panel .axis {
+      stroke: rgba(22, 22, 22, 0.16);
+      stroke-width: 1;
+    }
+
+    .vector-panel .arrow {
+      fill: none;
+      stroke-width: 3.2;
+      stroke-linecap: round;
+    }
+
+    .vector-panel .arrow.dim {
+      opacity: 0.16;
+    }
+
+    .vector-panel .arrow.glow {
+      stroke-width: 4.8;
+    }
+
+    .vector-panel .arrow.ghost {
+      opacity: 0.08;
+    }
+
+    .vector-panel .result {
+      stroke: var(--ink);
+      stroke-width: 6;
+      stroke-linecap: round;
+      fill: none;
+    }
+
+    .vector-panel .result.dim {
+      opacity: 0.2;
+    }
+
+    .vector-panel .label-chip {
+      fill: #fff;
+      stroke: var(--line);
+    }
+
+    .vector-panel .index-dot {
+      stroke: #fff;
+      stroke-width: 2;
+    }
+
+    .vector-panel .angle-label {
+      font-size: 13px;
+      font-weight: 760;
+    }
+
+    .compass-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .compass-card {
+      background: #fff;
+      border: 1px solid var(--line);
+      padding: 10px;
+      transition: opacity 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+    }
+
+    .compass-card.dim {
+      opacity: 0.25;
+    }
+
+    .compass-card.glow {
+      border-color: var(--ink);
+      box-shadow: 3px 3px 0 var(--ink);
+    }
+
+    .compass-card.reuse-even {
+      border-color: rgba(49, 93, 141, 0.78);
+      box-shadow: 0 0 0 2px rgba(49, 93, 141, 0.16), 3px 3px 0 rgba(49, 93, 141, 0.72);
+      background: rgba(49, 93, 141, 0.06);
+    }
+
+    .compass-card.reuse-odd {
+      border-color: rgba(154, 74, 60, 0.76);
+      box-shadow: 0 0 0 2px rgba(154, 74, 60, 0.16), 3px 3px 0 rgba(154, 74, 60, 0.66);
+      background: rgba(154, 74, 60, 0.06);
+    }
+
+    .compass-card.rotated {
+      background:
+        linear-gradient(135deg, rgba(154, 74, 60, 0.09), rgba(47, 118, 95, 0.09)),
+        #fff;
+    }
+
+    .compass-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    .compass-head strong {
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    .compass-kind {
+      color: var(--muted);
+    }
+
+    .compass-card svg {
+      width: 100%;
+      height: auto;
+      display: block;
+      border: 0;
+    }
+
+    .compass-card text {
+      font-family: var(--mono);
+      fill: var(--ink);
+      font-size: 10px;
+    }
+
+    .compass-card .muted {
+      fill: var(--muted);
+      font-size: 9px;
+    }
+
+    .compass-card .mini-ring {
+      fill: none;
+      stroke: rgba(22, 22, 22, 0.13);
+      stroke-width: 1;
+    }
+
+    .compass-card .mini-axis {
+      stroke: rgba(22, 22, 22, 0.14);
+      stroke-width: 1;
+    }
+
+    .compass-card .mini-arrow {
+      fill: none;
+      stroke-width: 4;
+      stroke-linecap: round;
+    }
+
+    .compass-foot {
+      display: grid;
+      gap: 3px;
+      margin-top: 5px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .reuse-tag {
+      margin-top: 5px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 5px 6px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink);
+    }
+
+    .reuse-tag.even {
+      border-color: rgba(49, 93, 141, 0.5);
+      color: var(--blue);
+    }
+
+    .reuse-tag.odd {
+      border-color: rgba(154, 74, 60, 0.5);
+      color: var(--red);
+    }
+
+    .compass-result {
+      margin-top: 12px;
+      border: 1px solid var(--ink);
+      background: #fff;
+      padding: 12px;
+      font-family: var(--mono);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .workflow-note {
+      border: 1px solid var(--line);
+      background: var(--soft-2);
+      padding: 14px 16px;
+      margin: 14px 0 18px;
+      font-family: var(--mono);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .walk-panels {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .walk-panel {
+      border: 1px solid var(--line);
+      background: var(--paper);
+      padding: 14px;
+    }
+
+    .walk-panel svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+
+    .walk-panel text {
+      font-family: var(--mono);
+      fill: var(--ink);
+      font-size: 12px;
+    }
+
+    .walk-panel .muted {
+      fill: var(--muted);
+      font-size: 11px;
+    }
+
+    .walk-panel .grid-line {
+      stroke: rgba(22, 22, 22, 0.08);
+      stroke-width: 1;
+    }
+
+    .walk-panel .step {
+      fill: none;
+      stroke-width: 3.6;
+      stroke-linecap: round;
+    }
+
+    .walk-panel .step.dim {
+      opacity: 0.18;
+    }
+
+    .walk-panel .step.glow {
+      stroke-width: 5;
+    }
+
+    .walk-panel .result-step {
+      fill: none;
+      stroke: var(--ink);
+      stroke-width: 6;
+      stroke-linecap: round;
+    }
+
+    .walk-panel .result-step.dim {
+      opacity: 0.16;
+    }
+
+    .component-summary {
+      display: grid;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .component-card {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 12px;
+      font-family: var(--mono);
+      display: grid;
+      gap: 9px;
+    }
+
+    .component-card.hot {
+      border-color: var(--ink);
+      box-shadow: 3px 3px 0 var(--ink);
+    }
+
+    .component-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 760;
+    }
+
+    .component-title span:last-child {
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .balance-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 68px minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+    }
+
+    .balance-side {
+      border: 1px solid var(--line);
+      background: var(--paper);
+      padding: 9px;
+      min-height: 68px;
+      display: grid;
+      align-content: center;
+      gap: 6px;
+    }
+
+    .balance-side strong {
+      display: block;
+      color: var(--ink);
+      font-size: 12px;
+    }
+
+    .token-row {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+
+    .value-token {
+      border: 1px solid color-mix(in srgb, var(--c), #161616 18%);
+      background: color-mix(in srgb, var(--c), #fff 86%);
+      color: #1f1b18;
+      padding: 5px 6px;
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    .net-badge {
+      min-height: 58px;
+      border: 1px solid var(--ink);
+      background: var(--soft-2);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 760;
+      line-height: 1.25;
+    }
+
+    .component-note {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .reuse-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .reuse-summary-card {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 13px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .reuse-summary-card strong {
+      display: block;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+
+    .reuse-summary-card.hot {
+      border-color: var(--ink);
+      box-shadow: 3px 3px 0 var(--ink);
+    }
+
+    .reuse-map {
+      margin-top: 18px;
+      border: 1px solid var(--ink);
+      background: #fff;
+      padding: 16px;
+    }
+
+    .reuse-map h3 {
+      margin-bottom: 6px;
+    }
+
+    .reuse-map-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .reuse-map-card {
+      border: 1px solid var(--line);
+      background: var(--paper);
+      padding: 12px;
+      font-family: var(--mono);
+      display: grid;
+      gap: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .reuse-map-card:before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 6px;
+      background: var(--card-color);
+    }
+
+    .reuse-map-card.same {
+      background: rgba(49, 93, 141, 0.08);
+    }
+
+    .reuse-map-card.flipped {
+      background: rgba(154, 74, 60, 0.08);
+    }
+
+    .reuse-map-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding-left: 6px;
+      font-size: 13px;
+      font-weight: 760;
+    }
+
+    .reuse-map-head span:last-child {
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .angle-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding-left: 6px;
+    }
+
+    .angle-pill {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 8px 6px;
+      text-align: center;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .angle-pill strong {
+      display: block;
+      color: var(--ink);
+    }
+
+    .reuse-status {
+      margin-left: 6px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 7px;
+      font-size: 12px;
+      text-align: center;
+      font-weight: 760;
+    }
+
+    .reuse-map-card.same .reuse-status {
+      border-color: rgba(49, 93, 141, 0.42);
+      color: var(--blue);
+    }
+
+    .reuse-map-card.flipped .reuse-status {
+      border-color: rgba(154, 74, 60, 0.42);
+      color: var(--red);
+    }
+
+    .reuse-flow {
+      margin-top: 16px;
+    }
+
+    .reuse-flow-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .reuse-node {
+      border: 1px solid var(--line);
+      background: var(--paper);
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+      font-family: var(--mono);
+    }
+
+    .reuse-node h4,
+    .reuse-output h4 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.2;
+    }
+
+    .reuse-node.even {
+      border-color: rgba(49, 93, 141, 0.48);
+      background: rgba(49, 93, 141, 0.07);
+    }
+
+    .reuse-node.odd {
+      border-color: rgba(154, 74, 60, 0.48);
+      background: rgba(154, 74, 60, 0.07);
+    }
+
+    .share-strip {
+      border: 1px solid var(--ink);
+      background: #fff;
+      padding: 10px;
+      text-align: center;
+      font-weight: 760;
+    }
+
+    .reuse-output-row {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .reuse-output {
+      border: 1px solid var(--ink);
+      background: #fff;
+      box-shadow: 4px 4px 0 var(--ink);
+      padding: 14px;
+      font-family: var(--mono);
+      display: grid;
+      gap: 10px;
+    }
+
+    .output-equation {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto;
+      gap: 8px;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .output-piece {
+      border: 1px solid var(--line);
+      background: var(--soft);
+      padding: 9px;
+      text-align: center;
+    }
+
+    .output-piece.flipped {
+      background: rgba(154, 74, 60, 0.1);
+      border-color: rgba(154, 74, 60, 0.42);
+    }
+
+    .output-answer {
+      color: var(--ink);
+      font-size: 18px;
+      font-weight: 760;
+      white-space: nowrap;
+    }
+
+    .reuse-flow-note {
+      grid-column: 1 / -1;
+      border-left: 4px solid var(--green);
+      background: var(--soft-2);
+      padding: 13px 15px;
+      color: #24211e;
+      font-family: var(--mono);
+      line-height: 1.5;
+    }
+
+    .card-pair-grid {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .card-pair {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    .card-pair.even {
+      border-color: rgba(49, 93, 141, 0.52);
+      background: rgba(49, 93, 141, 0.06);
+    }
+
+    .card-pair.odd {
+      border-color: rgba(154, 74, 60, 0.52);
+      background: rgba(154, 74, 60, 0.06);
+    }
+
+    .pair-mini {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .pair-mini div {
+      border: 1px solid var(--line);
+      background: var(--paper);
+      padding: 7px 6px;
+      text-align: center;
+    }
+
+    .pair-mini strong {
+      display: block;
+      color: var(--ink);
+    }
+
+    .layer-visual {
+      border: 1px solid var(--ink);
+      background: #fff;
+      box-shadow: var(--shadow);
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .layer-row {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr) 120px;
+      gap: 12px;
+      align-items: center;
+      font-family: var(--mono);
+    }
+
+    .layer-label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .layer-blocks {
+      display: grid;
+      gap: 8px;
+    }
+
+    .layer-blocks.cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+    .layer-blocks.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .layer-blocks.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .layer-blocks.cols-8 { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+
+    .layer-block {
+      border: 1px solid var(--line);
+      background: var(--paper);
+      min-height: 54px;
+      padding: 8px;
+      display: grid;
+      align-content: center;
+      gap: 5px;
+    }
+
+    .layer-block strong {
+      color: var(--ink);
+      font-size: 12px;
+    }
+
+    .mini-values {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .mini-value {
+      border: 1px solid rgba(22, 22, 22, 0.14);
+      background: #fff;
+      padding: 4px 5px;
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    .layer-cost {
+      border: 1px solid var(--line);
+      background: var(--soft-2);
+      padding: 9px;
+      text-align: center;
+      font-size: 12px;
+      line-height: 1.3;
+    }
+
+    .layer-punch {
+      border-left: 4px solid var(--green);
+      background: var(--soft-2);
+      padding: 13px 15px;
+      font-family: var(--mono);
+      line-height: 1.5;
+    }
+
+    .derivation {
+      display: grid;
+      gap: 12px;
+    }
+
+    .formula-row {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr);
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .formula-row .tag {
+      display: grid;
+      place-items: center;
+      min-height: 54px;
+      border: 1px solid var(--line);
+      background: var(--soft);
+      font-family: var(--mono);
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+      padding: 8px;
+    }
+
+    .origin-svg {
+      width: 100%;
+      height: auto;
+      display: block;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+
+    .origin-svg text {
+      font-family: var(--mono);
+      fill: var(--ink);
+      font-size: 13px;
+    }
+
+    .origin-svg .muted {
+      fill: var(--muted);
+      font-size: 12px;
+    }
+
+    .origin-svg .line {
+      stroke: var(--line);
+      stroke-width: 1.2;
+    }
+
+    .origin-svg .blue {
+      stroke: var(--blue);
+      fill: rgba(49, 93, 141, 0.08);
+    }
+
+    .origin-svg .green {
+      stroke: var(--green);
+      fill: rgba(47, 118, 95, 0.08);
+    }
+
+    .origin-svg .red {
+      stroke: var(--red);
+      fill: rgba(154, 74, 60, 0.08);
+    }
+
+    .tree-wrap {
+      overflow-x: auto;
+      padding-bottom: 6px;
+    }
+
+    .tree {
+      min-width: 900px;
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 12px;
+      align-items: start;
+      padding: 8px 0 2px;
+    }
+
+    .node {
+      background: #fff;
+      border: 1px solid var(--line);
+      padding: 12px;
+      min-height: 86px;
+      position: relative;
+    }
+
+    .node.root {
+      border-color: var(--ink);
+      box-shadow: 5px 5px 0 var(--ink);
+    }
+
+    .node.even {
+      border-color: rgba(49, 93, 141, 0.52);
+    }
+
+    .node.odd {
+      border-color: rgba(47, 118, 95, 0.52);
+    }
+
+    .node .name {
+      font-family: var(--mono);
+      font-weight: 760;
+      font-size: 13px;
+      margin-bottom: 7px;
+    }
+
+    .node .values {
+      font-family: var(--mono);
+      color: #302d29;
+      font-size: 14px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .span-8 { grid-column: span 8; }
+    .span-4 { grid-column: span 4; }
+    .span-2 { grid-column: span 2; }
+    .span-1 { grid-column: span 1; }
+
+    .level-title {
+      grid-column: span 8;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12px;
+      margin-top: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .level-title:after {
+      content: "";
+      height: 1px;
+      background: var(--line);
+      flex: 1;
+    }
+
+    .butterfly-list {
+      display: grid;
+      gap: 18px;
+    }
+
+    .butterfly {
+      background: #fff;
+      border: 1px solid var(--line);
+      padding: 18px;
+      display: grid;
+      grid-template-columns: minmax(220px, 0.74fr) minmax(0, 1.26fr);
+      gap: 18px;
+      align-items: center;
+    }
+
+    .butterfly-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .pill {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: #fff;
+      background: var(--ink);
+      padding: 5px 8px;
+      flex: 0 0 auto;
+    }
+
+    .mini {
+      font-family: var(--mono);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .calc {
+      display: grid;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .calc .line {
+      background: var(--soft);
+      border: 1px solid var(--line);
+      padding: 9px 10px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .calc .line.answer {
+      background: #fff;
+      border-color: var(--ink);
+      color: var(--ink);
+      font-weight: 760;
+    }
+
+    .butterfly-svg {
+      width: 100%;
+      height: 170px;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+
+    .butterfly-svg text {
+      font-family: var(--mono);
+      font-size: 13px;
+      fill: var(--ink);
+    }
+
+    .butterfly-svg .muted {
+      fill: var(--muted);
+      font-size: 12px;
+    }
+
+    .butterfly-svg .wire {
+      stroke: var(--ink);
+      stroke-width: 1.4;
+      fill: none;
+    }
+
+    .butterfly-svg .twiddle {
+      stroke: var(--gold);
+      stroke-width: 1.6;
+      fill: none;
+    }
+
+    .butterfly-svg circle {
+      fill: #fff;
+      stroke: var(--ink);
+      stroke-width: 1.2;
+    }
+
+    .matrix {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+
+    .matrix th,
+    .matrix td {
+      border: 1px solid var(--line);
+      padding: 10px 9px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .matrix th {
+      background: var(--soft);
+      color: #34302b;
+      font-weight: 760;
+    }
+
+    .matrix td:last-child {
+      color: var(--green);
+      font-weight: 760;
+    }
+
+    .compare {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .counter {
+      background: #fff;
+      border: 1px solid var(--line);
+      padding: 18px;
+    }
+
+    .counter .number {
+      font-size: 42px;
+      line-height: 1;
+      font-family: var(--mono);
+      font-weight: 760;
+      color: var(--ink);
+      margin-bottom: 8px;
+    }
+
+    .final-strip {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(76px, 1fr));
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .coef {
+      min-height: 72px;
+      background: #fff;
+      border: 1px solid var(--line);
+      display: grid;
+      align-content: center;
+      gap: 5px;
+      padding: 10px;
+      text-align: center;
+      font-family: var(--mono);
+    }
+
+    .coef strong {
+      font-size: 16px;
+    }
+
+    .coef span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .coef.hot {
+      border-color: var(--ink);
+      box-shadow: 4px 4px 0 var(--ink);
+    }
+
+    .stepper {
+      margin-top: 18px;
+      border: 1px solid var(--ink);
+      background: #fff;
+      box-shadow: var(--shadow);
+    }
+
+    .stepper-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid var(--ink);
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 8px 11px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: var(--ink);
+      color: #fff;
+    }
+
+    .stepper-body {
+      display: grid;
+      grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+      gap: 0;
+    }
+
+    .stage-list {
+      border-right: 1px solid var(--line);
+      padding: 16px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .stage-item {
+      border: 1px solid var(--line);
+      background: var(--soft);
+      padding: 10px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .stage-item.active {
+      border-color: var(--ink);
+      background: #fff;
+      color: var(--ink);
+      box-shadow: 3px 3px 0 var(--ink);
+    }
+
+    .stage-panel {
+      padding: 18px;
+    }
+
+    .stage-panel .equation {
+      margin-top: 12px;
+    }
+
+    .fade-in {
+      animation: fadeIn 420ms ease both;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 880px) {
+      .intro,
+      .grid-2,
+      .wave-lab,
+      .sound-grid,
+      .convolution-grid,
+      .slow-grid,
+      .circle-story,
+      .reuse-stage,
+      .butterfly,
+      .stepper-body,
+      .compare {
+        grid-template-columns: 1fr;
+      }
+
+      .wave-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .music-hero {
+        min-height: 620px;
+        padding: 34px 24px;
+      }
+
+      .story-strip,
+      .music-pipeline,
+      .card-pair-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .cost-row {
+        grid-template-columns: 1fr;
+      }
+
+      .stage-list {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .nav {
+        justify-content: flex-start;
+      }
+
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .formula-row {
+        grid-template-columns: 1fr;
+      }
+
+      .final-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .pair-tabs,
+      .reuse-outputs,
+      .eo-split,
+      .shared-values,
+      .shared-number-grid,
+      .scan-compare,
+      .vector-panels,
+      .walk-panels,
+      .reuse-summary,
+      .reuse-flow-grid,
+      .reuse-output-row {
+        grid-template-columns: 1fr;
+      }
+
+      .layer-row {
+        grid-template-columns: 1fr;
+      }
+
+      .vector-controls {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .compass-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .reuse-map-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 560px) {
+      .wave-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .bar-row,
+      .add-row {
+        grid-template-columns: 52px repeat(8, minmax(40px, 1fr));
+        overflow-x: auto;
+      }
+
+      .music-hero {
+        min-height: 560px;
+        background-position: center;
+      }
+
+      .hero-copy h1 {
+        font-size: 42px;
+      }
+
+      .conv-matrix {
+        grid-template-columns: 42px repeat(8, minmax(38px, 1fr));
+        overflow-x: auto;
+      }
+
+      .scan-table {
+        grid-template-columns: 42px 42px minmax(92px, 1fr) minmax(88px, 1fr);
+        overflow-x: auto;
+      }
+
+      .vector-controls {
+        grid-template-columns: 1fr;
+      }
+
+      .compass-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .reuse-map-grid,
+      .angle-pair,
+      .balance-row,
+      .output-equation {
+        grid-template-columns: 1fr;
+      }
+
+      .layer-blocks.cols-4,
+      .layer-blocks.cols-8 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">
+          <svg viewBox="0 0 28 28">
+            <path d="M4 14h20M14 4v20" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M7 21 21 7M7 7l14 14" stroke="currentColor" stroke-width="1.1"/>
+          </svg>
+        </div>
+        <span>Why Convolution Isn’t That Expensive</span>
+      </div>
+      <nav class="nav" aria-label="Page sections">
+        <a href="#song-story">Song</a>
+        <a href="#reverb">Reverb</a>
+        <a href="#convolution">Convolution</a>
+        <a href="#waves">Waves</a>
+        <a href="#slow">N²</a>
+        <a href="#visual-reuse">Reuse</a>
+        <a href="#count">N log N</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="music-hero" id="song-story">
+        <div class="hero-copy">
+          <div class="section-label">A song becomes numbers</div>
+          <h1>Why convolution isn’t that expensive: a musical journey.</h1>
+          <p class="lead">
+            A microphone records sound as air pressure over time: low pressure, high pressure,
+            low pressure again, thousands of times per second. To add reverb, we ask a practical
+            question: how should each pressure sample echo into the future?
+          </p>
+          <div class="story-strip">
+            <div><strong>song</strong>pressure samples over time</div>
+            <div><strong>room</strong>a tiny echo recipe</div>
+            <div><strong>FFT</strong>the fast way to combine them</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="reverb" class="section">
+        <div class="section-label">1. The sound problem</div>
+        <h2>Reverb is the room answering the song after the song speaks.</h2>
+        <div class="sound-grid">
+          <div class="band">
+            <p>
+              Imagine one clean violin note in a totally dry studio. Now move the same note into
+              a concert hall. The direct note reaches you first; then quieter copies bounce from
+              walls, ceiling, seats, and the back of the room.
+            </p>
+            <p style="margin-top:12px;">
+              That echo pattern is called an <strong>impulse response</strong>: if the room hears one
+              tiny click, how does the room ring afterward? Reverb means mixing the song with that
+              room response.
+            </p>
+            <div class="audio-controls">
+              <button id="playDry" type="button">Play dry note</button>
+              <button id="playReverb" type="button">Play with reverb</button>
+            </div>
+            <p class="note">
+              The page synthesizes the note and the reverb in your browser. No audio file is needed:
+              the dry note is a small harmonic tone, and the room is a decaying echo pattern.
+            </p>
+          </div>
+          <div class="waveform-lab">
+            <div class="waveform-card" id="songWaveform" aria-label="Dry song pressure waveform"></div>
+            <div class="waveform-card" id="roomImpulse" aria-label="Room impulse response"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="convolution" class="section">
+        <div class="section-label">2. The slow reverb calculation</div>
+        <h2>Direct convolution asks every output sample to look backward through time.</h2>
+        <div class="convolution-grid">
+          <div class="band">
+            <p>
+              If the room keeps echoing for N samples, then every output sample has to ask:
+              how much of the current note, the previous note, the note before that, and so on,
+              should be added here?
+            </p>
+            <div class="equation big" style="margin-top:16px;">y[t] = Σ song[t - j] · room[j]</div>
+            <p class="note">
+              This is convolution. The slow version is N output moments times N possible echo delays,
+              which has the square shape N².
+            </p>
+          </div>
+          <div class="convolution-card">
+            <h3>Every row is one output time.</h3>
+            <p>Each colored tile is one past sample being mixed into one new reverb sample.</p>
+            <div class="conv-matrix" id="convMatrix" aria-label="Direct convolution square grid"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="waves" class="section">
+        <div class="section-label">3. The fast route</div>
+        <h2>FFT says: combine song and room by frequency, then come back to time.</h2>
+        <div class="grid-2">
+          <div class="band">
+            <p>
+              A song is pressure over time. The room response is also a tiny signal over time.
+              FFT converts both into frequency coefficients. Then reverb becomes simple:
+              multiply matching frequency bins, then inverse FFT back to pressure samples.
+            </p>
+            <p class="note">
+              Tiny correction: this is not one big dot product. It is point-by-point multiplication:
+              song frequency 0 times room frequency 0, song frequency 1 times room frequency 1, and so on.
+            </p>
+          </div>
+          <div class="waveform-lab">
+            <div class="music-pipeline" id="musicPipeline" aria-label="FFT convolution pipeline"></div>
+          </div>
+        </div>
+        <div class="cost-route" id="costRoute" aria-label="Convolution cost comparison"></div>
+      </section>
+
+      <section id="toy-waves" class="section">
+        <div class="section-label">4. Toy version of the frequency knobs</div>
+        <h2>Before the whole song, use eight numbers.</h2>
+        <div class="intro" style="padding-top:0;">
+          <div>
+            <p class="lead">
+              Now we shrink the sound idea down to a tiny sequence:
+              <strong>[3, 5, 3, 1, 3, 5, 3, 1]</strong>. This toy wave lets us see exactly
+              where the repeated work is hiding.
+            </p>
+          </div>
+          <aside class="truth">
+            <div class="label">Main idea</div>
+          <p>
+            Direct DFT computes each frequency from scratch. FFT notices that pairs such as
+            <strong>X2</strong> and <strong>X6</strong> share the same even-position work and a flipped
+            version of the same odd-position work.
+          </p>
+          <div class="equation" style="margin-top:14px;">shared work per pair × log₂(N) levels</div>
+          <p style="margin-top:14px;">
+            That repeated sharing is the visual reason the work becomes N log N.
+          </p>
+          </aside>
+        </div>
+
+        <div class="wave-lab">
+          <div class="band">
+            <p>
+              The time sequence is <strong>[3, 5, 3, 1, 3, 5, 3, 1]</strong>.
+              The frequency question is: what are the eight coefficients
+              <strong>X0</strong> through <strong>X7</strong>? Once we have them,
+              the inverse DFT adds eight basis waves back together at each time step.
+            </p>
+            <div class="equation big" style="margin-top:16px;">x<sub>n</sub> = (1/8) Σ<sub>k=0</sub><sup>7</sup> X<sub>k</sub> W<sub>8</sub><sup>-kn</sup></div>
+            <p class="note">
+              The basis waves get faster as k increases. In this clean example, only X0, X2,
+              and X6 are active. The other wave knobs are zero, so their waves are shown as silent.
+            </p>
+            <div class="wave-grid" id="waveGrid" aria-label="Eight basis waves"></div>
+          </div>
+
+          <aside class="reconstruction">
+            <h3>Add the active pieces at every n.</h3>
+            <p>
+              The flat layer contributes 3 everywhere. The X2/X6 pair contributes the real sine
+              wiggle [0, 2, 0, -2, 0, 2, 0, -2]. The sum reconstructs the original sequence.
+            </p>
+            <div class="addition-stack" id="additionStack" aria-label="Reconstruction addition table"></div>
+            <div class="bar-row" id="timeBars" aria-label="Time value bars"></div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="slow" class="section">
+        <div class="section-label">5. The slow way to find coefficients</div>
+        <h2>Direct DFT computes every coefficient against every time value.</h2>
+        <div class="slow-grid">
+          <div class="band">
+            <p>
+              To find X0 through X7 directly, each frequency row scans all eight time values.
+              Each colored tile is one multiply-and-add interaction in the DFT sum.
+            </p>
+            <div class="equation big" style="margin-top:16px;">X<sub>k</sub> = Σ<sub>n=0</sub><sup>7</sup> x<sub>n</sub> W<sub>8</sub><sup>kn</sup></div>
+            <p class="note">
+              Eight coefficient rows times eight input columns gives 64 interactions. In general:
+              N rows times N columns gives N².
+            </p>
+          </div>
+          <div class="tile-matrix">
+            <div class="tile-grid" id="tileGrid" aria-label="Direct DFT N squared grid"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="circle-basics" class="section">
+        <div class="section-label">6. Why reuse is possible</div>
+        <h2>For X2 and X6, the angles repeat with one clean flip.</h2>
+        <div class="band">
+          <p>
+            For each coefficient, every time value gets a direction. The value gives
+            the arrow length; the coefficient decides the angle pattern.
+          </p>
+          <div class="basics-list">
+            <div class="basic-card">
+              <strong>For X2</strong>
+              The angles go 0°, 90°, 180°, 270°, then the same four directions repeat.
+            </div>
+            <div class="basic-card">
+              <strong>For X6</strong>
+              The even positions keep the same angles as X2. The odd positions flip vertically:
+              90° becomes 270°, and 270° becomes 90°.
+            </div>
+            <div class="basic-card">
+              <strong>The key reuse</strong>
+              X2 and X6 do not need two totally separate scans. Split into even and odd groups,
+              reuse those summaries, then flip the odd summary to get the paired coefficient.
+            </div>
+          </div>
+        </div>
+
+        <div class="vector-compare" id="angle-vectors">
+          <h3>Now find X2 and X6 by adding eight colored vectors.</h3>
+          <p>
+            Each time value becomes one vector. The value sets the arrow length; the angle comes
+            from the coefficient we are calculating. We add the arrows as vectors, not as plain
+            magnitudes.
+          </p>
+
+          <div class="vector-controls" id="vectorControls" aria-label="Vector workflow controls"></div>
+
+          <div class="workflow-note" id="workflowNote"></div>
+
+          <div class="vector-panels">
+            <article class="vector-panel">
+              <h3>X2 contribution circle</h3>
+              <div id="x2VectorCircle" aria-label="X2 vector contribution circle"></div>
+            </article>
+            <article class="vector-panel">
+              <h3>X6 contribution circle</h3>
+              <div id="x6VectorCircle" aria-label="X6 vector contribution circle"></div>
+            </article>
+          </div>
+
+          <div class="walk-panels">
+            <article class="walk-panel">
+              <h3>Vector sum summary for X2</h3>
+              <div id="x2Walk" aria-label="Component summary for X2"></div>
+            </article>
+            <article class="walk-panel">
+              <h3>Vector sum summary for X6</h3>
+              <div id="x6Walk" aria-label="Component summary for X6"></div>
+            </article>
+          </div>
+
+          <div class="reuse-map" id="reuseMap" aria-label="X2 and X6 angle reuse map"></div>
+
+          <div class="reuse-summary" id="workflowSummary"></div>
+        </div>
+
+        <div class="reuse-map" id="visual-reuse">
+          <h3>Visual reuse: compute one even node and one odd node, then make two outputs.</h3>
+          <p>
+            The even cards are identical for X2 and X6. The odd cards have the same values but flip
+            vertically. So we can summarize the eight arrows as two reusable nodes.
+          </p>
+          <div class="reuse-flow" id="reuseFlow" aria-label="Even odd reuse flow"></div>
+        </div>
+      </section>
+
+      <section id="count" class="section">
+        <div class="section-label">7. Why this becomes N log N</div>
+        <h2>Reuse happens in layers: 8 → 4 → 2 → 1.</h2>
+        <div class="layer-visual" id="layerVisual" aria-label="FFT split levels visual"></div>
+        <div class="compare" style="margin-top:18px;">
+          <div class="counter">
+            <div class="number">N</div>
+            <h3>Work per layer</h3>
+            <p>At one layer, every value belongs to one small even/odd reuse group.</p>
+          </div>
+          <div class="counter">
+            <div class="number">log N</div>
+            <h3>Number of layers</h3>
+            <p>Halving the problem gives 8 → 4 → 2 → 1, which is 3 layers for N = 8.</p>
+          </div>
+        </div>
+        <div class="equation big" style="margin-top:18px;">N values per layer × log₂(N) layers = N log N</div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const xs = [3, 5, 3, 1, 3, 5, 3, 1];
+    const flatLayer = [3, 3, 3, 3, 3, 3, 3, 3];
+    const sineLayer = [0, 2, 0, -2, 0, 2, 0, -2];
+    const coeffs = ["24", "0", "-8i", "0", "0", "0", "8i", "0"];
+
+    function sampleWave(points, fn) {
+      return Array.from({ length: points }, (_, i) => {
+        const t = i / (points - 1);
+        return fn(t);
+      });
+    }
+
+    function waveformPath(samples, width = 520, height = 148, scale = 1) {
+      const mid = height / 2;
+      return samples.map((value, index) => {
+        const x = (index / (samples.length - 1)) * width;
+        const y = mid - value * scale * (height * 0.38);
+        return `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
+      }).join(" ");
+    }
+
+    function renderMusicVisuals() {
+      const dry = sampleWave(220, (t) => {
+        const env = Math.exp(-2.4 * t) * Math.min(1, t * 24);
+        return env * (
+          0.68 * Math.sin(2 * Math.PI * 7 * t) +
+          0.24 * Math.sin(2 * Math.PI * 14 * t + 0.5) +
+          0.11 * Math.sin(2 * Math.PI * 21 * t + 1.2)
+        );
+      });
+      const wet = sampleWave(220, (t) => {
+        const direct = Math.exp(-2.4 * t) * Math.sin(2 * Math.PI * 7 * t);
+        const echoA = t > 0.18 ? 0.48 * Math.exp(-2.8 * (t - 0.18)) * Math.sin(2 * Math.PI * 7 * (t - 0.18)) : 0;
+        const echoB = t > 0.36 ? 0.28 * Math.exp(-3.1 * (t - 0.36)) * Math.sin(2 * Math.PI * 7 * (t - 0.36)) : 0;
+        return 0.68 * (direct + echoA + echoB);
+      });
+      const impulse = [
+        { t: 0.03, h: 1, label: "direct" },
+        { t: 0.22, h: 0.56, label: "wall" },
+        { t: 0.41, h: 0.34, label: "ceiling" },
+        { t: 0.62, h: 0.2, label: "back wall" },
+        { t: 0.82, h: 0.12, label: "tail" }
+      ];
+
+      document.getElementById("songWaveform").innerHTML = `
+        <svg viewBox="0 0 560 210" role="img" aria-label="Dry and reverberated waveform">
+          <text x="18" y="28" font-weight="700">Pressure over time</text>
+          <text class="muted" x="18" y="50">blue = dry violin-like note, red = same note with echoes</text>
+          <line x1="20" y1="112" x2="540" y2="112" stroke="rgba(22,22,22,0.16)"></line>
+          <path class="wave-path" d="${waveformPath(dry)}" transform="translate(20 38)"></path>
+          <path class="wave-path reverb" d="${waveformPath(wet)}" transform="translate(20 38)"></path>
+          <text class="muted" x="20" y="188">time →</text>
+        </svg>
+      `;
+
+      const stems = impulse.map((item) => {
+        const x = 32 + item.t * 490;
+        const y = 160 - item.h * 110;
+        return `
+          <line class="impulse-stem" x1="${x.toFixed(2)}" y1="160" x2="${x.toFixed(2)}" y2="${y.toFixed(2)}"></line>
+          <circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="5" fill="#2f765f"></circle>
+          <text class="muted" x="${x.toFixed(2)}" y="${(y - 10).toFixed(2)}" text-anchor="middle">${item.label}</text>
+        `;
+      }).join("");
+      document.getElementById("roomImpulse").innerHTML = `
+        <svg viewBox="0 0 560 210" role="img" aria-label="Room impulse response with echoes">
+          <text x="18" y="28" font-weight="700">Room echo recipe</text>
+          <text class="muted" x="18" y="50">one click enters; the room returns quieter delayed copies</text>
+          <line x1="28" y1="160" x2="530" y2="160" stroke="rgba(22,22,22,0.16)"></line>
+          ${stems}
+          <text class="muted" x="28" y="188">delay →</text>
+        </svg>
+      `;
+
+      document.getElementById("musicPipeline").innerHTML = [
+        ["FFT(song)", "turn pressure samples into song frequency coefficients", "hot"],
+        ["FFT(room)", "turn the echo recipe into room frequency coefficients", "hot"],
+        ["multiply bins", "frequency by frequency: S0·R0, S1·R1, S2·R2...", ""],
+        ["inverse FFT", "come back to time pressure: the reverberated song", "hot"]
+      ].map(([title, body, cls]) => `
+        <div class="pipeline-step ${cls}">
+          <strong>${title}</strong>
+          <span>${body}</span>
+        </div>
+      `).join("");
+
+      const costRows = [
+        ["direct convolution", "N²", 100, ""],
+        ["FFT(song)", "N log N", 38, "hot"],
+        ["FFT(room)", "N log N", 38, "hot"],
+        ["bin multiply", "N", 13, ""],
+        ["inverse FFT", "N log N", 38, "hot"]
+      ];
+      document.getElementById("costRoute").innerHTML = costRows.map(([label, value, width, cls]) => `
+        <div class="cost-row ${cls}">
+          <div class="cost-label">${label}</div>
+          <div class="cost-bar"><div class="cost-fill" style="width:${width}%"></div></div>
+          <div class="cost-value">${value}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderConvolutionMatrix() {
+      let html = `<div class="conv-cell head">t\\j</div>`;
+      for (let j = 0; j < 8; j += 1) {
+        html += `<div class="conv-cell head">delay ${j}</div>`;
+      }
+      for (let t = 0; t < 8; t += 1) {
+        html += `<div class="conv-cell head">y${t}</div>`;
+        for (let j = 0; j < 8; j += 1) {
+          const active = j <= t;
+          const hot = t === 5 && active;
+          html += `<div class="conv-cell ${active ? "use" : ""} ${hot ? "hot" : ""}">${active ? "×" : "0"}</div>`;
+        }
+      }
+      document.getElementById("convMatrix").innerHTML = html;
+    }
+
+    function getAudioContext() {
+      const AudioCtor = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtor) return null;
+      if (!window.__fftAudioContext) {
+        window.__fftAudioContext = new AudioCtor();
+      }
+      return window.__fftAudioContext;
+    }
+
+    function makeNoteBuffer(ctx) {
+      const seconds = 1.25;
+      const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * seconds), ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i += 1) {
+        const t = i / ctx.sampleRate;
+        const attack = Math.min(1, t / 0.035);
+        const decay = Math.exp(-1.8 * t);
+        const release = Math.max(0, 1 - Math.max(0, t - 0.92) / 0.33);
+        const env = attack * decay * release;
+        data[i] = env * (
+          0.54 * Math.sin(2 * Math.PI * 220 * t) +
+          0.22 * Math.sin(2 * Math.PI * 440 * t + 0.4) +
+          0.12 * Math.sin(2 * Math.PI * 660 * t + 1.1) +
+          0.06 * Math.sin(2 * Math.PI * 880 * t + 1.8)
+        );
+      }
+      return buffer;
+    }
+
+    function makeReverbImpulse(ctx) {
+      const seconds = 2.4;
+      const buffer = ctx.createBuffer(2, Math.floor(ctx.sampleRate * seconds), ctx.sampleRate);
+      for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+        const data = buffer.getChannelData(channel);
+        for (let i = 0; i < data.length; i += 1) {
+          const t = i / ctx.sampleRate;
+          const decay = Math.pow(1 - t / seconds, 2.2);
+          const shimmer = Math.sin(2 * Math.PI * (channel === 0 ? 13 : 17) * t);
+          data[i] = (Math.random() * 2 - 1 + 0.18 * shimmer) * decay * 0.42;
+        }
+      }
+      return buffer;
+    }
+
+    async function playNote(withReverb) {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      await ctx.resume();
+      const source = ctx.createBufferSource();
+      source.buffer = makeNoteBuffer(ctx);
+      const dryGain = ctx.createGain();
+      dryGain.gain.value = withReverb ? 0.56 : 0.86;
+      source.connect(dryGain).connect(ctx.destination);
+      if (withReverb) {
+        const convolver = ctx.createConvolver();
+        convolver.buffer = makeReverbImpulse(ctx);
+        const wetGain = ctx.createGain();
+        wetGain.gain.value = 0.48;
+        source.connect(convolver).connect(wetGain).connect(ctx.destination);
+      }
+      source.start();
+    }
+
+    function bindAudioButtons() {
+      document.getElementById("playDry").addEventListener("click", () => playNote(false));
+      document.getElementById("playReverb").addEventListener("click", () => playNote(true));
+    }
+
+    function wavePath(k) {
+      const width = 180;
+      const height = 86;
+      const mid = height / 2;
+      const amp = k === 0 ? 0 : 29;
+      const points = [];
+      for (let i = 0; i <= 128; i += 1) {
+        const t = (i / 128) * 8;
+        const x = (i / 128) * width;
+        const y = mid - amp * Math.sin((2 * Math.PI * k * t) / 8);
+        points.push(`${i === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`);
+      }
+      return points.join(" ");
+    }
+
+    function renderWaves() {
+      const waveGrid = document.getElementById("waveGrid");
+      const labels = [
+        "flat average",
+        "1 cycle",
+        "2 cycles",
+        "3 cycles",
+        "4-cycle edge",
+        "-3 partner",
+        "-2 partner",
+        "-1 partner"
+      ];
+
+      waveGrid.innerHTML = coeffs.map((coef, k) => {
+        const active = coef !== "0";
+        return `
+          <article class="wave-card ${active ? "active" : "silent"}">
+            <div class="wave-meta"><strong>X${k}</strong><span>${coef}</span></div>
+            <svg class="wave-svg" viewBox="0 0 180 86" preserveAspectRatio="none" aria-label="basis wave k ${k}">
+              <path d="${wavePath(k)}"></path>
+            </svg>
+            <div class="wave-note">k=${k}: ${labels[k]}${active ? " · active" : " · silent"}</div>
+          </article>
+        `;
+      }).join("");
+
+      const additionStack = document.getElementById("additionStack");
+      const rows = [
+        ["flat", flatLayer],
+        ["sine", sineLayer],
+        ["sum", xs]
+      ];
+      additionStack.innerHTML = rows.map(([name, values]) => `
+        <div class="add-row ${name === "sum" ? "total" : ""}">
+          <div class="add-name">${name}</div>
+          ${values.map((value) => `<div class="add-cell">${value > 0 && name === "sine" ? "+" : ""}${value}</div>`).join("")}
+        </div>
+      `).join("");
+
+      const timeBars = document.getElementById("timeBars");
+      timeBars.innerHTML = `
+        <div class="bar-label">x</div>
+        ${xs.map((value, n) => `
+          <div class="bar">
+            <span>n${n}<br>${value}</span>
+            <div class="bar-fill" style="height:${18 + value * 17}px"></div>
+          </div>
+        `).join("")}
+      `;
+    }
+
+    function renderSlowMatrix() {
+      const tileGrid = document.getElementById("tileGrid");
+      let html = `<div class="tile head">k\\n</div>`;
+      for (let n = 0; n < 8; n += 1) {
+        html += `<div class="tile head">x${n}</div>`;
+      }
+      for (let k = 0; k < 8; k += 1) {
+        html += `<div class="tile head">X${k}</div>`;
+        for (let n = 0; n < 8; n += 1) {
+          html += `<div class="tile work ${k === 2 || k === 6 ? "hot" : ""}">×</div>`;
+        }
+      }
+      tileGrid.innerHTML = html;
+    }
+
+    const twiddleValues = ["1", "√2/2 - i√2/2", "-i", "-√2/2 - i√2/2", "-1", "-√2/2 + i√2/2", "+i", "√2/2 + i√2/2"];
+    const shortTwiddleValues = ["1", "↘", "-i", "↙", "-1", "↖", "+i", "↗"];
+
+    function twiddlePoint(cx, cy, radius, power) {
+      const radians = ((45 * (power % 8)) * Math.PI) / 180;
+      return {
+        x: cx + radius * Math.cos(radians),
+        y: cy + radius * Math.sin(radians)
+      };
+    }
+
+    function renderMiniScore(containerId, title, values, result, colorClass) {
+      const signs = ["+1", "-1", "+1", "-1"];
+      const products = values.map((value, index) => value * (index % 2 === 0 ? 1 : -1));
+      const totalText = products.map((value, index) => `${index === 0 ? "" : value >= 0 ? " + " : " - "}${Math.abs(value)}`).join("");
+      document.getElementById(containerId).innerHTML = `
+        <svg viewBox="0 0 360 170" role="img" aria-label="${title} shared four point score">
+          <text x="14" y="28" font-weight="700">${title}</text>
+          <text x="14" y="50" class="muted">same 4-point turn pattern: [1, -1, 1, -1]</text>
+          <line class="axis" x1="64" y1="92" x2="296" y2="92"></line>
+          <circle class="ring" cx="180" cy="92" r="56"></circle>
+          <circle class="dot ${colorClass}" cx="236" cy="92" r="8"></circle>
+          <circle class="dot ${colorClass}" cx="124" cy="92" r="8"></circle>
+          <text x="236" y="76" text-anchor="middle">+1</text>
+          <text x="124" y="76" text-anchor="middle">-1</text>
+          <text x="180" y="153" text-anchor="middle">${result}</text>
+        </svg>
+        <div class="dot-product">
+          <div class="label">values</div>
+          ${values.map((value) => `<div>${value}</div>`).join("")}
+          <div class="answer">${result}</div>
+          <div class="label">signs</div>
+          ${signs.map((sign) => `<div>${sign}</div>`).join("")}
+          <div class="answer">${totalText}</div>
+        </div>
+      `;
+    }
+
+    function renderScanTable(containerId, rows) {
+      const table = document.getElementById(containerId);
+      table.innerHTML = `
+        <div class="head">n</div>
+        <div class="head">x</div>
+        <div class="head">turn</div>
+        <div class="head">product</div>
+        ${rows.map((row) => `
+          <div class="${row.kind}">${row.n}</div>
+          <div class="${row.kind}">${row.x}</div>
+          <div class="${row.kind}">${row.turn}</div>
+          <div class="${row.kind}">${row.product}</div>
+        `).join("")}
+      `;
+    }
+
+    function renderCircleBasics() {
+      // The old standalone turn circle was removed; the contribution cards now carry this idea.
+    }
+
+    const vectorModes = [
+      { id: "x2", label: "1. Build X2" },
+      { id: "split", label: "2. Split X2" },
+      { id: "x6", label: "3. Build X6" },
+      { id: "reuse", label: "4. Reuse" }
+    ];
+    let currentVectorMode = "x2";
+
+    const vectorColors = ["#2f5f98", "#c95f46", "#2f8f7a", "#7f5aa2", "#d69b2d", "#4f8cc9", "#6a6f3f", "#b74763"];
+    const vectorValues = [3, 5, 3, 1, 3, 5, 3, 1];
+    const x2Angles = [0, 90, 180, 270, 0, 90, 180, 270];
+    const x6Angles = [0, 270, 180, 90, 0, 270, 180, 90];
+    const laneOffsets = [-6, -5, -6, -3, 6, 5, 6, 3];
+
+    const workflowCopy = {
+      x2: "Step 1: Build X2. Each mini-circle is one original time value. The same value can appear at different angles because the angle comes from its time index n, not from the value itself.",
+      split: "Step 2: Split X2 after seeing the full addition. Even arrows cancel to zero. Odd arrows leave a vertical vector of length 8.",
+      x6: "Step 3: Build X6. The same eight values are used, but the odd arrows now point the opposite vertical way, so the final vector flips.",
+      reuse: "Step 4: Reuse. Blue-framed even cards are reused exactly. Red-framed odd cards use the same values and cancellation, then rotate/flip direction to make the paired coefficient."
+    };
+
+    function anglePoint(cx, cy, radius, angleDegrees) {
+      const radians = (angleDegrees * Math.PI) / 180;
+      return {
+        x: cx + radius * Math.cos(radians),
+        y: cy + radius * Math.sin(radians)
+      };
+    }
+
+    function vectorComponent(value, angleDegrees, scale = 1) {
+      const radians = (angleDegrees * Math.PI) / 180;
+      return {
+        dx: value * scale * Math.cos(radians),
+        dy: value * scale * Math.sin(radians)
+      };
+    }
+
+    function arrowVisibility(panel, n) {
+      const kind = n % 2 === 0 ? "even" : "odd";
+      if (currentVectorMode === "x2") return panel === "x2" ? "glow" : "dim";
+      if (currentVectorMode === "x6") return panel === "x6" ? "glow" : "dim";
+      if (currentVectorMode === "split") return panel === "x2" ? (kind === "even" ? "glow" : "") : "dim";
+      if (currentVectorMode === "reuse") return kind === "even" ? "glow" : "";
+      return "";
+    }
+
+    function resultVisibility(panel) {
+      if (currentVectorMode === "x2") return "";
+      if (currentVectorMode === "x6") return "";
+      if (currentVectorMode === "split") return panel === "x2" ? "" : "dim";
+      return "";
+    }
+
+    function markerDefs(targetId) {
+      const colorMarkers = vectorColors.map((color, n) => `
+        <marker id="${targetId}-n${n}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 Z" fill="${color}"></path>
+        </marker>
+      `).join("");
+      return `
+        <defs>
+          ${colorMarkers}
+          <marker id="${targetId}-result-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 Z" fill="#161616"></path>
+          </marker>
+        </defs>
+      `;
+    }
+
+    function compassCardClass(panel, n) {
+      const kind = n % 2 === 0 ? "even" : "odd";
+      if (currentVectorMode === "x2") return panel === "x2" ? "glow" : "";
+      if (currentVectorMode === "x6") return panel === "x6" ? "glow" : "";
+      if (currentVectorMode === "split") return panel === "x2" ? (kind === "even" ? "glow" : "") : "";
+      if (currentVectorMode === "reuse") {
+        if (kind === "even") return "reuse-even";
+        return panel === "x6" ? "reuse-odd rotated" : "reuse-odd";
+      }
+      return "";
+    }
+
+    function reuseTag(panel, n) {
+      if (currentVectorMode !== "reuse") return "";
+      const kind = n % 2 === 0 ? "even" : "odd";
+      if (kind === "even") {
+        return `<div class="reuse-tag even">reused exactly in X2 and X6</div>`;
+      }
+      return `<div class="reuse-tag odd">${panel === "x6" ? "same odd value, rotated/flipped" : "odd value to reuse, then flip"}</div>`;
+    }
+
+    function renderMiniCompass(targetId, n, angle, panel) {
+      const value = vectorValues[n];
+      const color = vectorColors[n];
+      const center = { x: 72, y: 72 };
+      const radius = value * 11;
+      const end = anglePoint(center.x, center.y, radius, angle);
+      const kind = n % 2 === 0 ? "even" : "odd";
+      return `
+        <article class="compass-card ${compassCardClass(panel, n)}">
+          <div class="compass-head">
+            <strong style="color:${color}">n${n}</strong>
+            <span class="compass-kind">${kind}</span>
+          </div>
+          <svg viewBox="0 0 144 144" role="img" aria-label="n${n} value ${value} at ${angle} degrees">
+            <defs>
+              <marker id="${targetId}-mini-${n}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 Z" fill="${color}"></path>
+              </marker>
+            </defs>
+            <line class="mini-axis" x1="14" y1="72" x2="130" y2="72"></line>
+            <line class="mini-axis" x1="72" y1="14" x2="72" y2="130"></line>
+            <circle class="mini-ring" cx="72" cy="72" r="11"></circle>
+            <circle class="mini-ring" cx="72" cy="72" r="33"></circle>
+            <circle class="mini-ring" cx="72" cy="72" r="55"></circle>
+            <text class="muted" x="122" y="69">0°</text>
+            <text class="muted" x="73" y="135" text-anchor="middle">90°</text>
+            <text class="muted" x="17" y="69">180°</text>
+            <text class="muted" x="73" y="15" text-anchor="middle">270°</text>
+            <line class="mini-arrow" x1="72" y1="72" x2="${end.x.toFixed(2)}" y2="${end.y.toFixed(2)}" style="stroke:${color}" marker-end="url(#${targetId}-mini-${n})"></line>
+            <circle cx="72" cy="72" r="3.5" fill="#161616"></circle>
+          </svg>
+          <div class="compass-foot">
+            <span>value x${n} = ${value}</span>
+            <span>angle = ${angle}°</span>
+          </div>
+          ${reuseTag(panel, n)}
+        </article>
+      `;
+    }
+
+    function renderContributionCircle(targetId, config) {
+      const directionText = config.panel === "x2"
+        ? "For X2, n0 and n4 are value 3 at 0°. n2 and n6 are also value 3, but at 180° because their time index is different."
+        : "For X6, the even cards stay the same as X2. The odd cards flip vertically: 90° becomes 270°, and 270° becomes 90°.";
+      document.getElementById(targetId).innerHTML = `
+        <div class="compass-grid">
+          ${config.angles.map((angle, n) => renderMiniCompass(targetId, n, angle, config.panel)).join("")}
+        </div>
+        <div class="compass-result">
+          <strong>${config.resultLabel}</strong><br>
+          ${directionText}
+        </div>
+      `;
+    }
+
+    function renderValueTokens(indices) {
+      return indices.map((n) => `
+        <span class="value-token" style="--c:${vectorColors[n]}">n${n}: ${vectorValues[n]}</span>
+      `).join("");
+    }
+
+    function renderVectorWalk(targetId, config) {
+      const longDirection = config.panel === "x2" ? "down" : "up";
+      const shortDirection = config.panel === "x2" ? "up" : "down";
+      const answer = config.panel === "x2" ? "X2 = -8i" : "X6 = +8i";
+      const answerDirection = config.panel === "x2" ? "net down 8" : "net up 8";
+
+      document.getElementById(targetId).innerHTML = `
+        <div class="component-summary">
+          <div class="component-card">
+            <div class="component-title">
+              <strong>Horizontal part cancels</strong>
+              <span>right 6 and left 6</span>
+            </div>
+            <div class="balance-row">
+              <div class="balance-side">
+                <strong>right-facing arrows</strong>
+                <div class="token-row">${renderValueTokens([0, 4])}</div>
+              </div>
+              <div class="net-badge">0<br>horizontal</div>
+              <div class="balance-side">
+                <strong>left-facing arrows</strong>
+                <div class="token-row">${renderValueTokens([2, 6])}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="component-card hot">
+            <div class="component-title">
+              <strong>Vertical part decides the coefficient</strong>
+              <span>${answerDirection}</span>
+            </div>
+            <div class="balance-row">
+              <div class="balance-side">
+                <strong>${longDirection}-facing arrows</strong>
+                <div class="token-row">${renderValueTokens([1, 5])}</div>
+              </div>
+              <div class="net-badge">${answerDirection}<br>${answer}</div>
+              <div class="balance-side">
+                <strong>${shortDirection}-facing arrows</strong>
+                <div class="token-row">${renderValueTokens([3, 7])}</div>
+              </div>
+            </div>
+            <div class="component-note">
+              We add vectors, not just magnitudes. The two value-5 arrows point one way;
+              the two value-1 arrows point the opposite way, so the remaining vector has length 8.
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderVectorControls() {
+      document.getElementById("vectorControls").innerHTML = vectorModes.map((mode) => `
+        <button type="button" class="vector-mode ${mode.id === currentVectorMode ? "active" : ""}" data-mode="${mode.id}">
+          ${mode.label}
+        </button>
+      `).join("");
+
+      document.querySelectorAll(".vector-mode").forEach((button) => {
+        button.addEventListener("click", () => {
+          currentVectorMode = button.dataset.mode;
+          renderAngleVectorComparison();
+        });
+      });
+    }
+
+    function renderWorkflowSummary() {
+      const cards = {
+        x2: [
+          ["Vector addition", "For X2, we add all eight colored arrows. Horizontals cancel. Two long downward arrows minus two short upward arrows leaves a downward length 8."],
+          ["Not magnitudes", "5 + 5 + 1 + 1 is not the answer. Direction matters. Downward length 10 plus upward length 2 gives net downward 8."],
+          ["Result", "The final vector points down, so X2 is -8i."]
+        ],
+        split: [
+          ["Even node", "n0, n2, n4, n6 are the even arrows. They are right, left, right, left with equal length 3, so they cancel to zero."],
+          ["Odd node", "n1, n3, n5, n7 are the odd arrows. They leave the vertical length 8."],
+          ["Why split?", "FFT saves work by computing these even and odd nodes as smaller reusable pieces."]
+        ],
+        x6: [
+          ["Build X6", "Use the same eight original values, but the odd arrows point the other vertical way."],
+          ["Result", "The long odd arrows now point upward, so X6 becomes +8i."],
+          ["Same addition rule", "Nothing magical changed. We still add directed vectors, so opposite directions cancel."]
+        ],
+        reuse: [
+          ["Reuse the even node", "The even arrows for X2 and X6 are identical, so compute that cancellation once."],
+          ["Reuse the odd node", "The odd arrows have the same lengths and same cancellation size. X6 uses the flipped direction."],
+          ["Heart of N log N", "Two coefficients come from shared smaller work. FFT repeats this sharing at every level."]
+        ]
+      }[currentVectorMode];
+      document.getElementById("workflowSummary").innerHTML = cards.map((card, index) => `
+        <div class="reuse-summary-card ${index === 0 ? "hot" : ""}">
+          <strong>${card[0]}</strong>
+          ${card[1]}
+        </div>
+      `).join("");
+      document.getElementById("workflowNote").textContent = workflowCopy[currentVectorMode];
+    }
+
+    function renderReuseMap() {
+      const cards = vectorValues.map((value, n) => {
+        const same = x2Angles[n] === x6Angles[n];
+        const relation = same ? "same angle" : "flipped angle";
+        const kind = n % 2 === 0 ? "even" : "odd";
+        return `
+          <article class="reuse-map-card ${same ? "same" : "flipped"}" style="--card-color:${vectorColors[n]}">
+            <div class="reuse-map-head">
+              <span>n${n}</span>
+              <span>${kind}, x=${value}</span>
+            </div>
+            <div class="angle-pair">
+              <div class="angle-pill"><strong>X2</strong>${x2Angles[n]}°</div>
+              <div class="angle-pill"><strong>X6</strong>${x6Angles[n]}°</div>
+            </div>
+            <div class="reuse-status">${relation}</div>
+          </article>
+        `;
+      }).join("");
+      document.getElementById("reuseMap").innerHTML = `
+        <h3>Reuse map: compare each time position.</h3>
+        <p>
+          Equal values are not grouped. Each row is one position n. The even positions keep the same
+          angle in X2 and X6. The odd positions flip vertically.
+        </p>
+        <div class="reuse-map-grid">${cards}</div>
+      `;
+    }
+
+    function renderAngleVectorComparison() {
+      renderVectorControls();
+      renderWorkflowSummary();
+      renderReuseMap();
+      renderContributionCircle("x2VectorCircle", {
+        panel: "x2",
+        title: "X2: eight colored contribution arrows",
+        angles: x2Angles,
+        resultAngle: 90,
+        resultMagnitude: 8,
+        resultLabel: "final vector: X2 = -8i"
+      });
+      renderContributionCircle("x6VectorCircle", {
+        panel: "x6",
+        title: "X6: same values, odd arrows flipped",
+        angles: x6Angles,
+        resultAngle: 270,
+        resultMagnitude: 8,
+        resultLabel: "final vector: X6 = +8i"
+      });
+      renderVectorWalk("x2Walk", {
+        panel: "x2",
+        title: "X2 walk",
+        angles: x2Angles,
+        resultAngle: 90,
+        resultMagnitude: 8,
+        walkLabel: "net displacement: down 8"
+      });
+      renderVectorWalk("x6Walk", {
+        panel: "x6",
+        title: "X6 walk",
+        angles: x6Angles,
+        resultAngle: 270,
+        resultMagnitude: 8,
+        walkLabel: "net displacement: up 8"
+      });
+    }
+
+    function renderReuseFlow() {
+      const reuseFlow = document.getElementById("reuseFlow");
+      reuseFlow.innerHTML = `
+        <div class="reuse-flow-grid">
+          <article class="reuse-node even">
+            <h4>Shared even node</h4>
+            <p>These four cards are exactly the same for X2 and X6.</p>
+            <div class="balance-row">
+              <div class="balance-side">
+                <strong>right</strong>
+                <div class="token-row">${renderValueTokens([0, 4])}</div>
+              </div>
+              <div class="net-badge">0</div>
+              <div class="balance-side">
+                <strong>left</strong>
+                <div class="token-row">${renderValueTokens([2, 6])}</div>
+              </div>
+            </div>
+            <div class="share-strip">compute once, reuse for both outputs</div>
+          </article>
+
+          <article class="reuse-node odd">
+            <h4>Shared odd node, then flip</h4>
+            <p>The same odd values create a vertical length 8. X2 uses it downward; X6 uses the flipped upward copy.</p>
+            <div class="balance-row">
+              <div class="balance-side">
+                <strong>large pair</strong>
+                <div class="token-row">${renderValueTokens([1, 5])}</div>
+              </div>
+              <div class="net-badge">8<br>vertical</div>
+              <div class="balance-side">
+                <strong>small pair</strong>
+                <div class="token-row">${renderValueTokens([3, 7])}</div>
+              </div>
+            </div>
+            <div class="share-strip">same size, opposite direction</div>
+          </article>
+
+          <div class="card-pair-grid">
+            ${[0, 2, 4, 6].map((n) => `
+              <article class="card-pair even">
+                <strong>even n${n}: reused exactly</strong>
+                <div class="pair-mini">
+                  <div><strong>X2</strong>${x2Angles[n]}°</div>
+                  <div><strong>X6</strong>${x6Angles[n]}°</div>
+                </div>
+              </article>
+            `).join("")}
+            ${[1, 3, 5, 7].map((n) => `
+              <article class="card-pair odd">
+                <strong>odd n${n}: same value, flipped</strong>
+                <div class="pair-mini">
+                  <div><strong>X2</strong>${x2Angles[n]}°</div>
+                  <div><strong>X6</strong>${x6Angles[n]}°</div>
+                </div>
+              </article>
+            `).join("")}
+          </div>
+
+          <div class="reuse-output-row">
+            <article class="reuse-output">
+              <h4>Output one: X2</h4>
+              <div class="output-equation">
+                <div class="output-piece">even node<br><strong>0</strong></div>
+                <span>+</span>
+                <div class="output-piece flipped">odd node<br><strong>8 down</strong></div>
+                <div class="output-answer">X2 = -8i</div>
+              </div>
+            </article>
+            <article class="reuse-output">
+              <h4>Output two: X6</h4>
+              <div class="output-equation">
+                <div class="output-piece">same even node<br><strong>0</strong></div>
+                <span>+</span>
+                <div class="output-piece flipped">same odd node<br><strong>8 up</strong></div>
+                <div class="output-answer">X6 = +8i</div>
+              </div>
+            </article>
+          </div>
+
+          <div class="reuse-flow-note">
+            This is the reuse: one even summary and one odd summary make two coefficients.
+            FFT repeats this paired reuse at every split level instead of recomputing every row from scratch.
+          </div>
+        </div>
+      `;
+    }
+
+    function renderLayerVisual() {
+      const layers = [
+        { label: "start", note: "one 8-value problem", groups: [[0, 1, 2, 3, 4, 5, 6, 7]] },
+        { label: "split 1", note: "two 4-value groups", groups: [[0, 2, 4, 6], [1, 3, 5, 7]] },
+        { label: "split 2", note: "four 2-value groups", groups: [[0, 4], [2, 6], [1, 5], [3, 7]] },
+        { label: "split 3", note: "eight 1-value groups", groups: [[0], [4], [2], [6], [1], [5], [3], [7]] }
+      ];
+
+      document.getElementById("layerVisual").innerHTML = layers.map((layer, level) => {
+        const cols = layer.groups.length;
+        return `
+          <div class="layer-row">
+            <div class="layer-label">
+              <strong>Level ${level}</strong><br>
+              ${layer.label}
+            </div>
+            <div class="layer-blocks cols-${cols}">
+              ${layer.groups.map((group) => `
+                <div class="layer-block">
+                  <strong>size ${group.length}</strong>
+                  <div class="mini-values">
+                    ${group.map((n) => `<span class="mini-value">x${n}</span>`).join("")}
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+            <div class="layer-cost">
+              ${layer.note}<br>
+              still 8 values total
+            </div>
+          </div>
+        `;
+      }).join("") + `
+        <div class="layer-punch">
+          There are 3 split levels because 8 can be halved three times: 8 → 4 → 2 → 1.
+          Each level touches all 8 values once in small reusable groups. That is why the shape is
+          8 work per level × 3 levels, or N × log₂(N).
+        </div>
+      `;
+    }
+
+    const pairData = [
+      {
+        k: 0,
+        mate: 4,
+        e: "12",
+        o: "12",
+        w: "1",
+        mateW: "-1",
+        left: "24",
+        right: "0",
+        angle: 0,
+        mateAngle: 180,
+        leftFormula: "X0 = 12 + 1·12 = 24",
+        rightFormula: "X4 = 12 - 1·12 = 0",
+        punchline: "X0 and X4 reuse E0 and O0. The second output flips the odd contribution."
+      },
+      {
+        k: 1,
+        mate: 5,
+        e: "0",
+        o: "0",
+        w: "√2/2 - i√2/2",
+        mateW: "-√2/2 + i√2/2",
+        left: "0",
+        right: "0",
+        angle: -45,
+        mateAngle: 135,
+        leftFormula: "X1 = 0 + W8¹·0 = 0",
+        rightFormula: "X5 = 0 - W8¹·0 = 0",
+        punchline: "X1 and X5 still share E1 and O1. They are both zero here, but the reuse pattern is the same."
+      },
+      {
+        k: 2,
+        mate: 6,
+        e: "0",
+        o: "8",
+        w: "-i",
+        mateW: "+i",
+        left: "-8i",
+        right: "8i",
+        angle: -90,
+        mateAngle: 90,
+        leftFormula: "X2 = 0 + (-i)·8 = -8i",
+        rightFormula: "X6 = 0 - (-i)·8 = 8i",
+        punchline: "This is the key reuse: X2 and X6 do not compute separate even/odd scans. They share E2 = 0 and O2 = 8, then only the sign changes."
+      },
+      {
+        k: 3,
+        mate: 7,
+        e: "0",
+        o: "0",
+        w: "-√2/2 - i√2/2",
+        mateW: "√2/2 + i√2/2",
+        left: "0",
+        right: "0",
+        angle: -135,
+        mateAngle: 45,
+        leftFormula: "X3 = 0 + W8³·0 = 0",
+        rightFormula: "X7 = 0 - W8³·0 = 0",
+        punchline: "X3 and X7 reuse E3 and O3. The pair structure is fixed even when the values cancel."
+      }
+    ];
+
+    let currentPair = 2;
+
+    function polarPoint(cx, cy, radius, angleDegrees) {
+      const radians = (angleDegrees * Math.PI) / 180;
+      return {
+        x: cx + radius * Math.cos(radians),
+        y: cy + radius * Math.sin(radians)
+      };
+    }
+
+    function renderReuseCircle(pair) {
+      const cx = 180;
+      const cy = 170;
+      const r = 104;
+      const pointMarkup = Array.from({ length: 8 }, (_, j) => {
+        const p = twiddlePoint(cx, cy, r, j);
+        const label = twiddlePoint(cx, cy, r + 30, j);
+        const cls = j === pair.k ? "active-a" : j === pair.mate ? "active-b" : "";
+        return `
+          <circle class="point ${cls}" cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="7"></circle>
+          <text class="muted" x="${label.x.toFixed(2)}" y="${(label.y - 5).toFixed(2)}" text-anchor="middle" dominant-baseline="middle">W8^${j}</text>
+          <text class="muted" x="${label.x.toFixed(2)}" y="${(label.y + 10).toFixed(2)}" text-anchor="middle" dominant-baseline="middle">${shortTwiddleValues[j]}</text>
+        `;
+      }).join("");
+
+      const a = twiddlePoint(cx, cy, r - 10, pair.k);
+      const b = twiddlePoint(cx, cy, r - 10, pair.mate);
+      document.getElementById("reuseCircle").innerHTML = `
+        <svg viewBox="0 0 360 390" role="img" aria-label="Circle showing W8 powers for X${pair.k} and X${pair.mate}">
+          <circle class="ring" cx="${cx}" cy="${cy}" r="${r}"></circle>
+          <line x1="${cx}" y1="${cy}" x2="${a.x.toFixed(2)}" y2="${a.y.toFixed(2)}" class="ray-a"></line>
+          <line x1="${cx}" y1="${cy}" x2="${b.x.toFixed(2)}" y2="${b.y.toFixed(2)}" class="ray-b"></line>
+          ${pointMarkup}
+          <circle cx="${cx}" cy="${cy}" r="4" fill="#161616"></circle>
+          <text x="18" y="30" font-weight="700">Selected pair: X${pair.k} and X${pair.mate}</text>
+          <text x="18" y="55" class="muted">Same E${pair.k}; same O${pair.k}; opposite outside turns.</text>
+          <text x="18" y="335">W8^${pair.k} = ${pair.w}</text>
+          <text x="18" y="360">W8^${pair.mate} = ${pair.mateW} = -W8^${pair.k}</text>
+        </svg>
+      `;
+    }
+
+    function renderPairLab() {
+      const pairTabs = document.getElementById("pairTabs");
+      pairTabs.innerHTML = pairData.map((pair, index) => `
+        <button type="button" class="pair-tab ${index === currentPair ? "active" : ""}" data-pair="${index}">
+          k=${pair.k}: X${pair.k} ↔ X${pair.mate}
+        </button>
+      `).join("");
+
+      const pair = pairData[currentPair];
+      renderReuseCircle(pair);
+      document.getElementById("sharedTitle").textContent = `Shared tray for k = ${pair.k}`;
+      document.getElementById("sharedE").textContent = `E${pair.k} = ${pair.e}`;
+      document.getElementById("sharedO").textContent = `O${pair.k} = ${pair.o}`;
+      document.getElementById("leftOutput").innerHTML = `
+        <strong>X${pair.k} = ${pair.left}</strong>
+        <div class="formula">X${pair.k} = E${pair.k} + W8^${pair.k} O${pair.k}</div>
+        <div class="formula">${pair.leftFormula}</div>
+      `;
+      document.getElementById("rightOutput").innerHTML = `
+        <strong>X${pair.mate} = ${pair.right}</strong>
+        <div class="formula">X${pair.mate} = E${pair.k} - W8^${pair.k} O${pair.k}</div>
+        <div class="formula">${pair.rightFormula}</div>
+      `;
+      document.getElementById("reusePunchline").innerHTML = `
+        ${pair.punchline}<br>
+        Same E${pair.k}. Same O${pair.k}. Two outputs from one shared butterfly.
+      `;
+
+      document.querySelectorAll(".pair-tab").forEach((button) => {
+        button.addEventListener("click", () => {
+          currentPair = Number(button.dataset.pair);
+          renderPairLab();
+        });
+      });
+    }
+
+    const stages = [
+      {
+        title: "Base case: DFT1",
+        body: "A one-number DFT is already finished. It has no even/odd pair to split.",
+        formula: "DFT1([a]) = [a]",
+        rule: "No butterfly yet. The butterfly starts when two DFT1 answers combine into DFT2."
+      },
+      {
+        title: "Build four DFT2 results",
+        body: "Use the butterfly with N = 2. Here W2^0 = 1.",
+        formula: "[3,3] -> [6,0], [3,3] -> [6,0], [5,5] -> [10,0], [1,1] -> [2,0]",
+        rule: "Xk = Ek + WN^k Ok    and    Xk+N/2 = Ek - WN^k Ok"
+      },
+      {
+        title: "Build the even DFT4",
+        body: "Combine E = [6,0] and O = [6,0] with W4^0 = 1 and W4^1 = -i.",
+        formula: "DFT4([3,3,3,3]) = [12,0,0,0]",
+        rule: "Xk = Ek + WN^k Ok    and    Xk+N/2 = Ek - WN^k Ok"
+      },
+      {
+        title: "Build the odd DFT4",
+        body: "Combine E = [10,0] and O = [2,0] with the same N = 4 rule.",
+        formula: "DFT4([5,1,5,1]) = [12,0,8,0]",
+        rule: "Xk = Ek + WN^k Ok    and    Xk+N/2 = Ek - WN^k Ok"
+      },
+      {
+        title: "Build the final DFT8",
+        body: "Combine E = [12,0,0,0] and O = [12,0,8,0].",
+        formula: "DFT8 = [24,0,-8i,0,0,0,8i,0]",
+        rule: "Xk = Ek + WN^k Ok    and    Xk+N/2 = Ek - WN^k Ok"
+      }
+    ];
+
+    let currentStage = 0;
+    const stageList = document.getElementById("stageList");
+    const stagePanel = document.getElementById("stagePanel");
+    const prevStep = document.getElementById("prevStep");
+    const nextStep = document.getElementById("nextStep");
+
+    function renderStages() {
+      stageList.innerHTML = stages.map((stage, index) => `
+        <button class="stage-item ${index === currentStage ? "active" : ""}" type="button" data-index="${index}">
+          ${index + 1}. ${stage.title}
+        </button>
+      `).join("");
+
+      const stage = stages[currentStage];
+      stagePanel.innerHTML = `
+        <div class="fade-in">
+          <h3>${stage.title}</h3>
+          <p>${stage.body}</p>
+          <div class="equation">${stage.formula}</div>
+          <div class="equation" style="margin-top:12px;">${stage.rule}</div>
+        </div>
+      `;
+
+      document.querySelectorAll(".stage-item").forEach((button) => {
+        button.addEventListener("click", () => {
+          currentStage = Number(button.dataset.index);
+          renderStages();
+        });
+      });
+    }
+
+    if (prevStep && nextStep) {
+      prevStep.addEventListener("click", () => {
+        currentStage = (currentStage - 1 + stages.length) % stages.length;
+        renderStages();
+      });
+
+      nextStep.addEventListener("click", () => {
+        currentStage = (currentStage + 1) % stages.length;
+        renderStages();
+      });
+    }
+
+    renderWaves();
+    renderMusicVisuals();
+    renderConvolutionMatrix();
+    renderSlowMatrix();
+    renderCircleBasics();
+    renderAngleVectorComparison();
+    renderReuseFlow();
+    renderLayerVisual();
+    bindAudioButtons();
+  </script>
+</body>
+</html>
