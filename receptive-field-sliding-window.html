@@ -1,0 +1,911 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sliding Window Attention: Receptive Field by Layer Stacking</title>
+  <style>
+    :root {
+      --ink: #171615;
+      --muted: #66615b;
+      --paper: #fbfaf7;
+      --line: #ded8cf;
+      --soft: #f0ebe3;
+      --blue: #315d8d;
+      --green: #2f765f;
+      --red: #9a4a3c;
+      --gold: #92742f;
+      --purple: #745097;
+      --shadow: 0 18px 45px rgba(30, 28, 25, 0.09);
+      --font: "Victory", "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+      --mono: "Victory", "Victor Mono", "SFMono-Regular", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(22, 22, 22, 0.035) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(22, 22, 22, 0.03) 1px, transparent 1px),
+        var(--paper);
+      background-size: 28px 28px;
+      font-family: var(--font);
+      letter-spacing: 0;
+    }
+
+    .shell {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 26px 0 72px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 0;
+      background: rgba(251, 250, 247, 0.9);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid rgba(222, 216, 207, 0.72);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      font-weight: 780;
+    }
+
+    .mark {
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--ink);
+      display: grid;
+      place-items: center;
+      background: var(--paper);
+      box-shadow: 4px 4px 0 var(--ink);
+      flex: 0 0 auto;
+    }
+
+    .nav {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .nav a {
+      color: var(--muted);
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.56);
+      padding: 8px 10px;
+      text-decoration: none;
+      font-size: 13px;
+    }
+
+    .nav a:hover {
+      color: var(--ink);
+      border-color: var(--ink);
+    }
+
+    .hero {
+      min-height: min(680px, calc(100vh - 96px));
+      padding: 60px 0 36px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(340px, 0.74fr);
+      gap: 26px;
+      align-items: end;
+    }
+
+    .section-label {
+      color: var(--gold);
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 760;
+      text-transform: uppercase;
+      letter-spacing: 0;
+      margin-bottom: 10px;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 820px;
+      font-size: clamp(44px, 6vw, 82px);
+      line-height: 0.95;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 18px;
+      font-size: clamp(30px, 3.2vw, 46px);
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      line-height: 1.18;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.62;
+    }
+
+    .lead {
+      max-width: 780px;
+      margin-top: 22px;
+      font-size: 20px;
+      color: #3d3a36;
+    }
+
+    .truth {
+      border: 1px solid var(--ink);
+      background: #fff;
+      box-shadow: var(--shadow);
+      padding: 20px;
+    }
+
+    .equation {
+      font-family: var(--mono);
+      background: #fff;
+      border: 1px solid var(--line);
+      padding: 14px 16px;
+      overflow-x: auto;
+      white-space: nowrap;
+      line-height: 1.5;
+      color: #24211e;
+    }
+
+    .equation.big {
+      border-color: var(--ink);
+      box-shadow: 5px 5px 0 var(--ink);
+      font-size: 18px;
+    }
+
+    .section {
+      margin-top: 52px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+      scroll-margin-top: 112px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(340px, 1.1fr);
+      gap: 24px;
+      align-items: start;
+    }
+
+    .band {
+      background: rgba(255, 255, 255, 0.64);
+      border: 1px solid var(--line);
+      padding: 22px;
+    }
+
+    .note {
+      color: var(--ink);
+      font-size: 15px;
+      background: #e7f0ed;
+      border-left: 4px solid var(--green);
+      padding: 14px 16px;
+      margin-top: 16px;
+    }
+
+    .sentence {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 7px;
+      margin-top: 16px;
+    }
+
+    .token {
+      min-height: 72px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 8px 6px;
+      display: grid;
+      align-content: center;
+      gap: 5px;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    .token strong {
+      display: block;
+      color: var(--ink);
+      font-size: 14px;
+      overflow-wrap: anywhere;
+    }
+
+    .token.target {
+      border-color: var(--ink);
+      box-shadow: 3px 3px 0 var(--ink);
+      background: #fff8e6;
+    }
+
+    .window-demo {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
+      font-family: var(--mono);
+    }
+
+    .window-row {
+      display: grid;
+      grid-template-columns: 130px minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+    }
+
+    .window-label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .mini-tokens {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .mini-token {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 8px 9px;
+      font-size: 13px;
+    }
+
+    .mini-token.hot {
+      border-color: var(--purple);
+      background: rgba(116, 80, 151, 0.13);
+      color: #39224f;
+      font-weight: 760;
+    }
+
+    .lab {
+      background: #fff;
+      border: 1px solid var(--ink);
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin: 16px 0 18px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid var(--ink);
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 9px 11px;
+      cursor: pointer;
+    }
+
+    button:hover,
+    button.active {
+      background: var(--ink);
+      color: #fff;
+    }
+
+    .explain-card {
+      border: 1px solid var(--line);
+      background: #e7f0ed;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+      font-family: var(--mono);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .stack-wrap {
+      position: relative;
+      overflow-x: auto;
+      padding: 10px 6px 6px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+    }
+
+    .stack {
+      position: relative;
+      min-width: 920px;
+      display: grid;
+      grid-template-columns: 112px repeat(12, 1fr);
+      gap: 12px 8px;
+      align-items: center;
+      padding: 12px;
+    }
+
+    .edge-layer {
+      position: absolute;
+      inset: 12px;
+      width: calc(100% - 24px);
+      height: calc(100% - 24px);
+      pointer-events: none;
+      overflow: visible;
+    }
+
+    .layer-name {
+      font-family: var(--mono);
+      color: var(--muted);
+      font-size: 13px;
+      text-align: right;
+      padding-right: 8px;
+    }
+
+    .node {
+      width: 44px;
+      height: 44px;
+      border-radius: 999px;
+      border: 1px solid #8d8881;
+      background: #fff;
+      display: grid;
+      place-items: center;
+      justify-self: center;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--muted);
+      position: relative;
+      z-index: 2;
+    }
+
+    .node.input {
+      border-radius: 8px;
+      width: 66px;
+      height: 52px;
+      align-content: center;
+      gap: 2px;
+      padding: 4px;
+      font-size: 11px;
+      line-height: 1.1;
+    }
+
+    .node.input strong {
+      color: var(--ink);
+      font-size: 11px;
+    }
+
+    .node.active {
+      border-color: var(--purple);
+      background: rgba(116, 80, 151, 0.18);
+      color: #38204f;
+      box-shadow: 0 0 0 3px rgba(116, 80, 151, 0.12);
+      font-weight: 760;
+    }
+
+    .node.target {
+      border-color: var(--ink);
+      background: #fff3cc;
+      color: var(--ink);
+      box-shadow: 3px 3px 0 var(--ink);
+    }
+
+    .node.relay {
+      border-color: var(--green);
+      background: rgba(47, 118, 95, 0.16);
+      color: #244d40;
+      font-weight: 760;
+    }
+
+    .edge {
+      stroke: rgba(116, 80, 151, 0.42);
+      stroke-width: 1.4;
+      fill: none;
+    }
+
+    .edge.hot {
+      stroke: var(--purple);
+      stroke-width: 2.8;
+    }
+
+    .edge.relay {
+      stroke: var(--green);
+      stroke-width: 3.2;
+    }
+
+    .reach-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .reach-card {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 14px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .reach-card strong {
+      display: block;
+      font-size: 17px;
+      margin-bottom: 5px;
+      color: var(--ink);
+    }
+
+    .reach-card.hot {
+      border-color: var(--ink);
+      box-shadow: 3px 3px 0 var(--ink);
+    }
+
+    .path {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+      font-family: var(--mono);
+    }
+
+    .path-step {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 13px;
+      min-height: 122px;
+      display: grid;
+      align-content: start;
+      gap: 7px;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .path-step.hot {
+      border-color: var(--green);
+      background: rgba(47, 118, 95, 0.08);
+      box-shadow: 3px 3px 0 rgba(47, 118, 95, 0.65);
+    }
+
+    .path-step strong {
+      font-size: 15px;
+      color: var(--ink);
+    }
+
+    .memory-grid {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .slot {
+      min-height: 88px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 10px;
+      display: grid;
+      align-content: center;
+      gap: 6px;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    .slot.hot {
+      border-color: var(--red);
+      background: rgba(154, 74, 60, 0.1);
+      box-shadow: 3px 3px 0 rgba(154, 74, 60, 0.6);
+    }
+
+    .slot strong {
+      font-size: 17px;
+      color: var(--ink);
+    }
+
+    @media (max-width: 900px) {
+      .hero,
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+
+      .controls,
+      .reach-summary,
+      .path {
+        grid-template-columns: 1fr;
+      }
+
+      .sentence {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .memory-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .nav {
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .sentence,
+      .memory-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .window-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">SW</div>
+        <span>Sliding Window Receptive Fields</span>
+      </div>
+      <nav class="nav" aria-label="Page sections">
+        <a href="#sentence">Sentence</a>
+        <a href="#window">Window</a>
+        <a href="#stack">Stacking</a>
+        <a href="#relay">Relay</a>
+        <a href="#buffer">Buffer</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <div class="section-label">Receptive field tracking</div>
+          <h1>How a small sliding window sees farther after three transformer layers.</h1>
+          <p class="lead">
+            Sliding window attention sounds like the model is trapped inside a tiny local neighborhood.
+            But stacked transformer layers create relay paths: token 12 can receive information from
+            farther tokens through intermediate tokens in lower layers.
+          </p>
+        </div>
+        <aside class="truth">
+          <div class="section-label">One sentence anchor</div>
+          <p>
+            We will follow the final token <strong>“chapel”</strong>. At one layer it only reads nearby
+            words. By layer three, older words like <strong>“violinist”</strong> can influence it indirectly.
+          </p>
+          <div class="equation" style="margin-top:14px;">window W = 4 · layers L = 3</div>
+          <p class="note">
+            Exact count depends on convention. Here W = 4 means “current token plus previous 3,”
+            so the exact reachable span is 4 → 7 → 10. Many diagrams summarize the idea as about W × L.
+          </p>
+        </aside>
+      </section>
+
+      <section id="sentence" class="section">
+        <div class="section-label">1. The sentence</div>
+        <h2>We track what can influence the last word.</h2>
+        <p>
+          Here are 12 tokens. The target is token 12, <strong>chapel</strong>. In a normal causal transformer,
+          token 12 could directly attend to every earlier token. In sliding window attention, it can directly
+          attend only to the local window.
+        </p>
+        <div class="sentence" id="sentenceTokens" aria-label="Sentence tokens"></div>
+      </section>
+
+      <section id="window" class="section">
+        <div class="section-label">2. One layer</div>
+        <h2>A sliding window is a local reading rule.</h2>
+        <div class="grid-2">
+          <div class="band">
+            <p>
+              At any layer, each token reads only a small group near itself. With W = 4, token 12 reads:
+              token 9, token 10, token 11, and token 12.
+            </p>
+            <p class="note">
+              This is not the circular buffer yet. This is the attention rule: “do not look farther back
+              than the last W tokens.” The circular buffer is one efficient way an inference engine stores
+              only those recent KV slots.
+            </p>
+          </div>
+          <div class="lab">
+            <h3>Layer 1 direct view for token 12</h3>
+            <div class="window-demo" id="windowDemo"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="stack" class="section">
+        <div class="section-label">3. Layer stacking</div>
+        <h2>Layer 3 does not read old tokens directly. It reads summaries that already contain old tokens.</h2>
+        <div class="lab">
+          <div class="controls" id="layerControls" aria-label="Layer controls"></div>
+          <div class="explain-card" id="layerExplanation"></div>
+          <div class="stack-wrap">
+            <div class="stack" id="stackDiagram" aria-label="Transformer receptive field stack"></div>
+          </div>
+          <div class="reach-summary" id="reachSummary"></div>
+        </div>
+      </section>
+
+      <section id="relay" class="section">
+        <div class="section-label">4. The relay path</div>
+        <h2>Far information moves through nearby tokens.</h2>
+        <div class="grid-2">
+          <div class="band">
+            <p>
+              Token 12 at layer 3 does not directly draw an attention edge to token 3. Instead,
+              it can read token 9 at layer 2. Token 9 at layer 2 can read token 6 at layer 1.
+              Token 6 at layer 1 can read token 3 from the input.
+            </p>
+            <p class="note">
+              That chain is receptive field growth. Each layer adds another local hop. The model gets
+              farther context without each individual layer needing full attention.
+            </p>
+          </div>
+          <div class="lab">
+            <h3>One possible route from “violinist” to “chapel”</h3>
+            <div class="path" id="relayPath"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="buffer" class="section">
+        <div class="section-label">5. Attention rule vs implementation</div>
+        <h2>The circular buffer is the KV-cache storage trick, not the whole mathematical idea.</h2>
+        <div class="grid-2">
+          <div class="band">
+            <p>
+              Sliding window attention is the model rule: each token attends only to a recent window.
+              During inference, a serving engine can exploit that rule by storing K and V vectors in a
+              fixed-size circular buffer.
+            </p>
+            <div class="equation big" style="margin-top:16px;">slot = token_position mod W</div>
+            <p class="note">
+              The slot number is storage only. The true token position is still needed for causal masks
+              and positional encodings such as RoPE.
+            </p>
+          </div>
+          <div class="lab">
+            <h3>Example: W = 8 cache slots</h3>
+            <div class="memory-grid" id="memoryGrid"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const words = ["The", "patient", "violinist", "played", "a", "haunting", "melody", "inside", "the", "old", "stone", "chapel"];
+    const W = 4;
+    const target = 12;
+    let activeLayer = 3;
+
+    function receptiveStart(layer) {
+      return Math.max(1, target - (W - 1) * layer);
+    }
+
+    function visibleRangeForLayer(layer) {
+      const start = receptiveStart(layer);
+      return Array.from({ length: target - start + 1 }, (_, index) => start + index);
+    }
+
+    function directWindow(token) {
+      const start = Math.max(1, token - W + 1);
+      return Array.from({ length: token - start + 1 }, (_, index) => start + index);
+    }
+
+    function renderSentence() {
+      document.getElementById("sentenceTokens").innerHTML = words.map((word, index) => {
+        const n = index + 1;
+        return `
+          <div class="token ${n === target ? "target" : ""}">
+            <span>${n}</span>
+            <strong>${word}</strong>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderWindowDemo() {
+      const windowTokens = directWindow(target);
+      document.getElementById("windowDemo").innerHTML = `
+        <div class="window-row">
+          <div class="window-label">target</div>
+          <div class="mini-tokens"><span class="mini-token hot">12 · chapel</span></div>
+        </div>
+        <div class="window-row">
+          <div class="window-label">can read</div>
+          <div class="mini-tokens">
+            ${windowTokens.map((n) => `<span class="mini-token hot">${n} · ${words[n - 1]}</span>`).join("")}
+          </div>
+        </div>
+        <div class="window-row">
+          <div class="window-label">cannot directly read</div>
+          <div class="mini-tokens">
+            ${Array.from({ length: 8 }, (_, i) => i + 1).map((n) => `<span class="mini-token">${n} · ${words[n - 1]}</span>`).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    function nodeClass(layer, n) {
+      const visible = visibleRangeForLayer(activeLayer);
+      const active = layer === 0 ? visible.includes(n) : layer <= activeLayer && visible.includes(n);
+      const isTarget = layer === activeLayer && n === target;
+      const isRelay = (layer === 0 && n === 3) || (layer === 1 && n === 6) || (layer === 2 && n === 9) || (layer === 3 && n === 12);
+      return [
+        "node",
+        layer === 0 ? "input" : "",
+        active ? "active" : "",
+        isTarget ? "target" : "",
+        activeLayer === 3 && isRelay ? "relay" : ""
+      ].filter(Boolean).join(" ");
+    }
+
+    function renderStack() {
+      const rows = [
+        { layer: 3, label: "Layer 3 output" },
+        { layer: 2, label: "Layer 2" },
+        { layer: 1, label: "Layer 1" },
+        { layer: 0, label: "Input tokens" }
+      ];
+
+      const html = [
+        `<svg class="edge-layer" viewBox="0 0 1032 360" preserveAspectRatio="none" aria-hidden="true">${edgeMarkup()}</svg>`,
+        ...rows.flatMap((row) => [
+          `<div class="layer-name">${row.label}</div>`,
+          ...words.map((word, index) => {
+            const n = index + 1;
+            const label = row.layer === 0 ? `<strong>${n}</strong>${word}` : n;
+            return `<div class="${nodeClass(row.layer, n)}" data-layer="${row.layer}" data-token="${n}">${label}</div>`;
+          })
+        ])
+      ].join("");
+
+      document.getElementById("stackDiagram").innerHTML = html;
+    }
+
+    function edgePoint(layer, token) {
+      const colW = 920 / 12;
+      const x = 112 + (token - 0.5) * colW;
+      const layerToRow = { 3: 0, 2: 1, 1: 2, 0: 3 };
+      const y = 34 + layerToRow[layer] * 88;
+      return { x, y };
+    }
+
+    function edgeLine(fromLayer, fromToken, toLayer, toToken, cls = "") {
+      const a = edgePoint(fromLayer, fromToken);
+      const b = edgePoint(toLayer, toToken);
+      return `<line class="edge ${cls}" x1="${a.x.toFixed(2)}" y1="${a.y.toFixed(2)}" x2="${b.x.toFixed(2)}" y2="${b.y.toFixed(2)}"></line>`;
+    }
+
+    function edgeMarkup() {
+      const lines = [];
+      for (let layer = 1; layer <= activeLayer; layer += 1) {
+        const upperTokens = layer === activeLayer ? [target] : visibleRangeForLayer(activeLayer).filter((n) => n >= receptiveStart(activeLayer - layer + 1));
+        upperTokens.forEach((n) => {
+          directWindow(n).forEach((m) => {
+            if (m <= target && visibleRangeForLayer(activeLayer).includes(m)) {
+              lines.push(edgeLine(layer, n, layer - 1, m, layer === activeLayer && n === target ? "hot" : ""));
+            }
+          });
+        });
+      }
+      if (activeLayer === 3) {
+        lines.push(edgeLine(3, 12, 2, 9, "relay"));
+        lines.push(edgeLine(2, 9, 1, 6, "relay"));
+        lines.push(edgeLine(1, 6, 0, 3, "relay"));
+      }
+      return lines.join("");
+    }
+
+    function renderControls() {
+      const modes = [
+        { layer: 1, label: "Layer 1" },
+        { layer: 2, label: "Layer 2" },
+        { layer: 3, label: "Layer 3" },
+        { layer: 0, label: "Direct full attention" }
+      ];
+      document.getElementById("layerControls").innerHTML = modes.map((mode) => `
+        <button type="button" class="${mode.layer === activeLayer ? "active" : ""}" data-layer="${mode.layer}" onclick="setActiveLayer(${mode.layer})">
+          ${mode.label}
+        </button>
+      `).join("");
+    }
+
+    function setActiveLayer(layer) {
+      activeLayer = Number(layer);
+      renderInteractive();
+    }
+
+    function renderExplanation() {
+      const text = {
+        0: "Full attention baseline: token 12 could directly attend to all previous tokens. Sliding window attention removes this direct long-range edge.",
+        1: "Layer 1: token 12 can directly read only tokens 9-12. Its receptive field is local.",
+        2: "Layer 2: token 12 reads layer-1 summaries from tokens 9-12. Those summaries already contain tokens 6-12, so the effective field grows.",
+        3: "Layer 3: token 12 reads layer-2 summaries from tokens 9-12. Those summaries can carry information from tokens 3-12."
+      }[activeLayer];
+      document.getElementById("layerExplanation").textContent = text;
+    }
+
+    function renderReachSummary() {
+      const layer = activeLayer || 1;
+      const exact = activeLayer === 0 ? 12 : visibleRangeForLayer(activeLayer).length;
+      const range = activeLayer === 0 ? "1-12" : `${receptiveStart(activeLayer)}-12`;
+      const approx = activeLayer === 0 ? "full" : `about W × L = ${W * activeLayer}`;
+      document.getElementById("reachSummary").innerHTML = `
+        <div class="reach-card hot">
+          <strong>reachable inputs</strong>
+          tokens ${range}
+        </div>
+        <div class="reach-card">
+          <strong>exact count here</strong>
+          ${activeLayer === 0 ? "12 tokens" : `${exact} tokens, because W includes the current token`}
+        </div>
+        <div class="reach-card">
+          <strong>diagram shorthand</strong>
+          ${approx}
+        </div>
+      `;
+    }
+
+    function renderInteractive() {
+      renderControls();
+      renderExplanation();
+      renderStack();
+      renderReachSummary();
+    }
+
+    function renderRelayPath() {
+      const steps = [
+        ["input token 3", "violinist", "A far word starts outside token 12's direct window."],
+        ["layer 1 token 6", "haunting", "Token 6 can read token 3 because token 3 is inside token 6's local window."],
+        ["layer 2 token 9", "the", "Token 9 can read token 6's layer-1 summary."],
+        ["layer 3 token 12", "chapel", "Token 12 can read token 9's layer-2 summary."]
+      ];
+      document.getElementById("relayPath").innerHTML = steps.map((step, index) => `
+        <div class="path-step ${index === 3 ? "hot" : ""}">
+          <strong>${step[0]}</strong>
+          <span>${step[1]}</span>
+          <span>${step[2]}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderMemoryGrid() {
+      const slots = Array.from({ length: 8 }, (_, slot) => {
+        const token = slot + 9;
+        const overwritten = slot < 4 ? `token ${slot + 1} was overwritten` : `token ${slot + 1} was overwritten earlier`;
+        return `
+          <div class="slot ${slot === 4 ? "hot" : ""}">
+            <span>slot ${slot}</span>
+            <strong>token ${token}</strong>
+            <span>${overwritten}</span>
+          </div>
+        `;
+      });
+      document.getElementById("memoryGrid").innerHTML = slots.join("");
+    }
+
+    renderSentence();
+    renderWindowDemo();
+    renderInteractive();
+    renderRelayPath();
+    renderMemoryGrid();
+  </script>
+</body>
+</html>
