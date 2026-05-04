@@ -384,6 +384,29 @@
       box-shadow: 0 -18px 0 rgba(22, 22, 22, 0.08);
     }
 
+    .thumb.heart:before {
+      content: "♥";
+      width: auto;
+      height: auto;
+      inset: 18px;
+      display: grid;
+      place-items: center;
+      border: 0;
+      background: rgba(154, 74, 60, 0.1);
+      color: var(--red);
+      font-size: 68px;
+      line-height: 1;
+    }
+
+    .thumb.heart:after {
+      width: 74%;
+      height: 10px;
+      left: 13%;
+      bottom: 20px;
+      background: rgba(49, 93, 141, 0.14);
+      box-shadow: 0 -18px 0 rgba(47, 118, 95, 0.14), 0 -36px 0 rgba(146, 116, 47, 0.16);
+    }
+
     .tag-row {
       display: flex;
       gap: 6px;
@@ -486,10 +509,10 @@
         <span>Vizuara Visual Walkthroughs</span>
       </div>
       <nav class="nav" aria-label="Page sections">
-        <a href="#core">Core</a>
-        <a href="#mamba">Mamba</a>
-        <a href="#attention">Attention</a>
-        <a href="#systems">Systems</a>
+        <a href="#basics">Basics</a>
+        <a href="#kv-cache">KV cache</a>
+        <a href="#modern">Modern inference</a>
+        <a href="#attention">Attention ♥</a>
       </nav>
     </header>
 
@@ -508,8 +531,8 @@
           <div class="section-label">How to use this page</div>
           <p>
             Pick a card, open the walkthrough, and follow the story visually. The grouping is by
-            mental model: first the core inference ideas, then sequence models, then attention
-            variants, then system-level foundations.
+            learning sequence: first the machine and transformer basics, then KV-cache reduction,
+            then modern inference ideas, then attention as the heart of speeding inference.
           </p>
           <div class="metric-grid">
             <div class="metric"><strong>11</strong>visual pages</div>
@@ -518,18 +541,45 @@
         </aside>
       </section>
 
-      <section id="core" class="section">
+      <section id="basics" class="section">
         <div class="section-head">
           <div>
             <div class="section-label">Track 1</div>
-            <h2>Core inference ideas</h2>
+            <h2>Basics of inference</h2>
           </div>
-          <div class="cluster-note">Start here for the big mental models: cache growth, convolution speedups, and transformer anatomy.</div>
+          <div class="cluster-note">Start with the two foundations: what a transformer is, and what kind of machine runs it.</div>
+        </div>
+        <div class="cards">
+          <a class="card" href="https://vizuaraai.github.io/dna-of-a-transformer/" target="_blank" rel="noreferrer">
+            <div class="thumb system"></div>
+            <div class="tag-row"><span class="tag">transformer</span><span class="tag">foundation</span></div>
+            <h3>DNA of a Transformer</h3>
+            <p>A visual grounding in the components and data flow that make transformer models work.</p>
+            <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
+          </a>
+
+          <a class="card" href="https://brrrviz.com/" target="_blank" rel="noreferrer">
+            <div class="thumb system"></div>
+            <div class="tag-row"><span class="tag">GPU</span><span class="tag">hardware</span></div>
+            <h3>Anatomy of a GPU</h3>
+            <p>A hardware-first visual experience for understanding the machine underneath modern inference workloads.</p>
+            <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
+          </a>
+        </div>
+      </section>
+
+      <section id="kv-cache" class="section">
+        <div class="section-head">
+          <div>
+            <div class="section-label">Track 2</div>
+            <h2>Reducing KV cache across tokens</h2>
+          </div>
+          <div class="cluster-note">This track is about making long-context inference cheaper: shrink the cache, reuse computation, and understand how local context grows.</div>
         </div>
         <div class="cards">
           <a class="card" href="https://vizuaraai.github.io/kv-cache-token-reduction-walkthrough/visual-walkthroughs/kv-cache-token-reduction-visual-walkthrough.html" target="_blank" rel="noreferrer">
             <div class="thumb kv"></div>
-            <div class="tag-row"><span class="tag">KV cache</span><span class="tag">lecture</span></div>
+            <div class="tag-row"><span class="tag">KV cache</span><span class="tag">token reduction</span></div>
             <h3>Reducing KV Cache Across Tokens</h3>
             <p>The full visual lecture on how cache size changes as tokens are pruned, compressed, windowed, or summarized.</p>
             <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
@@ -543,25 +593,49 @@
             <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
           </a>
 
-          <a class="card" href="https://vizuaraai.github.io/dna-of-a-transformer/" target="_blank" rel="noreferrer">
-            <div class="thumb system"></div>
-            <div class="tag-row"><span class="tag">transformer</span><span class="tag">foundation</span></div>
-            <h3>DNA of a Transformer</h3>
-            <p>A visual grounding in the components and data flow that make transformer models work.</p>
+          <a class="card" href="https://vizuaraai.github.io/convolution-musical-journey/receptive-field-sliding-window-walkthrough.html" target="_blank" rel="noreferrer">
+            <div class="thumb attn"></div>
+            <div class="tag-row"><span class="tag">sliding window</span><span class="tag">receptive field</span></div>
+            <h3>Receptive Field Growth in Sliding Window Attention</h3>
+            <p>How local windows can still see farther through layer stacking and relay paths across transformer layers.</p>
             <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
           </a>
         </div>
       </section>
 
-      <section id="mamba" class="section">
+      <section id="modern" class="section">
         <div class="section-head">
           <div>
-            <div class="section-label">Track 2</div>
-            <h2>Mamba and sequence models</h2>
+            <div class="section-label">Track 3</div>
+            <h2>Modern inference concepts</h2>
           </div>
-          <div class="cluster-note">Use these when moving from attention-based context to selective state-space computation.</div>
+          <div class="cluster-note">Quantization, DeepSeek-style efficiency, and selective sequence models live here.</div>
         </div>
         <div class="cards">
+          <a class="card" href="https://vizuaraai.github.io/turboquant-rotation-visual-guide/" target="_blank" rel="noreferrer">
+            <div class="thumb system"></div>
+            <div class="tag-row"><span class="tag">quantization</span><span class="tag">rotation</span></div>
+            <h3>TurboQuant Visual Guide</h3>
+            <p>A visual guide to rotation-aware quantization ideas and how they improve practical model compression.</p>
+            <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
+          </a>
+
+          <a class="card" href="https://vizuaraai.github.io/DeepSeek-Sparse/" target="_blank" rel="noreferrer">
+            <div class="thumb deepseek"></div>
+            <div class="tag-row"><span class="tag">DeepSeek</span><span class="tag">sparse attention</span></div>
+            <h3>DeepSeek Sparse Attention</h3>
+            <p>A focused visual explanation of sparse attention patterns and why they matter for efficient inference.</p>
+            <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
+          </a>
+
+          <a class="card" href="https://vizuaraai.github.io/deepseek-v4-kv-cache-walkthrough/" target="_blank" rel="noreferrer">
+            <div class="thumb kv"></div>
+            <div class="tag-row"><span class="tag">DeepSeek V4</span><span class="tag">KV cache</span></div>
+            <h3>DeepSeek V4 KV Cache Visual Guide</h3>
+            <p>A walkthrough of the KV-cache ideas behind DeepSeek-style inference efficiency.</p>
+            <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
+          </a>
+
           <a class="card" href="https://vizuaraai.github.io/convolution-musical-journey/mamba-why-selectivity-matters.html" target="_blank" rel="noreferrer">
             <div class="thumb mamba"></div>
             <div class="tag-row"><span class="tag">Mamba</span><span class="tag">selectivity</span></div>
@@ -583,68 +657,17 @@
       <section id="attention" class="section">
         <div class="section-head">
           <div>
-            <div class="section-label">Track 3</div>
-            <h2>Attention and context optimization</h2>
+            <div class="section-label">Track 4</div>
+            <h2>Attention is the heart of speeding inference</h2>
           </div>
-          <div class="cluster-note">These pages explain how attention becomes cheaper, sparser, more local, or more cache-efficient.</div>
+          <div class="cluster-note">Attention is where the cost often concentrates, so this guide becomes the map for making inference faster.</div>
         </div>
         <div class="cards">
-          <a class="card" href="https://vizuaraai.github.io/convolution-musical-journey/receptive-field-sliding-window-walkthrough.html" target="_blank" rel="noreferrer">
-            <div class="thumb attn"></div>
-            <div class="tag-row"><span class="tag">sliding window</span><span class="tag">receptive field</span></div>
-            <h3>Receptive Field Growth in Sliding Window Attention</h3>
-            <p>How local windows can still see farther through layer stacking and relay paths across transformer layers.</p>
-            <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
-          </a>
-
           <a class="card" href="https://vizuaraai.github.io/convolution-musical-journey/attention-variants-inference-comparison.html" target="_blank" rel="noreferrer">
-            <div class="thumb attn"></div>
+            <div class="thumb heart"></div>
             <div class="tag-row"><span class="tag">attention</span><span class="tag">optimization</span></div>
             <h3>Summary of Attention Mechanism Optimizations</h3>
             <p>A comparative visual map of attention variants and inference optimization strategies.</p>
-            <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
-          </a>
-
-          <a class="card" href="https://vizuaraai.github.io/DeepSeek-Sparse/" target="_blank" rel="noreferrer">
-            <div class="thumb deepseek"></div>
-            <div class="tag-row"><span class="tag">DeepSeek</span><span class="tag">sparse attention</span></div>
-            <h3>DeepSeek Sparse Attention</h3>
-            <p>A focused visual explanation of sparse attention patterns and why they matter for efficient inference.</p>
-            <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
-          </a>
-
-          <a class="card" href="https://vizuaraai.github.io/deepseek-v4-kv-cache-walkthrough/" target="_blank" rel="noreferrer">
-            <div class="thumb kv"></div>
-            <div class="tag-row"><span class="tag">DeepSeek V4</span><span class="tag">KV cache</span></div>
-            <h3>DeepSeek V4 KV Cache Visual Guide</h3>
-            <p>A walkthrough of the KV-cache ideas behind DeepSeek-style inference efficiency.</p>
-            <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
-          </a>
-        </div>
-      </section>
-
-      <section id="systems" class="section">
-        <div class="section-head">
-          <div>
-            <div class="section-label">Track 4</div>
-            <h2>Systems and deployment foundations</h2>
-          </div>
-          <div class="cluster-note">Hardware, quantization, and serving foundations for understanding the full inference stack.</div>
-        </div>
-        <div class="cards">
-          <a class="card" href="https://vizuaraai.github.io/turboquant-rotation-visual-guide/" target="_blank" rel="noreferrer">
-            <div class="thumb system"></div>
-            <div class="tag-row"><span class="tag">quantization</span><span class="tag">rotation</span></div>
-            <h3>TurboQuant Visual Guide</h3>
-            <p>A visual guide to rotation-aware quantization ideas and how they improve practical model compression.</p>
-            <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
-          </a>
-
-          <a class="card" href="https://brrrviz.com/" target="_blank" rel="noreferrer">
-            <div class="thumb system"></div>
-            <div class="tag-row"><span class="tag">GPU</span><span class="tag">hardware</span></div>
-            <h3>Anatomy of a GPU</h3>
-            <p>A hardware-first visual experience for understanding the machine underneath modern inference workloads.</p>
             <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
           </a>
         </div>
