@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sliding Window Attention — Receptive Field Growth</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #faf9f7;
+      --bg-alt: #f4f7fb;
+      --text: #171717;
+      --muted: #64748b;
+      --border: #e5e7eb;
+      --purple: #7c5cfc;
+      --purple-dark: #55368d;
+      --blue: #2563eb;
+      --green: #059669;
+      --orange: #d97706;
+      --red: #dc2626;
+      --pink: #db2777;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, sans-serif;
+      line-height: 1.55;
+      overflow-x: hidden;
+    }
+
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 14px 28px;
+      border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(14px);
+    }
+
+    .nav-logo {
+      font-weight: 800;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .nav-logo span { color: var(--purple); }
+    .nav-links { display: flex; flex-wrap: wrap; gap: 14px 18px; justify-content: flex-end; }
+    .nav-links a { color: var(--muted); font-size: 13px; font-weight: 600; text-decoration: none; }
+    .nav-links a:hover { color: var(--purple); }
+
+    section { padding: 74px 0; }
+    section:nth-of-type(even) { background: var(--bg-alt); }
+    .container { width: min(1120px, calc(100% - 36px)); margin: 0 auto; }
+
+    h1, h2 {
+      margin: 0;
+      font-family: "Instrument Serif", Georgia, serif;
+      letter-spacing: 0;
+      line-height: 1.05;
+      font-weight: 400;
+    }
+
+    h1 { font-size: clamp(42px, 7vw, 78px); max-width: 920px; }
+    h2 { font-size: clamp(34px, 4vw, 52px); }
+    h3 { margin: 0 0 8px; font-size: 19px; line-height: 1.25; }
+    p { margin: 0; color: var(--muted); }
+    .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+    .gradient-text {
+      background: linear-gradient(135deg, var(--purple), var(--blue));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .chapter-label {
+      margin-bottom: 10px;
+      color: var(--purple);
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .hero {
+      padding: 90px 0 54px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.02fr) minmax(360px, 0.98fr);
+      gap: 38px;
+      align-items: center;
+    }
+
+    .subtitle {
+      margin-top: 20px;
+      max-width: 760px;
+      font-size: 18px;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 12px 36px rgba(15, 23, 42, 0.06);
+      padding: 24px;
+    }
+
+    .sentence-strip {
+      display: flex;
+      gap: 8px;
+      margin-top: 24px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      max-width: 100%;
+    }
+
+    .token {
+      flex: 1 0 64px;
+      border: 1px solid #d8d2ff;
+      background: #f5f3ff;
+      color: #4c1d95;
+      border-radius: 8px;
+      padding: 9px 6px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .token .idx {
+      display: block;
+      margin-top: 4px;
+      color: #7e6aa8;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .token.target {
+      background: #ede9fe;
+      border-color: var(--purple);
+      box-shadow: inset 0 0 0 2px rgba(124, 92, 252, 0.18);
+    }
+
+    .explain-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      margin-top: 26px;
+    }
+
+    .mini-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      padding: 18px;
+    }
+
+    .big-number {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 48px;
+      line-height: 1;
+      color: var(--purple);
+    }
+
+    .attention-visual {
+      position: relative;
+      min-height: 520px;
+      overflow: auto;
+      padding: 0;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .rf-stage {
+      display: grid;
+      grid-template-columns: 110px repeat(12, 72px);
+      gap: 9px;
+      align-items: center;
+      min-width: 1050px;
+      margin: 14px 0;
+    }
+
+    .layer-label {
+      color: #334155;
+      font-weight: 800;
+      font-size: 14px;
+      text-align: right;
+    }
+
+    .dot {
+      position: relative;
+      z-index: 2;
+      height: 46px;
+      border-radius: 999px;
+      border: 2px solid #cbd5e1;
+      background: #f8fafc;
+      color: #94a3b8;
+      display: grid;
+      place-items: center;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .dot.hot {
+      border-color: #8b5cf6;
+      background: #ddd6fe;
+      color: #4c1d95;
+      box-shadow: inset 0 0 0 2px rgba(124, 92, 252, 0.18);
+    }
+
+    .dot.target {
+      background: #fbcfe8;
+      border-color: #9333ea;
+      color: #111827;
+      box-shadow: 0 0 0 4px rgba(124, 92, 252, 0.12);
+    }
+
+    .rf-band {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 132px 1fr 92px;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .bar-track {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 3px;
+      min-height: 32px;
+    }
+
+    .bar-cell {
+      border-radius: 5px;
+      background: #eef2f7;
+      display: grid;
+      place-items: center;
+      color: #94a3b8;
+      font-size: 11px;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-weight: 700;
+    }
+
+    .bar-cell.on {
+      background: #ede9fe;
+      color: #4c1d95;
+      border: 1px solid #c4b5fd;
+    }
+
+    .bar-cell.new {
+      background: #dbeafe;
+      color: #1d4ed8;
+      border: 1px solid #93c5fd;
+    }
+
+    .formula {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 10px 0 0;
+      padding: 9px 12px;
+      border: 1px solid #d4ccff;
+      border-radius: 8px;
+      background: #f5f3ff;
+      color: #4c1d95;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+      align-items: start;
+    }
+
+    .matrix {
+      display: grid;
+      grid-template-columns: 92px repeat(12, 1fr);
+      gap: 3px;
+      overflow-x: auto;
+      min-width: 720px;
+    }
+
+    .matrix-wrap { overflow-x: auto; }
+    .mcell {
+      min-height: 30px;
+      border-radius: 4px;
+      background: #eef2f7;
+      display: grid;
+      place-items: center;
+      color: #94a3b8;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .mcell.head {
+      background: transparent;
+      color: #475569;
+      font-family: Inter, sans-serif;
+      font-size: 12px;
+    }
+
+    .mcell.attend {
+      background: #ede9fe;
+      color: #4c1d95;
+      border: 1px solid #c4b5fd;
+    }
+
+    .mcell.target-row {
+      background: #fbcfe8;
+      color: #831843;
+      border: 1px solid #f9a8d4;
+    }
+
+    .callout {
+      margin-top: 20px;
+      padding: 16px 18px;
+      border-left: 4px solid var(--purple);
+      border-radius: 8px;
+      background: #f5f3ff;
+    }
+
+    .callout.green { border-left-color: var(--green); background: #ecfdf5; }
+    .callout.orange { border-left-color: var(--orange); background: #fffbeb; }
+    .callout.blue { border-left-color: var(--blue); background: #eff6ff; }
+
+    .pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .pill {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: #fff;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #334155;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 16px 0 20px;
+    }
+
+    button {
+      border: 1px solid #d4ccff;
+      background: #fff;
+      color: #4c1d95;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-family: Inter, sans-serif;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    button.active {
+      background: var(--purple);
+      color: #fff;
+      border-color: var(--purple);
+    }
+
+    .step-panel {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .step-copy {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      padding: 18px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .swatch { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+
+    @media (max-width: 900px) {
+      .hero-grid, .two-col, .step-panel, .explain-grid { grid-template-columns: 1fr; }
+      .top-nav { align-items: flex-start; flex-direction: column; }
+      section { padding: 54px 0; }
+      h1 { font-size: clamp(38px, 10vw, 56px); }
+      .token { flex-basis: 72px; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="top-nav">
+    <div class="nav-logo">VIZUARA <span>AI LABS</span></div>
+    <div class="nav-links">
+      <a href="#idea">Idea</a>
+      <a href="#window">Window</a>
+      <a href="#stack">3 Layers</a>
+      <a href="#tracking">Tracking</a>
+      <a href="#why">Why It Matters</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="container hero-grid">
+      <div>
+        <div class="chapter-label">Sliding Window Attention</div>
+        <h1 class="gradient-text">Receptive field growth, from the ground up.</h1>
+        <p class="subtitle">
+          We will follow one sentence through a 3-layer transformer. Each attention layer has only a small local window, but stacked layers let information travel farther than one layer can see.
+        </p>
+        <div class="sentence-strip" aria-label="Anchor sentence tokens">
+          <div class="token">The<span class="idx">1</span></div>
+          <div class="token">small<span class="idx">2</span></div>
+          <div class="token">robot<span class="idx">3</span></div>
+          <div class="token">found<span class="idx">4</span></div>
+          <div class="token">the<span class="idx">5</span></div>
+          <div class="token">red<span class="idx">6</span></div>
+          <div class="token">key<span class="idx">7</span></div>
+          <div class="token">under<span class="idx">8</span></div>
+          <div class="token">the<span class="idx">9</span></div>
+          <div class="token">dusty<span class="idx">10</span></div>
+          <div class="token">mat<span class="idx">11</span></div>
+          <div class="token target">yesterday<span class="idx">12</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>The question</h3>
+        <p>
+          At the final token, <span class="mono">yesterday</span>, how much of the earlier sentence can the model use if every layer only looks locally?
+        </p>
+        <div class="explain-grid">
+          <div class="mini-card">
+            <div class="big-number">4</div>
+            <p><b>Window</b><br>each layer reads a local block.</p>
+          </div>
+          <div class="mini-card">
+            <div class="big-number">3</div>
+            <p><b>Layers</b><br>each layer mixes what the previous layer already mixed.</p>
+          </div>
+          <div class="mini-card">
+            <div class="big-number">≈12</div>
+            <p><b>Reach</b><br>three local hops can cover the whole 12-token sentence.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="idea">
+    <div class="container">
+      <div class="chapter-label">Core Intuition</div>
+      <h2>Receptive field means “which earlier tokens can affect me?”</h2>
+      <div class="two-col" style="margin-top:24px;">
+        <div class="card">
+          <h3>In one layer</h3>
+          <p>
+            If token 12 can only attend to tokens 9, 10, 11, and 12, then after one layer it directly knows about only the phrase:
+          </p>
+          <div class="pill-row">
+            <span class="pill">the<sub>9</sub></span>
+            <span class="pill">dusty<sub>10</sub></span>
+            <span class="pill">mat<sub>11</sub></span>
+            <span class="pill">yesterday<sub>12</sub></span>
+          </div>
+          <div class="formula">Layer 1 at token 12 sees 9..12</div>
+        </div>
+        <div class="card">
+          <h3>After stacking</h3>
+          <p>
+            Token 12 in layer 2 reads layer-1 tokens near it. But those layer-1 tokens already contain their own local history. So the reachable input tokens expand leftward.
+          </p>
+          <div class="pill-row">
+            <span class="pill">red<sub>6</sub></span>
+            <span class="pill">key<sub>7</sub></span>
+            <span class="pill">under<sub>8</sub></span>
+            <span class="pill">the<sub>9</sub></span>
+            <span class="pill">dusty<sub>10</sub></span>
+            <span class="pill">mat<sub>11</sub></span>
+            <span class="pill">yesterday<sub>12</sub></span>
+          </div>
+          <div class="formula">Layer 2 at token 12 sees roughly 6..12</div>
+        </div>
+      </div>
+      <div class="callout blue">
+        <b>Plain-English version:</b> a layer is not only reading raw words. It is reading summaries made by the previous layer. Those summaries already carry nearby context, so context travels like a relay.
+      </div>
+    </div>
+  </section>
+
+  <section id="window">
+    <div class="container">
+      <div class="chapter-label">Step 1</div>
+      <h2>Sliding window attention is local attention.</h2>
+      <p style="margin-top:12px;max-width:850px;">
+        Here is the causal window for every token in one layer. A cell is purple if the row token can attend to that column token.
+      </p>
+      <div class="card" style="margin-top:24px;">
+        <div class="matrix-wrap">
+          <div class="matrix" id="attentionMatrix"></div>
+        </div>
+        <div class="callout orange">
+          For token 12, one layer only uses tokens 9-12. That is excellent for speed and memory, but it cannot directly grab token 1.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="stack">
+    <div class="container">
+      <div class="chapter-label">Step 2</div>
+      <h2>Now stack three layers and track token 12.</h2>
+      <p style="margin-top:12px;max-width:880px;">
+        Click each layer. The highlighted input span shows which original tokens can influence the final representation at token 12.
+      </p>
+      <div class="controls">
+        <button data-layer="0" onclick="setActiveLayer(0)" class="active">Input only</button>
+        <button data-layer="1" onclick="setActiveLayer(1)">After layer 1</button>
+        <button data-layer="2" onclick="setActiveLayer(2)">After layer 2</button>
+        <button data-layer="3" onclick="setActiveLayer(3)">After layer 3</button>
+      </div>
+      <div class="step-panel">
+        <div class="step-copy">
+          <h3 id="stepTitle">Input token 12</h3>
+          <p id="stepText">
+            Before attention, token 12 is just the embedding for “yesterday”. It has not mixed with neighboring tokens yet.
+          </p>
+          <div id="stepFormula" class="formula">RF = {12}</div>
+          <div class="legend">
+            <span><i class="swatch" style="background:#fbcfe8;"></i> current target</span>
+            <span><i class="swatch" style="background:#ddd6fe;"></i> reachable context</span>
+            <span><i class="swatch" style="background:#dbeafe;"></i> newly gained</span>
+          </div>
+        </div>
+        <div class="rf-band">
+          <div class="bar-row" id="bar0"></div>
+          <div class="bar-row" id="bar1"></div>
+          <div class="bar-row" id="bar2"></div>
+          <div class="bar-row" id="bar3"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tracking">
+    <div class="container">
+      <div class="chapter-label">Step 3</div>
+      <h2>The same idea as a layer graph.</h2>
+      <p style="margin-top:12px;max-width:880px;">
+        This is the diagram logic from your screenshot, but attached to actual words. The target at the top is token 12. Dark dots are the path of information that can reach it through local windows.
+      </p>
+      <div class="attention-visual" id="layerGraph"></div>
+      <div class="callout green">
+        <b>The relay:</b> layer 3 token 12 reads nearby layer 2 states. Those layer 2 states read nearby layer 1 states. Those layer 1 states read nearby input tokens. So the model did not use global attention, but information still moved across the sentence.
+      </div>
+    </div>
+  </section>
+
+  <section id="why">
+    <div class="container">
+      <div class="chapter-label">Why It Matters</div>
+      <h2>Local windows save attention work, but recall is limited by depth.</h2>
+      <div class="two-col" style="margin-top:24px;">
+        <div class="card">
+          <h3>Full attention</h3>
+          <p>
+            Every token can directly attend to every previous token in a single layer. Great recall, expensive for long contexts.
+          </p>
+          <div class="formula">Work per layer ≈ N × N</div>
+        </div>
+        <div class="card">
+          <h3>Sliding window attention</h3>
+          <p>
+            Every token attends to only a fixed local window. Much cheaper, but a far-away token needs multiple layers to influence the current token.
+          </p>
+          <div class="formula">Work per layer ≈ N × W</div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:22px;">
+        <h3>Exact formula versus the classroom shortcut</h3>
+        <p>
+          If <span class="mono">W</span> means total causal tokens including the current token, the exact receptive field after <span class="mono">L</span> layers is:
+        </p>
+        <div class="formula">RF = 1 + L × (W - 1)</div>
+        <p style="margin-top:12px;">
+          With <span class="mono">W=4</span> and <span class="mono">L=3</span>, that is <span class="mono">1 + 3×3 = 10</span> tokens. Many diagrams use the rough shortcut <span class="mono">W×L</span>, or define <span class="mono">W</span> as “new left positions per layer,” which gives the clean intuition: about <span class="mono">4×3 = 12</span> positions.
+        </p>
+      </div>
+      <div class="callout blue">
+        This is why some architectures mix local/sliding-window layers with occasional full-attention or global-token layers: local attention is cheap, while occasional global mixing restores long-range recall.
+      </div>
+    </div>
+  </section>
+
+  <script>
+    const tokens = ["The", "small", "robot", "found", "the", "red", "key", "under", "the", "dusty", "mat", "yesterday"];
+    const layerInfo = {
+      0: {
+        title: "Input token 12",
+        text: "Before attention, token 12 is just the embedding for “yesterday”. It has not mixed with neighboring tokens yet.",
+        start: 12,
+        prevStart: 12,
+        formula: "RF = {12}"
+      },
+      1: {
+        title: "Layer 1: direct local view",
+        text: "Token 12 attends to only the local window: tokens 9, 10, 11, and 12.",
+        start: 9,
+        prevStart: 12,
+        formula: "Layer 1 RF = 9..12"
+      },
+      2: {
+        title: "Layer 2: neighbors bring their memories",
+        text: "Layer-2 token 12 reads layer-1 tokens 9..12. The earliest of those, token 9, already remembered tokens 6..9.",
+        start: 6,
+        prevStart: 9,
+        formula: "Layer 2 RF = 6..12"
+      },
+      3: {
+        title: "Layer 3: the receptive field reaches far back",
+        text: "Layer-3 token 12 reads layer-2 tokens 9..12. Through the relay, earlier input tokens can now affect the final representation.",
+        start: 3,
+        prevStart: 6,
+        formula: "Layer 3 RF ≈ 3..12 (or 1..12 under W×L convention)"
+      }
+    };
+
+    function buildAttentionMatrix() {
+      const matrix = document.getElementById("attentionMatrix");
+      matrix.innerHTML = "";
+      matrix.appendChild(cell("", "head"));
+      for (let c = 1; c <= 12; c++) matrix.appendChild(cell(c, "head"));
+      for (let r = 1; r <= 12; r++) {
+        matrix.appendChild(cell(`q${r}`, r === 12 ? "target-row" : "head"));
+        for (let c = 1; c <= 12; c++) {
+          const canAttend = c <= r && c >= Math.max(1, r - 3);
+          matrix.appendChild(cell(canAttend ? "●" : "", canAttend ? "attend" : ""));
+        }
+      }
+    }
+
+    function cell(text, cls) {
+      const div = document.createElement("div");
+      div.className = `mcell ${cls || ""}`;
+      div.textContent = text;
+      return div;
+    }
+
+    function buildBars(activeLayer) {
+      for (let layer = 0; layer <= 3; layer++) {
+        const row = document.getElementById(`bar${layer}`);
+        const info = layerInfo[layer];
+        row.innerHTML = `<div class="mono" style="font-weight:800;color:#334155;">Layer ${layer}</div><div class="bar-track"></div><div class="mono" style="font-size:12px;color:#64748b;">${layer === 0 ? "1 token" : `${13 - info.start} tokens`}</div>`;
+        const track = row.querySelector(".bar-track");
+        for (let i = 1; i <= 12; i++) {
+          const div = document.createElement("div");
+          const on = i >= info.start;
+          const newly = i >= info.start && i < info.prevStart;
+          div.className = `bar-cell ${on ? "on" : ""} ${newly ? "new" : ""}`;
+          div.textContent = i;
+          track.appendChild(div);
+        }
+        row.style.opacity = layer <= activeLayer ? "1" : "0.35";
+      }
+    }
+
+    function setActiveLayer(layer) {
+      const info = layerInfo[layer];
+      document.getElementById("stepTitle").textContent = info.title;
+      document.getElementById("stepText").textContent = info.text;
+      document.getElementById("stepFormula").textContent = info.formula;
+      document.querySelectorAll("button[data-layer]").forEach(btn => {
+        btn.classList.toggle("active", Number(btn.dataset.layer) === layer);
+      });
+      buildBars(layer);
+    }
+
+    function buildLayerGraph() {
+      const graph = document.getElementById("layerGraph");
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 1180 540");
+      svg.style.width = "1180px";
+      svg.style.maxWidth = "none";
+      svg.style.height = "540px";
+      svg.setAttribute("role", "img");
+      svg.setAttribute("aria-label", "Layer graph showing receptive field growth for token 12 through three sliding-window attention layers");
+      svg.innerHTML = `
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+            <path d="M0,0 L8,3.5 L0,7 Z" fill="#6d3f8c"></path>
+          </marker>
+          <marker id="arrowSoft" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+            <path d="M0,0 L8,3.5 L0,7 Z" fill="#c4b5fd"></path>
+          </marker>
+        </defs>
+      `;
+      const labels = ["Layer 3 output", "Layer 2", "Layer 1", "Layer 0 input"];
+      const hotRanges = [[12, 12], [9, 12], [6, 12], [1, 12]];
+      const y = [74, 204, 334, 464];
+      const x = idx => 190 + (idx - 1) * 78;
+      const addText = (txt, px, py, opts = {}) => {
+        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.textContent = txt;
+        t.setAttribute("x", px);
+        t.setAttribute("y", py);
+        t.setAttribute("font-family", opts.family || "Inter");
+        t.setAttribute("font-size", opts.size || "14");
+        t.setAttribute("font-weight", opts.weight || "700");
+        t.setAttribute("fill", opts.fill || "#334155");
+        t.setAttribute("text-anchor", opts.anchor || "middle");
+        svg.appendChild(t);
+      };
+      const addLine = (from, to, layer, strong = false) => {
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", x(from));
+        line.setAttribute("y1", y[layer] + 26);
+        line.setAttribute("x2", x(to));
+        line.setAttribute("y2", y[layer + 1] - 28);
+        line.setAttribute("stroke", strong ? "#6d3f8c" : "#c4b5fd");
+        line.setAttribute("stroke-width", strong ? "3" : "1.5");
+        line.setAttribute("opacity", strong ? "0.86" : "0.25");
+        if (!strong) line.setAttribute("stroke-dasharray", "6 7");
+        line.setAttribute("marker-end", strong ? "url(#arrow)" : "url(#arrowSoft)");
+        svg.appendChild(line);
+      };
+
+      for (let layer = 0; layer < 3; layer++) {
+        for (let from = 1; from <= 12; from++) {
+          for (let to = Math.max(1, from - 3); to <= from; to++) {
+            if (from !== to) addLine(from, to, layer, false);
+          }
+        }
+      }
+      const dark = [
+        [12, 9, 0], [12, 10, 0], [12, 11, 0], [12, 12, 0],
+        [9, 6, 1], [9, 7, 1], [9, 8, 1], [9, 9, 1],
+        [12, 9, 1], [12, 10, 1], [12, 11, 1], [12, 12, 1],
+        [6, 1, 2], [6, 2, 2], [6, 3, 2], [6, 4, 2], [6, 5, 2], [6, 6, 2],
+        [12, 9, 2], [12, 10, 2], [12, 11, 2], [12, 12, 2]
+      ];
+      dark.forEach(([from, to, layer]) => addLine(from, to, layer, true));
+
+      labels.forEach((label, layer) => {
+        addText(label, 142, y[layer] + 5, { anchor: "end", size: "14", weight: "800" });
+        for (let i = 1; i <= 12; i++) {
+          const [start, end] = hotRanges[layer];
+          const hot = i >= start && i <= end;
+          const target = layer === 0 && i === 12;
+          const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          circle.setAttribute("cx", x(i));
+          circle.setAttribute("cy", y[layer]);
+          circle.setAttribute("r", layer === 3 ? "31" : "28");
+          circle.setAttribute("fill", target ? "#fbcfe8" : hot ? "#ddd6fe" : "#f8fafc");
+          circle.setAttribute("stroke", target ? "#9333ea" : hot ? "#8b5cf6" : "#cbd5e1");
+          circle.setAttribute("stroke-width", hot || target ? "3" : "2");
+          svg.appendChild(circle);
+          const labelText = layer === 3 ? tokens[i - 1].slice(0, 4) : String(i);
+          addText(labelText, x(i), y[layer] + 5, {
+            family: layer === 3 ? "Inter" : "JetBrains Mono",
+            size: layer === 3 ? "12" : "13",
+            weight: "800",
+            fill: hot || target ? "#4c1d95" : "#94a3b8"
+          });
+        }
+      });
+
+      addText("Target: token 12", x(12), 32, { fill: "#831843", size: "13", weight: "800" });
+      addText("Dark arrows show one possible information route back through stacked local windows", 660, 520, { fill: "#64748b", size: "13", weight: "600" });
+      graph.innerHTML = "";
+      graph.appendChild(svg);
+    }
+
+    document.querySelectorAll("button[data-layer]").forEach(btn => {
+      btn.addEventListener("click", () => setActiveLayer(Number(btn.dataset.layer)));
+    });
+
+    buildAttentionMatrix();
+    buildBars(0);
+    buildLayerGraph();
+  </script>
+</body>
+</html>

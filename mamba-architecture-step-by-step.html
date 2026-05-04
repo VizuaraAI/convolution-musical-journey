@@ -1,0 +1,2636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inside the Mamba Block — Step-by-Step Visual Walkthrough</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --purple: #7c5cfc;
+  --blue: #3b82f6;
+  --green: #10b981;
+  --orange: #f59e0b;
+  --red: #ef4444;
+  --bg: #ffffff;
+  --bg-alt: #faf9f7;
+  --border: #e8e5e0;
+  --text: #1a1a1a;
+  --text-muted: #6b7280;
+  --card-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* NAV */
+.top-nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 32px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+.nav-logo { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: -0.02em; color: var(--text); flex-shrink: 0; }
+.nav-logo span { color: var(--purple); }
+.nav-links { display: flex; gap: 12px 18px; flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+.nav-links a { font-size: 13px; font-weight: 500; color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+.nav-links a:hover { color: var(--purple); }
+
+/* LAYOUT */
+.container { max-width: 860px; margin: 0 auto; padding: 0 24px; }
+section { padding: 80px 0; }
+section:nth-child(even) { background: var(--bg-alt); }
+section:first-of-type { padding-top: 140px; }
+
+/* TYPOGRAPHY */
+h1 { font-family: 'Instrument Serif', serif; font-size: 56px; line-height: 1.1; letter-spacing: -0.02em; }
+h2 { font-family: 'Instrument Serif', serif; font-size: 36px; line-height: 1.2; letter-spacing: -0.01em; margin-bottom: 12px; }
+h3 { font-family: 'Inter', sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+h4 { font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+p { margin-bottom: 16px; color: #374151; }
+.mono { font-family: 'JetBrains Mono', monospace; }
+.chapter-label { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: var(--purple); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+
+/* GRADIENT TEXT */
+.gradient-text {
+  background: linear-gradient(135deg, var(--purple), var(--blue));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* CARDS */
+.card {
+  background: #fff; border: 1px solid var(--border); border-radius: 16px;
+  box-shadow: var(--card-shadow); padding: 28px; margin-bottom: 24px;
+}
+
+/* CALLOUTS */
+.callout {
+  border-left: 3px solid var(--purple);
+  background: #f5f3ff;
+  border-radius: 0 12px 12px 0;
+  padding: 20px 24px;
+  margin: 24px 0;
+  font-size: 15px;
+}
+.callout.blue { border-left-color: var(--blue); background: #eff6ff; }
+.callout.green { border-left-color: var(--green); background: #ecfdf5; }
+.callout.orange { border-left-color: var(--orange); background: #fffbeb; }
+.callout.red { border-left-color: var(--red); background: #fef2f2; }
+.callout strong { font-weight: 700; }
+
+/* BUTTONS */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 28px; border-radius: 980px; border: none;
+  font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px;
+  cursor: pointer; transition: all 0.2s;
+}
+.btn-primary { background: var(--purple); color: #fff; }
+.btn-primary:hover { background: #6a4ae8; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(124,92,252,0.3); }
+
+/* FADE-IN */
+.fade-in { opacity: 0; transform: translateY(24px); transition: opacity 0.7s ease, transform 0.7s ease; }
+.fade-in.visible { opacity: 1; transform: translateY(0); }
+
+/* VISUAL BLOCKS */
+.arch-box {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 10px 18px; border-radius: 10px; font-size: 13px; font-weight: 600;
+  text-align: center; min-width: 100px; position: relative;
+}
+.arch-box.purple { background: #f0ecff; color: var(--purple); border: 1.5px solid #d4ccff; }
+.arch-box.blue { background: #eff6ff; color: var(--blue); border: 1.5px solid #bfdbfe; }
+.arch-box.green { background: #ecfdf5; color: var(--green); border: 1.5px solid #a7f3d0; }
+.arch-box.orange { background: #fffbeb; color: #b45309; border: 1.5px solid #fcd34d; }
+.arch-box.red { background: #fef2f2; color: var(--red); border: 1.5px solid #fca5a5; }
+.arch-box.gray { background: #f3f4f6; color: #374151; border: 1.5px solid #d1d5db; }
+
+.arrow-down {
+  width: 2px; height: 28px; background: #cbd5e1; margin: 0 auto; position: relative;
+}
+.arrow-down::after {
+  content: ''; position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%);
+  border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #cbd5e1;
+}
+
+.flow-col { display: flex; flex-direction: column; align-items: center; gap: 0; }
+.flow-row { display: flex; align-items: center; justify-content: center; gap: 24px; flex-wrap: wrap; }
+
+/* MATRIX GRID */
+.matrix-grid {
+  display: inline-grid; gap: 2px; font-family: 'JetBrains Mono', monospace; font-size: 12px;
+}
+.matrix-cell {
+  width: 48px; height: 32px; display: flex; align-items: center; justify-content: center;
+  border-radius: 4px; font-weight: 500;
+}
+.matrix-cell.input { background: #eff6ff; color: var(--blue); }
+.matrix-cell.weight { background: #f0ecff; color: var(--purple); }
+.matrix-cell.output { background: #ecfdf5; color: #059669; }
+
+/* VALUE BAR */
+.value-bar {
+  display: flex; align-items: center; gap: 8px; margin: 4px 0;
+}
+.value-bar .label { font-size: 13px; font-weight: 600; min-width: 36px; font-family: 'JetBrains Mono', monospace; }
+.value-bar .bar { height: 24px; border-radius: 6px; display: flex; align-items: center; padding: 0 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #fff; font-weight: 600; min-width: 30px; }
+
+/* COMPARISON */
+.comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+@media (max-width: 700px) { .comparison { grid-template-columns: 1fr; } }
+
+/* HERO */
+.hero { padding-top: 120px; padding-bottom: 60px; text-align: center; }
+.hero .subtitle { font-size: 18px; color: var(--text-muted); max-width: 560px; margin: 16px auto 32px; line-height: 1.6; font-weight: 400; }
+
+/* TRACE ANIMATION */
+.trace-highlight { transition: all 0.4s ease; }
+.trace-highlight.active { box-shadow: 0 0 0 3px var(--purple), 0 0 20px rgba(124,92,252,0.2); transform: scale(1.05); }
+
+/* FOOTER */
+footer {
+  padding: 48px 0; text-align: center; border-top: 1px solid var(--border);
+  font-size: 13px; color: var(--text-muted);
+}
+footer .footer-brand { font-weight: 700; color: var(--text); margin-bottom: 4px; }
+
+/* SVG GRAPH */
+.silu-graph { max-width: 320px; margin: 16px auto; }
+
+/* KEY INSIGHT */
+.key-insight {
+  background: linear-gradient(135deg, #f0ecff, #eff6ff);
+  border: 1.5px solid #d4ccff;
+  border-radius: 16px; padding: 24px 28px; margin: 24px 0;
+}
+.key-insight h4 { color: var(--purple); font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+
+/* TANK VISUAL */
+.tank {
+  width: 120px; height: 160px; border: 3px solid #94a3b8; border-top: none;
+  border-radius: 0 0 12px 12px; position: relative; overflow: hidden; margin: 0 auto;
+}
+.tank-water {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: linear-gradient(to top, var(--blue), #93c5fd);
+  transition: height 0.6s ease;
+}
+.tank-label { text-align: center; font-size: 12px; font-weight: 600; margin-top: 8px; font-family: 'JetBrains Mono', monospace; }
+
+/* SUMMARY CARD */
+.summary-item { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 16px; }
+.summary-num {
+  width: 28px; height: 28px; border-radius: 50%; background: var(--purple); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* MISC */
+.step-equation {
+  background: #f8fafc; border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px 20px; margin: 12px 0; font-family: 'JetBrains Mono', monospace;
+  font-size: 14px; overflow-x: auto;
+}
+.dim-tag {
+  display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  background: #f3f4f6; color: #6b7280; padding: 2px 8px; border-radius: 6px; font-weight: 500;
+}
+.vs-divider {
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 50%; background: #f3f4f6;
+  font-weight: 800; font-size: 12px; color: var(--text-muted); margin: 0 auto;
+  align-self: center;
+}
+.op-symbol {
+  font-size: 24px; font-weight: 700; color: var(--purple); display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px;
+}
+
+/* PARALLEL SCAN WALKTHROUGH */
+.scan-token-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin: 18px 0;
+}
+.scan-token-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  background: #fff;
+}
+.scan-token-card .token-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.scan-token-card .scan-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.scan-token-card.important {
+  background: #fffbeb;
+  border-color: #fcd34d;
+}
+.scan-token-card.rewrite {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+.scan-stage-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+.scan-mini-box {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  background: #fff;
+}
+.scan-mini-box.purple { background: #f5f3ff; border-color: #d4ccff; }
+.scan-mini-box.blue { background: #eff6ff; border-color: #bfdbfe; }
+.scan-mini-box.green { background: #ecfdf5; border-color: #a7f3d0; }
+.scan-mini-box.orange { background: #fffbeb; border-color: #fcd34d; }
+.scan-formula {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.8;
+  overflow-x: auto;
+}
+.scan-prefix-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 16px;
+}
+.scan-prefix {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+}
+.scan-prefix .mono {
+  font-size: 12px;
+  line-height: 1.7;
+}
+.scan-time-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+.scan-chain {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.scan-chip {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+.scan-zoom-card {
+  background: linear-gradient(135deg, #fff, #faf9f7);
+  border-top: 3px solid var(--purple);
+}
+.scan-round-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+.scan-round-row {
+  display: grid;
+  grid-template-columns: 86px 112px 116px 1fr;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
+}
+.scan-round-row.highlight {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+.scan-round-row .round-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--purple);
+}
+.scan-round-row .round-stat {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+}
+.scan-round-row .round-example {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #374151;
+  overflow-x: auto;
+}
+.scan-tree-visual {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+.scan-tree-line {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 12px;
+  align-items: center;
+}
+.scan-tree-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.scan-blocks {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+.scan-block {
+  min-height: 34px;
+  border-radius: 8px;
+  border: 1px solid #d4ccff;
+  background: #f5f3ff;
+  color: var(--purple);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.scan-block.blue {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: var(--blue);
+}
+.scan-block.green {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: var(--green);
+}
+.scan-block.orange {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  color: #b45309;
+}
+.scan-block.grow-1 { flex: 1; }
+.scan-block.grow-2 { flex: 2; }
+.scan-block.grow-4 { flex: 4; }
+.scan-block.grow-8 { flex: 8; }
+.scan-identity {
+  color: var(--green);
+  font-weight: 700;
+}
+@media (max-width: 700px) {
+  .scan-token-grid,
+  .scan-stage-grid,
+  .scan-prefix-grid,
+  .scan-time-grid {
+    grid-template-columns: 1fr;
+  }
+  .scan-round-row,
+  .scan-tree-line {
+    grid-template-columns: 1fr;
+  }
+  .scan-blocks {
+    overflow-x: auto;
+  }
+  .top-nav {
+    padding: 10px 16px;
+    align-items: flex-start;
+  }
+  .nav-links {
+    gap: 6px 12px;
+  }
+  .nav-links a {
+    font-size: 12px;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="top-nav">
+  <div class="nav-logo">VIZUARA <span>AI LABS</span></div>
+  <div class="nav-links">
+    <a href="#ch1">What Gets Replaced</a>
+    <a href="#ch2">Bird's Eye</a>
+    <a href="#ch6">Selectivity</a>
+    <a href="#parallel-scan">Parallel Scan</a>
+    <a href="#inference-state">Cache &amp; Memory</a>
+    <a href="#final">Summary</a>
+  </div>
+</nav>
+
+<!-- PRESENTS -->
+<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:100px 24px 32px;background:#fff;">
+  <img src="vizlogo.png" alt="Vizuara AI Labs" style="width:80px;height:80px;border-radius:16px;margin-bottom:16px;">
+  <div style="font-family:'Inter',sans-serif;font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#6b7280;font-weight:500;">Vizuara AI Labs</div>
+  <div style="font-family:'Instrument Serif',serif;font-style:italic;font-size:18px;color:#1a1a1a;margin-top:6px;">presents</div>
+</div>
+
+<!-- HERO -->
+<section class="hero" style="background:#fff;">
+  <div class="container fade-in">
+    <div class="chapter-label">Visual Walkthrough</div>
+    <h1 class="gradient-text" style="font-size:56px;">Inside the Mamba Block</h1>
+    <p class="subtitle">A step-by-step visual walkthrough of how Mamba replaces both Attention and FFN in a single block.</p>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+      <span class="dim-tag">Mamba (Gu & Dao, 2023)</span>
+      <span class="dim-tag">Selective State Spaces</span>
+      <span class="dim-tag">O(1) per-token inference</span>
+    </div>
+  </div>
+</section>
+
+<!-- CHAPTER 1 -->
+<section id="ch1" style="background:var(--bg-alt);">
+  <div class="container">
+    <div class="fade-in">
+      <div class="chapter-label">Chapter 1</div>
+      <h2>What Gets Replaced</h2>
+      <p>In a standard Transformer, every layer has <strong>two sub-blocks</strong>: one for cross-token mixing (Attention) and one for per-token processing (FFN). Mamba replaces both with a single, unified block.</p>
+    </div>
+
+    <div class="comparison fade-in" style="margin-top:32px;">
+      <!-- TRANSFORMER -->
+      <div class="card">
+        <h3 style="margin-bottom:16px; color:var(--red);">Standard Transformer Layer</h3>
+        <div class="flow-col" style="gap:0;">
+          <div class="arch-box gray" style="width:100%;">Input x</div>
+          <div class="arrow-down"></div>
+
+          <!-- Sub-block 1 -->
+          <div style="border:2px dashed #fca5a5; border-radius:12px; padding:16px; width:100%;">
+            <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:8px;">SUB-BLOCK 1: Cross-Token Mixing</div>
+            <div class="flow-col" style="gap:0;">
+              <div class="arch-box gray" style="width:100%;font-size:12px;">LayerNorm</div>
+              <div class="arrow-down" style="height:16px;"></div>
+              <div class="arch-box red" style="width:100%;font-size:12px;">Multi-Head Attention<br><span class="dim-tag" style="margin-top:4px;">Q, K, V projections</span></div>
+              <div class="arrow-down" style="height:16px;"></div>
+              <div class="arch-box gray" style="width:100%;font-size:12px;">+ Residual</div>
+            </div>
+          </div>
+
+          <div class="arrow-down"></div>
+
+          <!-- Sub-block 2 -->
+          <div style="border:2px dashed #fca5a5; border-radius:12px; padding:16px; width:100%;">
+            <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:8px;">SUB-BLOCK 2: Per-Token Processing</div>
+            <div class="flow-col" style="gap:0;">
+              <div class="arch-box gray" style="width:100%;font-size:12px;">LayerNorm</div>
+              <div class="arrow-down" style="height:16px;"></div>
+              <div class="arch-box red" style="width:100%;font-size:12px;">FFN<br><span class="dim-tag" style="margin-top:4px;">Up → SiLU → Down</span></div>
+              <div class="arrow-down" style="height:16px;"></div>
+              <div class="arch-box gray" style="width:100%;font-size:12px;">+ Residual</div>
+            </div>
+          </div>
+
+          <div class="arrow-down"></div>
+          <div class="arch-box gray" style="width:100%;">Output</div>
+        </div>
+        <div style="text-align:center;margin-top:12px;">
+          <span class="dim-tag" style="background:#fef2f2;color:var(--red);">2 sub-blocks, ~12d&sup2; parameters</span>
+        </div>
+      </div>
+
+      <!-- MAMBA -->
+      <div class="card">
+        <h3 style="margin-bottom:16px; color:var(--purple);">Mamba Layer</h3>
+        <div class="flow-col" style="gap:0;">
+          <div class="arch-box gray" style="width:100%;">Input x</div>
+          <div class="arrow-down"></div>
+
+          <div style="border:2px dashed #d4ccff; border-radius:12px; padding:16px; width:100%;">
+            <div style="font-size:11px;font-weight:700;color:var(--purple);margin-bottom:8px;">SINGLE BLOCK: Mixing + Processing</div>
+            <div class="flow-col" style="gap:0;">
+              <div class="arch-box gray" style="width:100%;font-size:12px;">LayerNorm</div>
+              <div class="arrow-down" style="height:16px;"></div>
+              <div class="arch-box purple" style="width:100%;padding:20px 18px;font-size:13px;">
+                Mamba Block<br>
+                <span class="dim-tag" style="margin-top:4px;">Conv1D + Selective SSM + Gate</span>
+              </div>
+              <div class="arrow-down" style="height:16px;"></div>
+              <div class="arch-box gray" style="width:100%;font-size:12px;">+ Residual</div>
+            </div>
+          </div>
+
+          <div class="arrow-down"></div>
+          <div class="arch-box gray" style="width:100%;">Output</div>
+        </div>
+        <div style="text-align:center;margin-top:12px;">
+          <span class="dim-tag" style="background:#f0ecff;color:var(--purple);">1 block, ~6d&sup2; parameters</span>
+        </div>
+        <div style="margin-top:60px;text-align:center;font-size:13px;color:var(--text-muted);">Half the parameters.<br>Same expressiveness.</div>
+      </div>
+    </div>
+
+    <div class="callout fade-in" style="margin-top:24px;">
+      <strong>Key Insight:</strong> Mamba replaces BOTH attention AND FFN with a single block. Attention did cross-token mixing. FFN did per-token processing. Mamba does both at once through the selective SSM (cross-token mixing via the recurrence) and gating (per-token output filtering).
+    </div>
+  </div>
+</section>
+
+<!-- CHAPTER 2 -->
+<section id="ch2">
+  <div class="container">
+    <div class="fade-in">
+      <div class="chapter-label">Chapter 2</div>
+      <h2>The Mamba Block &mdash; Bird's Eye View</h2>
+      <p>Here is the complete data flow through a single Mamba block. Each colored box is a distinct operation. We will walk through every one of them in the chapters that follow.</p>
+    </div>
+
+    <div class="card fade-in" style="padding:36px 24px; overflow-x:auto;">
+      <div class="flow-col" style="gap:0;" id="arch-diagram">
+
+        <div class="arch-box gray trace-highlight" data-step="0" style="width:220px;">
+          Input x <span class="dim-tag" style="margin-left:6px;">d=4</span>
+        </div>
+        <div class="arrow-down"></div>
+
+        <div class="arch-box purple trace-highlight" data-step="1" style="width:220px;">
+          Linear <span class="dim-tag" style="margin-left:6px;">d &rarr; 2E</span>
+        </div>
+        <div class="arrow-down"></div>
+
+        <!-- SPLIT -->
+        <div style="display:flex; gap:80px; align-items:flex-start; justify-content:center; position:relative;">
+          <!-- left connector -->
+          <svg style="position:absolute;top:-4px;left:50%;transform:translateX(-50%);width:240px;height:40px;" viewBox="0 0 240 40">
+            <path d="M120,0 L120,10 L40,10 L40,40" fill="none" stroke="#cbd5e1" stroke-width="2"/>
+            <polygon points="36,38 40,46 44,38" fill="#cbd5e1"/>
+            <path d="M120,0 L120,10 L200,10 L200,40" fill="none" stroke="#cbd5e1" stroke-width="2"/>
+            <polygon points="196,38 200,46 204,38" fill="#cbd5e1"/>
+          </svg>
+          <div style="height:36px;"></div>
+        </div>
+
+        <div style="display:flex; gap:60px; align-items:flex-start; justify-content:center;">
+          <!-- LEFT PATH (x') -->
+          <div class="flow-col" style="gap:0;">
+            <div class="arch-box blue trace-highlight" data-step="2" style="min-width:140px;">
+              x' <span class="dim-tag" style="margin-left:4px;">E=4</span>
+            </div>
+            <div class="arrow-down"></div>
+            <div class="arch-box blue trace-highlight" data-step="3" style="min-width:140px;">
+              Conv1D <span class="dim-tag" style="margin-left:4px;">k=4</span>
+            </div>
+            <div class="arrow-down"></div>
+            <div class="arch-box green trace-highlight" data-step="4" style="min-width:140px;">
+              SiLU
+            </div>
+            <div class="arrow-down"></div>
+            <div class="arch-box orange trace-highlight" data-step="5" style="min-width:140px; padding:16px 18px;">
+              Selective SSM<br>
+              <span style="font-size:11px;font-weight:400;">B<sub>t</sub>, C<sub>t</sub>, &Delta;<sub>t</sub></span>
+            </div>
+            <div class="arrow-down"></div>
+            <div class="arch-box gray" style="min-width:140px; font-size:12px;">y<sub>ssm</sub></div>
+          </div>
+
+          <!-- RIGHT PATH (z) -->
+          <div class="flow-col" style="gap:0;">
+            <div class="arch-box green trace-highlight" data-step="2" style="min-width:120px;">
+              z <span class="dim-tag" style="margin-left:4px;">E=4</span>
+            </div>
+            <div class="arrow-down" style="height:114px;"></div>
+            <div class="arch-box green trace-highlight" data-step="6" style="min-width:120px;">
+              SiLU
+            </div>
+            <div class="arrow-down" style="height:84px;"></div>
+            <div class="arch-box gray" style="min-width:120px; font-size:12px;">gate</div>
+          </div>
+        </div>
+
+        <!-- MERGE -->
+        <div style="height:8px;"></div>
+        <svg style="width:240px;height:40px;margin:0 auto;" viewBox="0 0 240 40">
+          <path d="M60,0 L60,15 L120,15 L120,40" fill="none" stroke="#cbd5e1" stroke-width="2"/>
+          <path d="M180,0 L180,15 L120,15" fill="none" stroke="#cbd5e1" stroke-width="2"/>
+          <circle cx="120" cy="15" r="8" fill="#f0ecff" stroke="#d4ccff" stroke-width="1.5"/>
+          <text x="120" y="19" text-anchor="middle" font-size="12" font-weight="700" fill="#7c5cfc">&otimes;</text>
+          <polygon points="116,38 120,46 124,38" fill="#cbd5e1"/>
+        </svg>
+
+        <div class="arch-box purple trace-highlight" data-step="7" style="width:220px;">
+          Linear <span class="dim-tag" style="margin-left:6px;">E &rarr; d</span>
+        </div>
+        <div class="arrow-down"></div>
+
+        <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
+          <div class="arch-box gray trace-highlight" data-step="8" style="width:220px;">
+            + Residual &rarr; Output <span class="dim-tag" style="margin-left:6px;">d=4</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align:center;margin-top:28px;">
+        <button class="btn btn-primary" id="traceBtn" onclick="traceToken()">&#9654; Trace a Token</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CHAPTER 3 -->
+<section id="ch3" style="background:var(--bg-alt);">
+  <div class="container">
+    <div class="fade-in">
+      <div class="chapter-label">Chapter 3</div>
+      <h2>Step 1 &mdash; Linear Projection</h2>
+      <p>We start with a single token embedding. Let's trace the word <strong>"France"</strong> with a toy model dimension of d=4.</p>
+    </div>
+
+    <div class="card fade-in">
+      <h4>Input vector x (token "France")</h4>
+      <div style="display:flex;gap:6px;margin:12px 0;">
+        <div class="matrix-cell input" style="width:64px;height:38px;font-size:14px;">0.70</div>
+        <div class="matrix-cell input" style="width:64px;height:38px;font-size:14px;">0.20</div>
+        <div class="matrix-cell input" style="width:64px;height:38px;font-size:14px;">0.30</div>
+        <div class="matrix-cell input" style="width:64px;height:38px;font-size:14px;">0.60</div>
+      </div>
+      <div class="dim-tag">Shape: (4,)</div>
+    </div>
+
+    <div class="card fade-in">
+      <h4>Weight matrix W<sub>xz</sub> &nbsp;<span class="dim-tag">4 &times; 8</span></h4>
+      <p style="font-size:14px;color:var(--text-muted);margin-bottom:12px;">This single linear layer projects d=4 into 2E=8, which we then split into x' (first 4) and z (last 4).</p>
+
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:center;">
+        <!-- Input vector vertical -->
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <div style="font-size:11px;text-align:center;color:var(--blue);font-weight:600;margin-bottom:4px;">x</div>
+          <div class="matrix-cell input">0.70</div>
+          <div class="matrix-cell input">0.20</div>
+          <div class="matrix-cell input">0.30</div>
+          <div class="matrix-cell input">0.60</div>
+        </div>
+
+        <div class="op-symbol">&times;</div>
+
+        <!-- Weight matrix -->
+        <div>
+          <div style="font-size:11px;text-align:center;color:var(--purple);font-weight:600;margin-bottom:4px;">W<sub>xz</sub></div>
+          <div class="matrix-grid" style="grid-template-columns:repeat(8, 1fr);">
+            <div class="matrix-cell weight">0.2</div><div class="matrix-cell weight">0.1</div><div class="matrix-cell weight">-0.1</div><div class="matrix-cell weight">0.3</div>
+            <div class="matrix-cell weight" style="background:#ecfdf5;color:#059669;">0.1</div><div class="matrix-cell weight" style="background:#ecfdf5;color:#059669;">0.4</div><div class="matrix-cell weight" style="background:#ecfdf5;color:#059669;">-0.2</div><div class="matrix-cell weight" style="background:#ecfdf5;color:#059669;">0.0</div>
+            <div class="matrix-cell weight">0.3</div><div class="matrix-cell weight">-0.2</div><div class="matrix-cell weight">0.1</div><div class="matrix-cell weight">0.4</div>
+            <div class="matrix-cell weight" style="background:#ecfdf5;color:#059669;">0.0</div><div class="matrix-cell weight" style="background:#ecfdf5;color:#059669;">0.2</div><div class="matrix-cell weight" style="background:#ecfdf5;color:#059669;">0.1</div><div class="matrix-cell weight" style="background:#ecfdf5;color:#059669;">0.3</div>
+            <div class="matrix-cell weight">0.1</div><div class="matrix-cell weight">0.0</div><div class="matrix-cell weight">0.2</div><div class="matrix-cell weight">0.1</div>
+            <div class="matrix-cell weight" style="background:#ecfdf5;color:#059669;">-0.1</div><div class="matrix-cell weight" style="background:#ecfdf5;color:#059669;">0.3</div><div class="matrix-cell weight" style="background:#ecfdf5;color:#059669;">-0.1</div><div class="matrix-cell weight" style="background:#ecfdf5;color:#059669;">0.1</div>
+            <div class="matrix-cell weight">0.4</div><div class="matrix-cell weight">0.1</div><div class="matrix-cell weight">0.0</div><div class="matrix-cell weight">0.5</div>
+            <div class="matrix-cell weight" style="background:#ecfdf5;color:#059669;">0.2</div><div class="matrix-cell weight" style="background:#ecfdf5;color:#059669;">0.5</div><div class="matrix-cell weight" style="background:#ecfdf5;color:#059669;">0.0</div><div class="matrix-cell weight" style="background:#ecfdf5;color:#059669;">0.2</div>
+          </div>
+          <div style="display:flex;gap:2px;margin-top:6px;justify-content:center;">
+            <div style="flex:1;text-align:center;font-size:10px;color:var(--purple);font-weight:600;">x' cols</div>
+            <div style="flex:1;text-align:center;font-size:10px;color:#059669;font-weight:600;">z cols</div>
+          </div>
+        </div>
+
+        <div class="op-symbol">=</div>
+
+        <!-- Output -->
+        <div>
+          <div style="font-size:11px;text-align:center;color:#059669;font-weight:600;margin-bottom:4px;">output (8)</div>
+          <div style="display:flex;gap:2px;">
+            <div class="matrix-cell" style="background:#eff6ff;color:var(--blue);">0.41</div>
+            <div class="matrix-cell" style="background:#eff6ff;color:var(--blue);">0.16</div>
+            <div class="matrix-cell" style="background:#eff6ff;color:var(--blue);">0.17</div>
+            <div class="matrix-cell" style="background:#eff6ff;color:var(--blue);">0.53</div>
+            <div class="matrix-cell" style="background:#ecfdf5;color:#059669;">0.22</div>
+            <div class="matrix-cell" style="background:#ecfdf5;color:#059669;">0.63</div>
+            <div class="matrix-cell" style="background:#ecfdf5;color:#059669;">0.09</div>
+            <div class="matrix-cell" style="background:#ecfdf5;color:#059669;">0.23</div>
+          </div>
+          <div style="display:flex;gap:2px;margin-top:4px;">
+            <div style="flex:4;text-align:center;"><span class="dim-tag" style="background:#eff6ff;color:var(--blue);">x' path</span></div>
+            <div style="flex:4;text-align:center;"><span class="dim-tag" style="background:#ecfdf5;color:#059669;">z path</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fade-in" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+      <div class="card" style="border-left:3px solid var(--blue);">
+        <h4 style="color:var(--blue);">x' = [0.41, 0.16, 0.17, 0.53]</h4>
+        <p style="font-size:14px;margin:0;">Goes through Conv1D &rarr; SiLU &rarr; SSM</p>
+      </div>
+      <div class="card" style="border-left:3px solid var(--green);">
+        <h4 style="color:var(--green);">z = [0.22, 0.63, 0.09, 0.23]</h4>
+        <p style="font-size:14px;margin:0;">Goes through SiLU &rarr; becomes gate</p>
+      </div>
+    </div>
+
+    <div class="callout fade-in">
+      <strong>Why two paths?</strong> The x' path processes the token through the SSM to extract sequential information. The z path creates a gate that controls how much of the SSM output to pass through &mdash; like an LSTM's output gate. This two-path design gives the model a way to modulate its own outputs.
+    </div>
+  </div>
+</section>
+
+<!-- CHAPTER 4 -->
+<section id="ch4">
+  <div class="container">
+    <div class="fade-in">
+      <div class="chapter-label">Chapter 4</div>
+      <h2>Step 2 &mdash; Conv1D (Local Context)</h2>
+      <p>Before entering the SSM, we run a <strong>depthwise 1D convolution</strong> over the token sequence. "Depthwise" means each channel is convolved independently &mdash; there is no mixing between channels. With kernel size k=4 (or 2 in our small example), each token is blended with its immediate predecessor.</p>
+    </div>
+
+    <div class="card fade-in">
+      <h4>Depthwise Conv1D: Each channel processed independently</h4>
+      <p style="font-size:14px;color:var(--text-muted);">With kernel size 2, each output is a weighted sum of the current token and the previous token, per channel.</p>
+
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:20px;">
+        <!-- Channel 0 -->
+        <div style="background:#eff6ff;border-radius:12px;padding:16px;">
+          <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:8px;">Channel 0</div>
+          <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:13px;">
+            <div style="background:#fff;padding:6px 10px;border-radius:6px;">prev: 0.30</div>
+            <span style="color:var(--text-muted);">&times;</span>
+            <div style="background:#d4ccff;padding:6px 10px;border-radius:6px;color:var(--purple);">w: 0.3</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:13px;margin-top:4px;">
+            <div style="background:#fff;padding:6px 10px;border-radius:6px;">curr: 0.41</div>
+            <span style="color:var(--text-muted);">&times;</span>
+            <div style="background:#d4ccff;padding:6px 10px;border-radius:6px;color:var(--purple);">w: 0.7</div>
+          </div>
+          <div style="border-top:1px solid #bfdbfe;margin-top:8px;padding-top:8px;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;color:var(--blue);">
+            = 0.09 + 0.29 = 0.377
+          </div>
+        </div>
+
+        <!-- Channel 1 -->
+        <div style="background:#eff6ff;border-radius:12px;padding:16px;">
+          <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:8px;">Channel 1</div>
+          <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:13px;">
+            <div style="background:#fff;padding:6px 10px;border-radius:6px;">prev: 0.10</div>
+            <span style="color:var(--text-muted);">&times;</span>
+            <div style="background:#d4ccff;padding:6px 10px;border-radius:6px;color:var(--purple);">w: 0.4</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:13px;margin-top:4px;">
+            <div style="background:#fff;padding:6px 10px;border-radius:6px;">curr: 0.16</div>
+            <span style="color:var(--text-muted);">&times;</span>
+            <div style="background:#d4ccff;padding:6px 10px;border-radius:6px;color:var(--purple);">w: 0.6</div>
+          </div>
+          <div style="border-top:1px solid #bfdbfe;margin-top:8px;padding-top:8px;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;color:var(--blue);">
+            = 0.04 + 0.10 = 0.136
+          </div>
+        </div>
+
+        <!-- Channel 2 -->
+        <div style="background:#eff6ff;border-radius:12px;padding:16px;">
+          <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:8px;">Channel 2</div>
+          <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:13px;">
+            <div style="background:#fff;padding:6px 10px;border-radius:6px;">prev: 0.05</div>
+            <span style="color:var(--text-muted);">&times;</span>
+            <div style="background:#d4ccff;padding:6px 10px;border-radius:6px;color:var(--purple);">w: 0.5</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:13px;margin-top:4px;">
+            <div style="background:#fff;padding:6px 10px;border-radius:6px;">curr: 0.17</div>
+            <span style="color:var(--text-muted);">&times;</span>
+            <div style="background:#d4ccff;padding:6px 10px;border-radius:6px;color:var(--purple);">w: 0.5</div>
+          </div>
+          <div style="border-top:1px solid #bfdbfe;margin-top:8px;padding-top:8px;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;color:var(--blue);">
+            = 0.025 + 0.085 = 0.110
+          </div>
+        </div>
+
+        <!-- Channel 3 -->
+        <div style="background:#eff6ff;border-radius:12px;padding:16px;">
+          <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:8px;">Channel 3</div>
+          <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:13px;">
+            <div style="background:#fff;padding:6px 10px;border-radius:6px;">prev: 0.40</div>
+            <span style="color:var(--text-muted);">&times;</span>
+            <div style="background:#d4ccff;padding:6px 10px;border-radius:6px;color:var(--purple);">w: 0.2</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:13px;margin-top:4px;">
+            <div style="background:#fff;padding:6px 10px;border-radius:6px;">curr: 0.53</div>
+            <span style="color:var(--text-muted);">&times;</span>
+            <div style="background:#d4ccff;padding:6px 10px;border-radius:6px;color:var(--purple);">w: 0.8</div>
+          </div>
+          <div style="border-top:1px solid #bfdbfe;margin-top:8px;padding-top:8px;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;color:var(--blue);">
+            = 0.08 + 0.42 = 0.504
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <h4>Result after Conv1D:</h4>
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <div class="matrix-cell" style="background:#eff6ff;color:var(--blue);width:72px;height:38px;font-size:14px;">0.377</div>
+          <div class="matrix-cell" style="background:#eff6ff;color:var(--blue);width:72px;height:38px;font-size:14px;">0.136</div>
+          <div class="matrix-cell" style="background:#eff6ff;color:var(--blue);width:72px;height:38px;font-size:14px;">0.110</div>
+          <div class="matrix-cell" style="background:#eff6ff;color:var(--blue);width:72px;height:38px;font-size:14px;">0.504</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout blue fade-in">
+      <strong>Without Conv1D,</strong> each token only sees its own embedding before entering the SSM. This short convolution mixes each token with its immediate neighbors &mdash; a cheap "look around" before the expensive sequential processing. It's particularly useful for capturing local patterns like word boundaries or punctuation context.
+    </div>
+  </div>
+</section>
+
+<!-- CHAPTER 5 -->
+<section id="ch5" style="background:var(--bg-alt);">
+  <div class="container">
+    <div class="fade-in">
+      <div class="chapter-label">Chapter 5</div>
+      <h2>Step 3 &mdash; SiLU Activation</h2>
+      <p>After the convolution, we apply the SiLU (Sigmoid Linear Unit) nonlinearity, also known as "Swish". This gives the model its nonlinear expressiveness.</p>
+    </div>
+
+    <div class="card fade-in">
+      <h4>SiLU(x) = x &times; &sigma;(x)</h4>
+      <p style="font-size:14px;color:var(--text-muted);">Where &sigma;(x) = 1/(1 + e<sup>-x</sup>) is the sigmoid function. SiLU is smooth, non-monotonic near zero, and allows small negative values.</p>
+
+      <!-- SiLU graph as SVG -->
+      <div class="silu-graph">
+        <svg viewBox="0 0 320 200" style="width:100%;border:1px solid var(--border);border-radius:12px;background:#fff;">
+          <!-- Grid -->
+          <line x1="40" y1="100" x2="300" y2="100" stroke="#e5e7eb" stroke-width="1"/>
+          <line x1="160" y1="20" x2="160" y2="180" stroke="#e5e7eb" stroke-width="1"/>
+          <!-- Axis labels -->
+          <text x="300" y="96" font-size="10" fill="#9ca3af" font-family="JetBrains Mono">x</text>
+          <text x="164" y="24" font-size="10" fill="#9ca3af" font-family="JetBrains Mono">y</text>
+          <text x="38" y="112" font-size="9" fill="#9ca3af" font-family="JetBrains Mono">-4</text>
+          <text x="270" y="112" font-size="9" fill="#9ca3af" font-family="JetBrains Mono">4</text>
+          <!-- SiLU curve -->
+          <path d="M40,108 Q60,112 80,110 Q100,108 120,104 Q140,102 160,100 Q180,88 200,72 Q220,56 240,40 Q260,24 280,8" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"/>
+          <!-- Identity line for reference -->
+          <path d="M40,180 L280,20" fill="none" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="4,4"/>
+          <text x="260" y="34" font-size="8" fill="#d1d5db" font-family="Inter">y=x</text>
+          <text x="200" y="76" font-size="10" fill="var(--green)" font-weight="600" font-family="Inter">SiLU</text>
+          <!-- Point near zero dip -->
+          <circle cx="120" cy="104" r="3" fill="var(--green)"/>
+          <text x="90" y="120" font-size="8" fill="var(--text-muted)" font-family="JetBrains Mono">min &asymp; -0.28</text>
+        </svg>
+      </div>
+    </div>
+
+    <div class="card fade-in">
+      <h4>Applying SiLU to each element:</h4>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px;">
+        <div style="background:#ecfdf5;border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Input</div>
+          <div class="mono" style="font-size:16px;font-weight:600;">0.377</div>
+          <div style="margin:8px 0;color:var(--green);">&darr; SiLU</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Output</div>
+          <div class="mono" style="font-size:16px;font-weight:600;color:var(--green);">0.209</div>
+        </div>
+        <div style="background:#ecfdf5;border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Input</div>
+          <div class="mono" style="font-size:16px;font-weight:600;">0.136</div>
+          <div style="margin:8px 0;color:var(--green);">&darr; SiLU</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Output</div>
+          <div class="mono" style="font-size:16px;font-weight:600;color:var(--green);">0.207</div>
+        </div>
+        <div style="background:#ecfdf5;border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Input</div>
+          <div class="mono" style="font-size:16px;font-weight:600;">0.110</div>
+          <div style="margin:8px 0;color:var(--green);">&darr; SiLU</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Output</div>
+          <div class="mono" style="font-size:16px;font-weight:600;color:var(--green);">0.068</div>
+        </div>
+        <div style="background:#ecfdf5;border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Input</div>
+          <div class="mono" style="font-size:16px;font-weight:600;">0.504</div>
+          <div style="margin:8px 0;color:var(--green);">&darr; SiLU</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Output</div>
+          <div class="mono" style="font-size:16px;font-weight:600;color:var(--green);">0.295</div>
+        </div>
+      </div>
+      <div style="margin-top:16px;">
+        <span class="mono" style="font-size:14px;font-weight:600;">x'<sub>act</sub> = [0.209, 0.207, 0.068, 0.295]</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CHAPTER 6 -->
+<section id="ch6">
+  <div class="container">
+    <div class="fade-in">
+      <div class="chapter-label">Chapter 6</div>
+      <h2>Step 4 &mdash; The Heart of Selectivity</h2>
+      <p>This is the most important step. The token's own representation is used to compute <strong>three sets of parameters</strong> that control the SSM. This is what makes Mamba "selective" &mdash; different tokens get different dynamics.</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:24px;" class="fade-in">
+      <!-- B_t -->
+      <div class="card" style="border-top:3px solid var(--blue);">
+        <h4 style="color:var(--blue);">B<sub>t</sub> &mdash; Encode</h4>
+        <p style="font-size:13px;">"How to <strong>write</strong> this token into state"</p>
+        <div class="step-equation">
+          B<sub>t</sub> = x'<sub>act</sub> &times; W<sub>B</sub>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin:8px 0;flex-wrap:wrap;">
+          <div style="display:flex;gap:2px;">
+            <div class="matrix-cell input" style="width:40px;height:26px;font-size:11px;">0.21</div>
+            <div class="matrix-cell input" style="width:40px;height:26px;font-size:11px;">0.21</div>
+            <div class="matrix-cell input" style="width:40px;height:26px;font-size:11px;">0.07</div>
+            <div class="matrix-cell input" style="width:40px;height:26px;font-size:11px;">0.30</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">&times; W<sub>B</sub> (4&times;2)</div>
+        <div style="display:flex;gap:4px;">
+          <div class="matrix-cell" style="background:#eff6ff;color:var(--blue);width:56px;font-size:14px;font-weight:700;">0.135</div>
+          <div class="matrix-cell" style="background:#eff6ff;color:var(--blue);width:56px;font-size:14px;font-weight:700;">0.135</div>
+        </div>
+        <div class="dim-tag" style="margin-top:8px;">Shape: (N=2,)</div>
+      </div>
+
+      <!-- C_t -->
+      <div class="card" style="border-top:3px solid var(--green);">
+        <h4 style="color:var(--green);">C<sub>t</sub> &mdash; Decode</h4>
+        <p style="font-size:13px;">"How to <strong>read</strong> from state for output"</p>
+        <div class="step-equation">
+          C<sub>t</sub> = x'<sub>act</sub> &times; W<sub>C</sub>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin:8px 0;flex-wrap:wrap;">
+          <div style="display:flex;gap:2px;">
+            <div class="matrix-cell input" style="width:40px;height:26px;font-size:11px;">0.21</div>
+            <div class="matrix-cell input" style="width:40px;height:26px;font-size:11px;">0.21</div>
+            <div class="matrix-cell input" style="width:40px;height:26px;font-size:11px;">0.07</div>
+            <div class="matrix-cell input" style="width:40px;height:26px;font-size:11px;">0.30</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">&times; W<sub>C</sub> (4&times;2)</div>
+        <div style="display:flex;gap:4px;">
+          <div class="matrix-cell" style="background:#ecfdf5;color:#059669;width:56px;font-size:14px;font-weight:700;">0.141</div>
+          <div class="matrix-cell" style="background:#ecfdf5;color:#059669;width:56px;font-size:14px;font-weight:700;">0.193</div>
+        </div>
+        <div class="dim-tag" style="margin-top:8px;">Shape: (N=2,)</div>
+      </div>
+
+      <!-- Delta -->
+      <div class="card" style="border-top:3px solid var(--orange);">
+        <h4 style="color:var(--orange);">&Delta;<sub>t</sub> &mdash; Attention</h4>
+        <p style="font-size:13px;">"How much <strong>attention</strong> to pay"</p>
+        <div class="step-equation">
+          &Delta;<sub>t</sub> = softplus(x'<sub>act</sub> &middot; w<sub>&Delta;</sub>)
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin:8px 0;">
+          dot product &rarr; -0.51<br>
+          softplus(-0.51)&thinsp;=&thinsp;ln(1+e<sup>-0.51</sup>)
+        </div>
+        <div style="display:flex;gap:4px;justify-content:center;">
+          <div class="matrix-cell" style="background:#fffbeb;color:#b45309;width:72px;height:36px;font-size:16px;font-weight:700;">0.079</div>
+        </div>
+        <div class="dim-tag" style="margin-top:8px;">Scalar (&gt;0 always)</div>
+      </div>
+    </div>
+
+    <div class="key-insight fade-in">
+      <h4>This is Selectivity</h4>
+      <p style="margin:0;">Different tokens produce different B, C, and &Delta;. A content word like <strong>"France"</strong> might produce &Delta;=2.0 (write strongly into state!). A function word like <strong>"of"</strong> produces &Delta;=0.05 (barely write &mdash; skip over it). The model learns which tokens matter and adjusts its state dynamics accordingly. This is the fundamental advantage over classical (non-selective) SSMs like S4.</p>
+    </div>
+  </div>
+</section>
+
+<!-- CHAPTER 7 -->
+<section id="ch7" style="background:var(--bg-alt);">
+  <div class="container">
+    <div class="fade-in">
+      <div class="chapter-label">Chapter 7</div>
+      <h2>Step 5 &mdash; Discretization</h2>
+      <p>The SSM is defined in continuous time, but we process tokens in discrete steps. We must convert the continuous parameters A and B into their discrete-time equivalents using the step size &Delta;<sub>t</sub>.</p>
+    </div>
+
+    <div class="card fade-in">
+      <h4>The discretization formulas</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+        <div class="step-equation" style="text-align:center;">
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:4px;">Decay (how much old state to keep)</div>
+          <span style="font-size:16px;">A&#x0304;<sub>t</sub> = exp(A &times; &Delta;<sub>t</sub>)</span>
+        </div>
+        <div class="step-equation" style="text-align:center;">
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:4px;">Input scale (how much new input to write)</div>
+          <span style="font-size:16px;">B&#x0304;<sub>t</sub> = &Delta;<sub>t</sub> &times; B<sub>t</sub></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card fade-in">
+      <h4>Learned base parameter A</h4>
+      <p style="font-size:14px;color:var(--text-muted);">A is a diagonal matrix (stored as a vector) with learned negative values. These represent the "natural" decay rates.</p>
+      <div style="display:flex;gap:6px;margin:12px 0;">
+        <div class="matrix-cell weight" style="width:72px;height:38px;font-size:15px;">-1.0</div>
+        <div class="matrix-cell weight" style="width:72px;height:38px;font-size:15px;">-0.5</div>
+      </div>
+      <div class="dim-tag">Shape: (N=2,)</div>
+    </div>
+
+    <div class="card fade-in">
+      <h4>Walking through the calculation with &Delta;<sub>t</sub> = 0.079</h4>
+
+      <div style="margin-top:16px;">
+        <div style="font-weight:600;margin-bottom:8px;">A&#x0304;<sub>t</sub> (discrete decay):</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="step-equation">
+            A&#x0304;[0] = exp(-1.0 &times; 0.079)<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= exp(-0.079)<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= <strong style="color:var(--purple);">0.924</strong>
+          </div>
+          <div class="step-equation">
+            A&#x0304;[1] = exp(-0.5 &times; 0.079)<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= exp(-0.040)<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= <strong style="color:var(--purple);">0.961</strong>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <div style="font-weight:600;margin-bottom:8px;">B&#x0304;<sub>t</sub> (input scale):</div>
+        <div class="step-equation">
+          B&#x0304;<sub>t</sub> = 0.079 &times; [0.135, 0.135] = [<strong style="color:var(--blue);">0.011</strong>, <strong style="color:var(--blue);">0.011</strong>]
+        </div>
+      </div>
+    </div>
+
+    <div class="fade-in" style="margin-top:24px;">
+      <h4 style="margin-bottom:12px;">What these numbers mean:</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <!-- A_bar viz -->
+        <div class="card" style="text-align:center;">
+          <div style="font-weight:700;color:var(--purple);margin-bottom:8px;">A&#x0304; &asymp; 0.92 &ndash; 0.96</div>
+          <div style="font-size:13px;margin-bottom:12px;">"Preserve 92&ndash;96% of old state"</div>
+          <div style="background:#f3f4f6;border-radius:8px;height:24px;overflow:hidden;">
+            <div style="background:linear-gradient(90deg,var(--purple),#a78bfa);height:100%;width:94%;border-radius:8px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;">
+              <span class="mono" style="color:#fff;font-size:11px;font-weight:600;">94%</span>
+            </div>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">Nearly full &mdash; keep most of the old state</div>
+        </div>
+
+        <!-- B_bar viz -->
+        <div class="card" style="text-align:center;">
+          <div style="font-weight:700;color:var(--blue);margin-bottom:8px;">B&#x0304; &asymp; 0.011</div>
+          <div style="font-size:13px;margin-bottom:12px;">"Write only 1% of new input"</div>
+          <div style="background:#f3f4f6;border-radius:8px;height:24px;overflow:hidden;">
+            <div style="background:linear-gradient(90deg,var(--blue),#93c5fd);height:100%;width:2%;border-radius:8px;min-width:4px;"></div>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">Tiny sliver &mdash; minimal new information</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout orange fade-in">
+      <strong>This small &Delta; means the model says</strong> "this context doesn't need a big state change." If this were "France" with &Delta;=2.0, A&#x0304; would be ~0.14 (erase 86% of state!) and B&#x0304; would be much larger &mdash; a dramatic rewrite of what the model remembers.
+    </div>
+  </div>
+</section>
+
+<!-- CHAPTER 8 -->
+<section id="ch8">
+  <div class="container">
+    <div class="fade-in">
+      <div class="chapter-label">Chapter 8</div>
+      <h2>Step 6 &mdash; The SSM Recurrence</h2>
+      <p>Now we run the core state update. This is where the model's "memory" gets updated with the new token. Think of it as a leaky bucket: old contents slowly drain out (controlled by A&#x0304;), while new contents flow in (controlled by B&#x0304;).</p>
+    </div>
+
+    <div class="card fade-in">
+      <h4>Core Equation</h4>
+      <div class="step-equation" style="text-align:center;font-size:16px;">
+        h<sub>t</sub> = A&#x0304;<sub>t</sub> &times; h<sub>prev</sub> + B&#x0304;<sub>t</sub> &times; x<sub>t</sub>
+      </div>
+      <p style="font-size:14px;text-align:center;color:var(--text-muted);margin-top:8px;">Old state (decayed) + new input (scaled) = new state</p>
+    </div>
+
+    <!-- Tank metaphor -->
+    <div class="fade-in" style="display:flex;justify-content:center;gap:48px;align-items:flex-end;margin:32px 0;">
+      <div style="text-align:center;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px;">Old State h<sub>prev</sub></div>
+        <div class="tank">
+          <div class="tank-water" style="height:65%;"></div>
+        </div>
+        <div class="tank-label">[0.50, -0.30]</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding-bottom:40px;">
+        <div style="font-size:24px;color:var(--purple);">&times; A&#x0304;</div>
+        <div style="font-size:12px;color:var(--text-muted);">drain 6%</div>
+        <div style="font-size:24px;">+</div>
+        <div style="font-size:24px;color:var(--blue);">&times; B&#x0304;</div>
+        <div style="font-size:12px;color:var(--text-muted);">add 1%</div>
+      </div>
+
+      <div style="text-align:center;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px;">New State h<sub>t</sub></div>
+        <div class="tank">
+          <div class="tank-water" style="height:60%;"></div>
+        </div>
+        <div class="tank-label">[0.464, -0.286]</div>
+      </div>
+    </div>
+
+    <div class="card fade-in">
+      <h4>The calculation (per state dimension, for one channel):</h4>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+        <div class="step-equation">
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:4px;">State dim 0:</div>
+          h<sub>new</sub>[0] = 0.924 &times; 0.500 + 0.011 &times; 0.209<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= 0.462 + 0.002<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= <strong style="color:var(--purple);">0.464</strong>
+        </div>
+        <div class="step-equation">
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:4px;">State dim 1:</div>
+          h<sub>new</sub>[1] = 0.961 &times; (-0.300) + 0.011 &times; 0.209<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= -0.288 + 0.002<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= <strong style="color:var(--purple);">-0.286</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="card fade-in" style="margin-top:16px;">
+      <h4>Reading from state: computing the output</h4>
+      <div class="step-equation" style="text-align:center;font-size:15px;">
+        y<sub>ssm</sub> = C<sub>t</sub> &middot; h<sub>new</sub>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;justify-content:center;margin:16px 0;flex-wrap:wrap;">
+        <div style="text-align:center;">
+          <div style="font-size:11px;color:var(--green);font-weight:600;margin-bottom:4px;">C<sub>t</sub></div>
+          <div style="display:flex;gap:3px;">
+            <div class="matrix-cell" style="background:#ecfdf5;color:#059669;font-size:13px;">0.141</div>
+            <div class="matrix-cell" style="background:#ecfdf5;color:#059669;font-size:13px;">0.193</div>
+          </div>
+        </div>
+        <div class="op-symbol">&middot;</div>
+        <div style="text-align:center;">
+          <div style="font-size:11px;color:var(--purple);font-weight:600;margin-bottom:4px;">h<sub>new</sub></div>
+          <div style="display:flex;gap:3px;">
+            <div class="matrix-cell weight" style="font-size:13px;">0.464</div>
+            <div class="matrix-cell weight" style="font-size:13px;">-0.286</div>
+          </div>
+        </div>
+        <div class="op-symbol">=</div>
+        <div style="text-align:center;">
+          <div style="font-size:11px;color:var(--orange);font-weight:600;margin-bottom:4px;">y<sub>ssm</sub></div>
+          <div class="step-equation" style="margin:0;padding:8px 16px;">
+            0.141&times;0.464 + 0.193&times;(-0.286)<br>
+            = 0.065 + (-0.055)<br>
+            = <strong style="color:var(--orange);">0.010</strong>
+          </div>
+        </div>
+      </div>
+      <p style="font-size:13px;color:var(--text-muted);text-align:center;">This is the SSM output for one channel. In practice, this runs independently across all E channels in parallel.</p>
+    </div>
+
+    <div class="callout green fade-in">
+      <strong>C<sub>t</sub> (computed from the current token)</strong> controls HOW to read from the state. Different tokens ask different questions of the state. A token trying to predict a country might weight certain state dimensions heavily, while a token predicting punctuation would read entirely different dimensions.
+    </div>
+  </div>
+</section>
+
+<!-- PARALLEL SCAN -->
+<section id="parallel-scan" style="background:var(--bg-alt);">
+  <div class="container">
+    <div class="fade-in">
+      <div class="chapter-label">Chapter 8.5</div>
+      <h2 class="gradient-text">How Parallel Scan Actually Computes the SSM</h2>
+      <p>
+        Chapter 8 showed one token update. During training, we need the hidden state for
+        <strong>every token</strong> in a long sequence. A plain recurrence would march left-to-right:
+        h<sub>1</sub>, then h<sub>2</sub>, then h<sub>3</sub>. Mamba uses a parallel scan so many of those
+        combines happen at the same time.
+      </p>
+    </div>
+
+    <div class="card fade-in">
+      <h4>Toy setup: one channel, one state dimension</h4>
+      <p style="font-size:14px;color:var(--text-muted);">
+        In the real model this runs for E channels and n state dimensions. To see the arithmetic clearly,
+        collapse it to one scalar state:
+      </p>
+      <div class="step-equation" style="text-align:center;font-size:16px;">
+        h<sub>t</sub> = a<sub>t</sub> h<sub>t-1</sub> + b<sub>t</sub>
+      </div>
+      <p style="font-size:14px;color:var(--text-muted);">
+        Here <span class="mono">a<sub>t</sub></span> is the discretized decay A&#x0304;<sub>t</sub>, and
+        <span class="mono">b<sub>t</sub></span> is the already-scaled write term B&#x0304;<sub>t</sub>x<sub>t</sub>.
+        Start with <span class="mono">h<sub>0</sub> = 0.50</span>.
+      </p>
+
+      <div class="scan-token-grid">
+        <div class="scan-token-card">
+          <div class="token-name">Token 1: "The"</div>
+          <div class="scan-value">
+            a<sub>1</sub> = <strong style="color:var(--purple);">0.96</strong><br>
+            b<sub>1</sub> = <strong style="color:var(--blue);">0.01</strong><br>
+            <span style="color:var(--text-muted);">mostly preserve</span>
+          </div>
+        </div>
+        <div class="scan-token-card important">
+          <div class="token-name">Token 2: "capital"</div>
+          <div class="scan-value">
+            a<sub>2</sub> = <strong style="color:var(--purple);">0.72</strong><br>
+            b<sub>2</sub> = <strong style="color:var(--blue);">0.18</strong><br>
+            <span style="color:var(--text-muted);">write some</span>
+          </div>
+        </div>
+        <div class="scan-token-card">
+          <div class="token-name">Token 3: "of"</div>
+          <div class="scan-value">
+            a<sub>3</sub> = <strong style="color:var(--purple);">0.94</strong><br>
+            b<sub>3</sub> = <strong style="color:var(--blue);">0.02</strong><br>
+            <span style="color:var(--text-muted);">mostly preserve</span>
+          </div>
+        </div>
+        <div class="scan-token-card rewrite">
+          <div class="token-name">Token 4: "France"</div>
+          <div class="scan-value">
+            a<sub>4</sub> = <strong style="color:var(--purple);">0.35</strong><br>
+            b<sub>4</sub> = <strong style="color:var(--blue);">0.60</strong><br>
+            <span style="color:var(--text-muted);">strong rewrite</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card fade-in">
+      <h4>What the sequential recurrence does</h4>
+      <p style="font-size:14px;color:var(--text-muted);">
+        This is correct, but every row waits for the previous row. On a GPU, that dependency chain is the slow part.
+      </p>
+
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr style="background:#fff;border-bottom:2px solid var(--border);">
+            <th style="text-align:left;padding:10px 12px;">Step</th>
+            <th style="text-align:left;padding:10px 12px;">Calculation</th>
+            <th style="text-align:right;padding:10px 12px;">State</th>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 12px;font-weight:600;">h<sub>1</sub></td>
+            <td style="padding:10px 12px;" class="mono">0.96 &times; 0.50 + 0.01</td>
+            <td style="padding:10px 12px;text-align:right;" class="mono"><strong>0.490</strong></td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 12px;font-weight:600;">h<sub>2</sub></td>
+            <td style="padding:10px 12px;" class="mono">0.72 &times; 0.490 + 0.18</td>
+            <td style="padding:10px 12px;text-align:right;" class="mono"><strong>0.533</strong></td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 12px;font-weight:600;">h<sub>3</sub></td>
+            <td style="padding:10px 12px;" class="mono">0.94 &times; 0.533 + 0.02</td>
+            <td style="padding:10px 12px;text-align:right;" class="mono"><strong>0.521</strong></td>
+          </tr>
+          <tr>
+            <td style="padding:10px 12px;font-weight:600;">h<sub>4</sub></td>
+            <td style="padding:10px 12px;" class="mono">0.35 &times; 0.521 + 0.60</td>
+            <td style="padding:10px 12px;text-align:right;" class="mono"><strong style="color:var(--green);">0.782</strong></td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="scan-chain">
+        <span class="scan-chip">h0</span>
+        <span style="color:var(--text-muted);">&rarr;</span>
+        <span class="scan-chip">h1</span>
+        <span style="color:var(--text-muted);">&rarr;</span>
+        <span class="scan-chip">h2</span>
+        <span style="color:var(--text-muted);">&rarr;</span>
+        <span class="scan-chip">h3</span>
+        <span style="color:var(--text-muted);">&rarr;</span>
+        <span class="scan-chip">h4</span>
+      </div>
+    </div>
+
+    <div class="card fade-in">
+      <h4>The parallel-scan lens: each token is a little function</h4>
+      <p style="font-size:14px;color:var(--text-muted);">
+        Instead of thinking "state update," think "function applied to the previous state."
+      </p>
+
+      <div class="scan-token-grid">
+        <div class="scan-mini-box purple">
+          <div class="scan-formula">f<sub>1</sub>(h) = 0.96h + 0.01</div>
+        </div>
+        <div class="scan-mini-box purple">
+          <div class="scan-formula">f<sub>2</sub>(h) = 0.72h + 0.18</div>
+        </div>
+        <div class="scan-mini-box purple">
+          <div class="scan-formula">f<sub>3</sub>(h) = 0.94h + 0.02</div>
+        </div>
+        <div class="scan-mini-box purple">
+          <div class="scan-formula">f<sub>4</sub>(h) = 0.35h + 0.60</div>
+        </div>
+      </div>
+
+      <div class="step-equation" style="font-size:15px;">
+        (a<sub>R</sub>, b<sub>R</sub>) &otimes; (a<sub>L</sub>, b<sub>L</sub>)
+        = (a<sub>R</sub>a<sub>L</sub>, a<sub>R</sub>b<sub>L</sub> + b<sub>R</sub>)
+      </div>
+      <p style="font-size:14px;color:var(--text-muted);margin:0;">
+        This is just function composition. If f<sub>L</sub>(h)=a<sub>L</sub>h+b<sub>L</sub> and
+        f<sub>R</sub>(h)=a<sub>R</sub>h+b<sub>R</sub>, then f<sub>R</sub>(f<sub>L</sub>(h)) is another function of the same form.
+        Because composition is associative, the GPU can combine chunks in a tree.
+      </p>
+    </div>
+
+    <div class="card fade-in">
+      <h4>Round 1: compose pairs in parallel</h4>
+      <div class="scan-stage-grid">
+        <div class="scan-mini-box blue">
+          <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:8px;">Pair 1: f<sub>2</sub> after f<sub>1</sub></div>
+          <div class="scan-formula">
+            (0.72, 0.18) &otimes; (0.96, 0.01)<br>
+            a = 0.72 &times; 0.96 = <strong>0.6912</strong><br>
+            b = 0.72 &times; 0.01 + 0.18 = <strong>0.1872</strong><br>
+            <span style="color:var(--blue);font-weight:700;">f<sub>2</sub>&compfn;f<sub>1</sub> = (0.6912, 0.1872)</span>
+          </div>
+        </div>
+
+        <div class="scan-mini-box orange">
+          <div style="font-size:12px;font-weight:700;color:#b45309;margin-bottom:8px;">Pair 2: f<sub>4</sub> after f<sub>3</sub></div>
+          <div class="scan-formula">
+            (0.35, 0.60) &otimes; (0.94, 0.02)<br>
+            a = 0.35 &times; 0.94 = <strong>0.3290</strong><br>
+            b = 0.35 &times; 0.02 + 0.60 = <strong>0.6070</strong><br>
+            <span style="color:#b45309;font-weight:700;">f<sub>4</sub>&compfn;f<sub>3</sub> = (0.3290, 0.6070)</span>
+          </div>
+        </div>
+      </div>
+      <p style="font-size:13px;color:var(--text-muted);margin:12px 0 0;">
+        Notice the important part: both pair calculations are independent, so they can run at the same time.
+      </p>
+    </div>
+
+    <div class="card fade-in">
+      <h4>Round 2: compose the chunks</h4>
+      <div class="scan-stage-grid">
+        <div class="scan-mini-box green">
+          <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:8px;">Full chunk: f<sub>4</sub>&compfn;f<sub>3</sub>&compfn;f<sub>2</sub>&compfn;f<sub>1</sub></div>
+          <div class="scan-formula">
+            (0.3290, 0.6070) &otimes; (0.6912, 0.1872)<br>
+            a = 0.3290 &times; 0.6912 = <strong>0.2274</strong><br>
+            b = 0.3290 &times; 0.1872 + 0.6070 = <strong>0.6686</strong><br>
+            F<sub>4</sub>(h) = 0.2274h + 0.6686
+          </div>
+        </div>
+
+        <div class="scan-mini-box green">
+          <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:8px;">Apply to h<sub>0</sub></div>
+          <div class="scan-formula">
+            h<sub>4</sub> = F<sub>4</sub>(0.50)<br>
+            = 0.2274 &times; 0.50 + 0.6686<br>
+            = 0.1137 + 0.6686<br>
+            = <strong style="color:var(--green);">0.782</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout green" style="margin-bottom:0;">
+        <strong>Same answer as the sequential recurrence.</strong> The difference is that we got there by composing chunks,
+        not by waiting for every hidden state one after another.
+      </div>
+    </div>
+
+    <div class="card fade-in">
+      <h4>But training needs all hidden states, not just h<sub>4</sub></h4>
+      <p style="font-size:14px;color:var(--text-muted);">
+        A full prefix scan recovers every prefix function F<sub>t</sub> = f<sub>t</sub>&compfn;...&compfn;f<sub>1</sub>.
+        Then each F<sub>t</sub> is applied to h<sub>0</sub>. Here are the actual prefixes:
+      </p>
+
+      <div class="scan-prefix-grid">
+        <div class="scan-prefix">
+          <div style="font-size:12px;font-weight:700;color:var(--purple);">Prefix F<sub>1</sub></div>
+          <div class="mono">(0.9600, 0.0100)</div>
+          <div class="mono">h<sub>1</sub> = 0.490</div>
+        </div>
+        <div class="scan-prefix">
+          <div style="font-size:12px;font-weight:700;color:var(--blue);">Prefix F<sub>2</sub></div>
+          <div class="mono">(0.6912, 0.1872)</div>
+          <div class="mono">h<sub>2</sub> = 0.533</div>
+        </div>
+        <div class="scan-prefix">
+          <div style="font-size:12px;font-weight:700;color:#b45309;">Prefix F<sub>3</sub></div>
+          <div class="mono">(0.6497, 0.1960)</div>
+          <div class="mono">h<sub>3</sub> = 0.521</div>
+        </div>
+        <div class="scan-prefix">
+          <div style="font-size:12px;font-weight:700;color:var(--green);">Prefix F<sub>4</sub></div>
+          <div class="mono">(0.2274, 0.6686)</div>
+          <div class="mono">h<sub>4</sub> = 0.782</div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr style="background:#fff;border-bottom:2px solid var(--border);">
+            <th style="text-align:left;padding:10px 12px;">Prefix</th>
+            <th style="text-align:left;padding:10px 12px;">Function</th>
+            <th style="text-align:left;padding:10px 12px;">Apply h<sub>0</sub>=0.50</th>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 12px;font-weight:600;">F<sub>1</sub></td>
+            <td style="padding:10px 12px;" class="mono">0.9600h + 0.0100</td>
+            <td style="padding:10px 12px;" class="mono">0.9600&times;0.50 + 0.0100 = 0.490</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 12px;font-weight:600;">F<sub>2</sub></td>
+            <td style="padding:10px 12px;" class="mono">0.6912h + 0.1872</td>
+            <td style="padding:10px 12px;" class="mono">0.6912&times;0.50 + 0.1872 = 0.533</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 12px;font-weight:600;">F<sub>3</sub></td>
+            <td style="padding:10px 12px;" class="mono">0.6497h + 0.1960</td>
+            <td style="padding:10px 12px;" class="mono">0.6497&times;0.50 + 0.1960 = 0.521</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 12px;font-weight:600;">F<sub>4</sub></td>
+            <td style="padding:10px 12px;" class="mono">0.2274h + 0.6686</td>
+            <td style="padding:10px 12px;" class="mono">0.2274&times;0.50 + 0.6686 = 0.782</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="card fade-in">
+      <h4>Where the time saving comes from</h4>
+      <div class="scan-time-grid">
+        <div class="scan-mini-box">
+          <h4 style="color:var(--red);">Sequential recurrence</h4>
+          <p style="font-size:13px;color:var(--text-muted);">
+            Critical path is the whole sequence. Token 1 must finish before token 2 can finish, and so on.
+          </p>
+          <div class="step-equation" style="font-size:13px;">N tokens &rarr; N dependent rounds</div>
+        </div>
+        <div class="scan-mini-box green">
+          <h4 style="color:var(--green);">Parallel scan</h4>
+          <p style="font-size:13px;color:var(--text-muted);">
+            Critical path is the height of the composition tree. Work is still linear-ish, but the waiting chain is much shorter.
+          </p>
+          <div class="step-equation" style="font-size:13px;">N tokens &rarr; about 2log<sub>2</sub>(N) tree rounds</div>
+        </div>
+      </div>
+
+      <div style="overflow-x:auto;margin-top:16px;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr style="background:#fff;border-bottom:2px solid var(--border);">
+            <th style="text-align:left;padding:10px 12px;">Sequence length</th>
+            <th style="text-align:right;padding:10px 12px;color:var(--red);">Sequential rounds</th>
+            <th style="text-align:right;padding:10px 12px;color:var(--green);">Scan rounds</th>
+            <th style="text-align:left;padding:10px 12px;">Intuition</th>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 12px;" class="mono">4</td>
+            <td style="padding:10px 12px;text-align:right;" class="mono">4</td>
+            <td style="padding:10px 12px;text-align:right;" class="mono">~4</td>
+            <td style="padding:10px 12px;">Toy example: same ballpark, useful for seeing the math.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 12px;" class="mono">8</td>
+            <td style="padding:10px 12px;text-align:right;" class="mono">8</td>
+            <td style="padding:10px 12px;text-align:right;" class="mono">~6</td>
+            <td style="padding:10px 12px;">Now the tree starts winning.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 12px;" class="mono">1,024</td>
+            <td style="padding:10px 12px;text-align:right;" class="mono">1,024</td>
+            <td style="padding:10px 12px;text-align:right;" class="mono">~20</td>
+            <td style="padding:10px 12px;">Huge reduction in dependency depth.</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 12px;" class="mono">1,048,576</td>
+            <td style="padding:10px 12px;text-align:right;" class="mono">1,048,576</td>
+            <td style="padding:10px 12px;text-align:right;" class="mono">~40</td>
+            <td style="padding:10px 12px;">Long contexts become trainable on GPU hardware.</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="card fade-in scan-zoom-card" id="scan-1024">
+      <h4>Zoom in: what does scan do for N = 1024?</h4>
+      <p style="font-size:14px;color:var(--text-muted);">
+        Let <span class="mono">G[i:j]</span> mean the composed chunk
+        <span class="mono">f<sub>j</sub>&compfn;f<sub>j-1</sub>&compfn;...&compfn;f<sub>i</sub></span>.
+        For example:
+      </p>
+
+      <div class="step-equation" style="font-size:13px;">
+        G[1:2] = f<sub>2</sub> &compfn; f<sub>1</sub><br>
+        G[1:4] = f<sub>4</sub> &compfn; f<sub>3</sub> &compfn; f<sub>2</sub> &compfn; f<sub>1</sub><br>
+        G[1:1024] = f<sub>1024</sub> &compfn; ... &compfn; f<sub>3</sub> &compfn; f<sub>2</sub> &compfn; f<sub>1</sub>
+      </div>
+
+      <h4 style="margin-top:24px;color:var(--purple);">First 10 rounds: up-sweep builds chunk summaries</h4>
+      <p style="font-size:14px;color:var(--text-muted);">
+        Each round doubles chunk size. The combines inside a row are independent, so all of them can run together.
+      </p>
+
+      <div class="scan-tree-visual" aria-label="1024 token up-sweep">
+        <div class="scan-tree-line">
+          <div class="scan-tree-label">tokens</div>
+          <div class="scan-blocks">
+            <span class="scan-block blue grow-1">f1</span>
+            <span class="scan-block blue grow-1">f2</span>
+            <span class="scan-block blue grow-1">f3</span>
+            <span class="scan-block blue grow-1">f4</span>
+            <span class="scan-block blue grow-1">...</span>
+            <span class="scan-block blue grow-1">f1023</span>
+            <span class="scan-block blue grow-1">f1024</span>
+          </div>
+        </div>
+        <div class="scan-tree-line">
+          <div class="scan-tree-label">round 1</div>
+          <div class="scan-blocks">
+            <span class="scan-block grow-2">G[1:2]</span>
+            <span class="scan-block grow-2">G[3:4]</span>
+            <span class="scan-block grow-2">...</span>
+            <span class="scan-block grow-2">G[1023:1024]</span>
+          </div>
+        </div>
+        <div class="scan-tree-line">
+          <div class="scan-tree-label">round 2</div>
+          <div class="scan-blocks">
+            <span class="scan-block orange grow-4">G[1:4]</span>
+            <span class="scan-block orange grow-4">G[5:8]</span>
+            <span class="scan-block orange grow-4">...</span>
+            <span class="scan-block orange grow-4">G[1021:1024]</span>
+          </div>
+        </div>
+        <div class="scan-tree-line">
+          <div class="scan-tree-label">round 3</div>
+          <div class="scan-blocks">
+            <span class="scan-block grow-8">G[1:8]</span>
+            <span class="scan-block grow-8">G[9:16]</span>
+            <span class="scan-block grow-8">...</span>
+            <span class="scan-block grow-8">G[1017:1024]</span>
+          </div>
+        </div>
+        <div class="scan-tree-line">
+          <div class="scan-tree-label">round 10</div>
+          <div class="scan-blocks">
+            <span class="scan-block green grow-8">G[1:1024]</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="scan-round-list">
+        <div class="scan-round-row">
+          <div class="round-label">round 1</div>
+          <div class="round-stat">block = 2</div>
+          <div class="round-stat">512 combines</div>
+          <div class="round-example">G[1:2], G[3:4], ..., G[1023:1024]</div>
+        </div>
+        <div class="scan-round-row">
+          <div class="round-label">round 2</div>
+          <div class="round-stat">block = 4</div>
+          <div class="round-stat">256 combines</div>
+          <div class="round-example">G[1:4] = G[3:4] &otimes; G[1:2], ..., G[1021:1024]</div>
+        </div>
+        <div class="scan-round-row">
+          <div class="round-label">round 3</div>
+          <div class="round-stat">block = 8</div>
+          <div class="round-stat">128 combines</div>
+          <div class="round-example">G[1:8], G[9:16], ..., G[1017:1024]</div>
+        </div>
+        <div class="scan-round-row">
+          <div class="round-label">...</div>
+          <div class="round-stat">...</div>
+          <div class="round-stat">...</div>
+          <div class="round-example">chunk size keeps doubling</div>
+        </div>
+        <div class="scan-round-row highlight">
+          <div class="round-label">round 10</div>
+          <div class="round-stat">block = 1024</div>
+          <div class="round-stat">1 combine</div>
+          <div class="round-example">G[1:1024] = G[513:1024] &otimes; G[1:512]</div>
+        </div>
+      </div>
+
+      <div class="callout orange" style="margin-top:18px;">
+        <strong>Important:</strong> after these 10 rounds, we know the whole-sequence summary
+        <span class="mono">G[1:1024]</span>. That is enough for the final state h<sub>1024</sub>,
+        but training needs h<sub>1</sub>, h<sub>2</sub>, ..., h<sub>1024</sub>. So we do a down-sweep.
+      </div>
+
+      <h4 style="margin-top:24px;color:var(--green);">Next 10 rounds: down-sweep distributes left context</h4>
+      <p style="font-size:14px;color:var(--text-muted);">
+        The down-sweep tells every chunk, "here is everything that happened before you."
+        The identity function is <span class="mono scan-identity">I = (1, 0)</span>, meaning "nothing before this block."
+      </p>
+
+      <div class="scan-stage-grid">
+        <div class="scan-mini-box green">
+          <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:8px;">Round 11: split 1024 into two 512 chunks</div>
+          <div class="scan-formula">
+            carry for [1:512] = <span class="scan-identity">I</span><br>
+            carry for [513:1024] = G[1:512]
+          </div>
+        </div>
+        <div class="scan-mini-box green">
+          <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:8px;">Round 12: split each 512 into 256 chunks</div>
+          <div class="scan-formula">
+            carry for [1:256] = I<br>
+            carry for [257:512] = G[1:256]<br>
+            carry for [513:768] = G[1:512]<br>
+            carry for [769:1024] = G[1:768]
+          </div>
+        </div>
+      </div>
+
+      <div class="scan-round-list">
+        <div class="scan-round-row">
+          <div class="round-label">round 11</div>
+          <div class="round-stat">block = 512</div>
+          <div class="round-stat">2 carries</div>
+          <div class="round-example">right half gets carry G[1:512]</div>
+        </div>
+        <div class="scan-round-row">
+          <div class="round-label">round 12</div>
+          <div class="round-stat">block = 256</div>
+          <div class="round-stat">4 carries</div>
+          <div class="round-example">quarters get carries I, G[1:256], G[1:512], G[1:768]</div>
+        </div>
+        <div class="scan-round-row">
+          <div class="round-label">round 13</div>
+          <div class="round-stat">block = 128</div>
+          <div class="round-stat">8 carries</div>
+          <div class="round-example">each 128-token chunk receives its left context</div>
+        </div>
+        <div class="scan-round-row">
+          <div class="round-label">...</div>
+          <div class="round-stat">...</div>
+          <div class="round-stat">...</div>
+          <div class="round-example">chunk size keeps halving</div>
+        </div>
+        <div class="scan-round-row highlight">
+          <div class="round-label">round 20</div>
+          <div class="round-stat">block = 1</div>
+          <div class="round-stat">1024 prefixes</div>
+          <div class="round-example">each token now has the exact previous context it needs</div>
+        </div>
+      </div>
+
+      <h4 style="margin-top:24px;">What every token finally receives</h4>
+      <div class="scan-stage-grid">
+        <div class="scan-mini-box">
+          <div class="scan-formula">
+            token 1 carry = I<br>
+            F<sub>1</sub> = f<sub>1</sub> &otimes; I = G[1:1]
+          </div>
+        </div>
+        <div class="scan-mini-box">
+          <div class="scan-formula">
+            token 2 carry = G[1:1]<br>
+            F<sub>2</sub> = f<sub>2</sub> &otimes; G[1:1] = G[1:2]
+          </div>
+        </div>
+        <div class="scan-mini-box">
+          <div class="scan-formula">
+            token 513 carry = G[1:512]<br>
+            F<sub>513</sub> = f<sub>513</sub> &otimes; G[1:512] = G[1:513]
+          </div>
+        </div>
+        <div class="scan-mini-box">
+          <div class="scan-formula">
+            token 1024 carry = G[1:1023]<br>
+            F<sub>1024</sub> = f<sub>1024</sub> &otimes; G[1:1023] = G[1:1024]
+          </div>
+        </div>
+      </div>
+
+      <div class="key-insight" style="margin-bottom:0;">
+        <h4>Why 20 rounds?</h4>
+        <p style="margin:0;">
+          <span class="mono">1024 = 2<sup>10</sup></span>. The up-sweep takes 10 tree levels to build
+          <span class="mono">G[1:1024]</span>. The down-sweep takes 10 tree levels to distribute the correct left context
+          to every token. So the dependency depth is about <strong>10 + 10 = 20 rounds</strong>, instead of
+          <strong>1024 left-to-right waits</strong>.
+        </p>
+      </div>
+
+      <h4 style="margin-top:28px;">Does that mean only 20 computations?</h4>
+      <div class="callout red">
+        <strong>No.</strong> The total arithmetic does not become 20 operations. What shrinks is the
+        <strong>critical path</strong>: the number of steps that must wait for previous steps.
+      </div>
+
+      <div class="scan-stage-grid">
+        <div class="scan-mini-box">
+          <h4 style="color:var(--red);">Sequential recurrence</h4>
+          <div class="scan-formula">
+            h<sub>1</sub> waits for h<sub>0</sub><br>
+            h<sub>2</sub> waits for h<sub>1</sub><br>
+            h<sub>3</sub> waits for h<sub>2</sub><br>
+            ...<br>
+            h<sub>1024</sub> waits for h<sub>1023</sub>
+          </div>
+          <div class="step-equation" style="font-size:13px;">
+            work: about 1024 state updates<br>
+            dependency depth: 1024 rounds
+          </div>
+        </div>
+        <div class="scan-mini-box green">
+          <h4 style="color:var(--green);">Parallel scan</h4>
+          <div class="scan-formula">
+            round 1: 512 pair combines at once<br>
+            round 2: 256 chunk combines at once<br>
+            ...<br>
+            round 10: 1 whole-sequence combine<br>
+            rounds 11-20: distribute prefixes
+          </div>
+          <div class="step-equation" style="font-size:13px;">
+            work: still O(1024), with scan overhead<br>
+            dependency depth: about 20 rounds
+          </div>
+        </div>
+      </div>
+
+      <p style="font-size:14px;color:var(--text-muted);margin-top:12px;">
+        So the scan can even do <em>more</em> raw combine bookkeeping than a plain left-to-right loop.
+        It wins because GPUs hate long dependency chains and love many independent operations at once.
+      </p>
+
+      <h4 style="margin-top:28px;">Prefill comparison: Mamba with and without scan</h4>
+      <p style="font-size:14px;color:var(--text-muted);">
+        This matters for <strong>prefill</strong>: processing the whole prompt before generation begins.
+        During one-token decode, Mamba just updates the state once, so scan is not the main trick there.
+        During prefill, scan lets the prompt tokens run as a parallel batch.
+      </p>
+
+      <div style="overflow-x:auto;margin-top:16px;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr style="background:#fff;border-bottom:2px solid var(--border);">
+            <th style="text-align:left;padding:10px 12px;">Prefill method for N=1024</th>
+            <th style="text-align:right;padding:10px 12px;">Raw recurrence work</th>
+            <th style="text-align:right;padding:10px 12px;">Sequential waits</th>
+            <th style="text-align:left;padding:10px 12px;">Wall-clock intuition</th>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 12px;font-weight:600;color:var(--red);">No parallel scan</td>
+            <td style="padding:10px 12px;text-align:right;" class="mono">~1024 updates</td>
+            <td style="padding:10px 12px;text-align:right;" class="mono">1024</td>
+            <td style="padding:10px 12px;">Must march through tokens one by one along the sequence.</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 12px;font-weight:600;color:var(--green);">With parallel scan</td>
+            <td style="padding:10px 12px;text-align:right;" class="mono">O(1024) combines</td>
+            <td style="padding:10px 12px;text-align:right;" class="mono">~20</td>
+            <td style="padding:10px 12px;">Many combines happen simultaneously; the waiting chain is tree height.</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="key-insight" style="margin-bottom:0;">
+        <h4>Useful speed intuition</h4>
+        <p style="margin:0;">
+          If the recurrent dependency were the whole bottleneck and the GPU had enough parallel work,
+          the dependency-depth improvement for 1024 tokens is roughly
+          <span class="mono">1024 / 20 &asymp; 51&times;</span>. Real end-to-end prefill speedup is smaller because
+          projections, convolutions, memory movement, kernel overhead, and hardware limits also matter.
+        </p>
+      </div>
+    </div>
+
+    <div class="callout fade-in">
+      <strong>Ground-level mental model:</strong> Mamba cannot use one fixed convolution kernel because every token creates
+      its own <span class="mono">a<sub>t</sub></span> and <span class="mono">b<sub>t</sub></span>. But each token still creates
+      a composable affine function. Parallel scan turns "do N recurrence steps one by one" into "compose many small functions
+      in a tree, then read out every prefix."
+    </div>
+  </div>
+</section>
+
+<!-- CHAPTER 9 -->
+<section id="ch9">
+  <div class="container">
+    <div class="fade-in">
+      <div class="chapter-label">Chapter 9</div>
+      <h2>Step 7 &mdash; Gating (The Output Filter)</h2>
+      <p>Remember the z path we split off at the very beginning? It has been waiting patiently. Now it passes through SiLU to become a gate, and we multiply it with the SSM output element-wise.</p>
+    </div>
+
+    <div class="card fade-in">
+      <h4>The z branch: SiLU activation to create gate values</h4>
+      <div style="display:flex;align-items:center;gap:24px;justify-content:center;margin:20px 0;flex-wrap:wrap;">
+        <div style="text-align:center;">
+          <div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:6px;">z (raw)</div>
+          <div style="display:flex;gap:4px;">
+            <div class="matrix-cell" style="background:#ecfdf5;color:#059669;">0.22</div>
+            <div class="matrix-cell" style="background:#ecfdf5;color:#059669;">0.63</div>
+            <div class="matrix-cell" style="background:#ecfdf5;color:#059669;">0.09</div>
+            <div class="matrix-cell" style="background:#ecfdf5;color:#059669;">0.23</div>
+          </div>
+        </div>
+        <div style="font-size:20px;color:var(--green);">&rarr; SiLU &rarr;</div>
+        <div style="text-align:center;">
+          <div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:6px;">gate</div>
+          <div style="display:flex;gap:4px;">
+            <div class="matrix-cell" style="background:#d1fae5;color:#059669;font-weight:600;">0.12</div>
+            <div class="matrix-cell" style="background:#d1fae5;color:#059669;font-weight:600;">0.41</div>
+            <div class="matrix-cell" style="background:#d1fae5;color:#059669;font-weight:600;">0.05</div>
+            <div class="matrix-cell" style="background:#d1fae5;color:#059669;font-weight:600;">0.13</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card fade-in">
+      <h4>Element-wise multiplication: y<sub>ssm</sub> &otimes; gate</h4>
+      <p style="font-size:14px;color:var(--text-muted);">Each SSM channel output is scaled by its corresponding gate value. The gate decides how much of each channel's signal to pass through.</p>
+
+      <div style="margin-top:20px;">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+          <div style="text-align:center;">
+            <div style="font-size:11px;font-weight:600;color:var(--orange);margin-bottom:4px;">y<sub>ssm</sub>[0]</div>
+            <div style="background:#fffbeb;padding:8px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-weight:600;">0.010</div>
+            <div style="margin:4px 0;font-size:18px;color:var(--purple);">&times;</div>
+            <div style="font-size:11px;font-weight:600;color:var(--green);margin-bottom:4px;">gate[0]</div>
+            <div style="background:#ecfdf5;padding:8px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-weight:600;">0.12</div>
+            <div style="border-top:2px solid var(--border);margin-top:8px;padding-top:8px;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;">0.0012</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:11px;font-weight:600;color:var(--orange);margin-bottom:4px;">y<sub>ssm</sub>[1]</div>
+            <div style="background:#fffbeb;padding:8px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-weight:600;">0.048</div>
+            <div style="margin:4px 0;font-size:18px;color:var(--purple);">&times;</div>
+            <div style="font-size:11px;font-weight:600;color:var(--green);margin-bottom:4px;">gate[1]</div>
+            <div style="background:#ecfdf5;padding:8px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-weight:600;">0.41</div>
+            <div style="border-top:2px solid var(--border);margin-top:8px;padding-top:8px;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;">0.0197</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:11px;font-weight:600;color:var(--orange);margin-bottom:4px;">y<sub>ssm</sub>[2]</div>
+            <div style="background:#fffbeb;padding:8px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-weight:600;">0.024</div>
+            <div style="margin:4px 0;font-size:18px;color:var(--purple);">&times;</div>
+            <div style="font-size:11px;font-weight:600;color:var(--green);margin-bottom:4px;">gate[2]</div>
+            <div style="background:#ecfdf5;padding:8px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-weight:600;">0.05</div>
+            <div style="border-top:2px solid var(--border);margin-top:8px;padding-top:8px;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;">0.0012</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:11px;font-weight:600;color:var(--orange);margin-bottom:4px;">y<sub>ssm</sub>[3]</div>
+            <div style="background:#fffbeb;padding:8px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-weight:600;">0.017</div>
+            <div style="margin:4px 0;font-size:18px;color:var(--purple);">&times;</div>
+            <div style="font-size:11px;font-weight:600;color:var(--green);margin-bottom:4px;">gate[3]</div>
+            <div style="background:#ecfdf5;padding:8px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-weight:600;">0.13</div>
+            <div style="border-top:2px solid var(--border);margin-top:8px;padding-top:8px;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;">0.0022</div>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;">
+          <span class="mono" style="font-size:14px;font-weight:600;">gated output = [0.0012, 0.0197, 0.0012, 0.0022]</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout fade-in">
+      <strong>The gate controls which SSM channels pass through.</strong> Like an LSTM output gate, this is learned output filtering. The gate can amplify informative channels (gate &asymp; 1) and suppress noisy ones (gate &asymp; 0), giving the model fine-grained control over its output.
+    </div>
+  </div>
+</section>
+
+<!-- CHAPTER 10 -->
+<section id="ch10">
+  <div class="container">
+    <div class="fade-in">
+      <div class="chapter-label">Chapter 10</div>
+      <h2>Step 8 &mdash; Output Projection + Residual</h2>
+      <p>The gated output (dimension E) is projected back to model dimension d, then added to the original input via the residual connection.</p>
+    </div>
+
+    <div class="card fade-in">
+      <h4>Linear projection (E &rarr; d)</h4>
+      <div style="display:flex;align-items:center;gap:16px;justify-content:center;margin:16px 0;flex-wrap:wrap;">
+        <div style="text-align:center;">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">gated (E=4)</div>
+          <div style="display:flex;gap:3px;">
+            <div class="matrix-cell output" style="font-size:11px;">0.001</div>
+            <div class="matrix-cell output" style="font-size:11px;">0.020</div>
+            <div class="matrix-cell output" style="font-size:11px;">0.001</div>
+            <div class="matrix-cell output" style="font-size:11px;">0.002</div>
+          </div>
+        </div>
+        <div class="op-symbol">&times;</div>
+        <div style="text-align:center;">
+          <div style="font-size:11px;font-weight:600;color:var(--purple);margin-bottom:4px;">W<sub>out</sub> (4&times;4)</div>
+          <div class="arch-box purple" style="padding:16px 24px;">4&times;4 matrix</div>
+        </div>
+        <div class="op-symbol">=</div>
+        <div style="text-align:center;">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">mamba_out (d=4)</div>
+          <div style="display:flex;gap:3px;">
+            <div class="matrix-cell output" style="font-size:11px;">0.001</div>
+            <div class="matrix-cell output" style="font-size:11px;">0.005</div>
+            <div class="matrix-cell output" style="font-size:11px;">0.002</div>
+            <div class="matrix-cell output" style="font-size:11px;">0.002</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card fade-in" style="margin-top:16px;">
+      <h4>Residual connection: output = x + mamba_output</h4>
+      <div style="display:flex;align-items:center;gap:16px;justify-content:center;margin:20px 0;flex-wrap:wrap;">
+        <div style="text-align:center;">
+          <div style="font-size:12px;font-weight:600;color:var(--blue);margin-bottom:6px;">Original x</div>
+          <div style="display:flex;gap:4px;">
+            <div class="matrix-cell input" style="width:64px;font-size:15px;font-weight:700;">0.700</div>
+            <div class="matrix-cell input" style="width:64px;font-size:15px;font-weight:700;">0.200</div>
+            <div class="matrix-cell input" style="width:64px;font-size:15px;font-weight:700;">0.300</div>
+            <div class="matrix-cell input" style="width:64px;font-size:15px;font-weight:700;">0.600</div>
+          </div>
+        </div>
+
+        <div style="font-size:28px;font-weight:700;color:var(--purple);">+</div>
+
+        <div style="text-align:center;">
+          <div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:6px;">Mamba output</div>
+          <div style="display:flex;gap:4px;">
+            <div class="matrix-cell output" style="width:64px;font-size:15px;">0.001</div>
+            <div class="matrix-cell output" style="width:64px;font-size:15px;">0.005</div>
+            <div class="matrix-cell output" style="width:64px;font-size:15px;">0.002</div>
+            <div class="matrix-cell output" style="width:64px;font-size:15px;">0.002</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align:center;margin-top:16px;">
+        <div style="font-size:24px;color:var(--purple);margin-bottom:12px;">&darr;</div>
+        <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px;">Final Output</div>
+        <div style="display:flex;gap:6px;justify-content:center;">
+          <div style="background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;padding:10px 16px;border-radius:10px;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:17px;">0.7008</div>
+          <div style="background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;padding:10px 16px;border-radius:10px;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:17px;">0.2048</div>
+          <div style="background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;padding:10px 16px;border-radius:10px;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:17px;">0.3024</div>
+          <div style="background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;padding:10px 16px;border-radius:10px;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:17px;">0.6017</div>
+        </div>
+        <div class="dim-tag" style="margin-top:8px;">Shape: (d=4,) &mdash; same as input</div>
+      </div>
+    </div>
+
+    <!-- COMPLETE FLOW SUMMARY -->
+    <div class="card fade-in" style="margin-top:24px;background:linear-gradient(135deg,#faf9f7,#f0ecff);">
+      <h4 style="text-align:center;margin-bottom:20px;">Complete Value Trace: Input &rarr; Output</h4>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-family:'JetBrains Mono',monospace;font-size:12px;">
+          <tr style="background:#fff;">
+            <td style="padding:8px 12px;border:1px solid var(--border);font-weight:600;font-family:'Inter',sans-serif;font-size:13px;">Input x</td>
+            <td style="padding:8px 12px;border:1px solid var(--border);">[0.700, 0.200, 0.300, 0.600]</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 12px;border:1px solid var(--border);font-weight:600;font-family:'Inter',sans-serif;font-size:13px;">x' (after split)</td>
+            <td style="padding:8px 12px;border:1px solid var(--border);color:var(--blue);">[0.410, 0.160, 0.170, 0.530]</td>
+          </tr>
+          <tr style="background:#fff;">
+            <td style="padding:8px 12px;border:1px solid var(--border);font-weight:600;font-family:'Inter',sans-serif;font-size:13px;">After Conv1D</td>
+            <td style="padding:8px 12px;border:1px solid var(--border);color:var(--blue);">[0.377, 0.136, 0.110, 0.504]</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 12px;border:1px solid var(--border);font-weight:600;font-family:'Inter',sans-serif;font-size:13px;">After SiLU (x'<sub>act</sub>)</td>
+            <td style="padding:8px 12px;border:1px solid var(--border);color:var(--green);">[0.209, 0.207, 0.068, 0.295]</td>
+          </tr>
+          <tr style="background:#fff;">
+            <td style="padding:8px 12px;border:1px solid var(--border);font-weight:600;font-family:'Inter',sans-serif;font-size:13px;">B<sub>t</sub>, C<sub>t</sub>, &Delta;<sub>t</sub></td>
+            <td style="padding:8px 12px;border:1px solid var(--border);color:var(--orange);">B=[0.135,0.135] C=[0.141,0.193] &Delta;=0.079</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 12px;border:1px solid var(--border);font-weight:600;font-family:'Inter',sans-serif;font-size:13px;">A&#x0304;, B&#x0304;</td>
+            <td style="padding:8px 12px;border:1px solid var(--border);color:var(--purple);">A&#x0304;=[0.924,0.961] B&#x0304;=[0.011,0.011]</td>
+          </tr>
+          <tr style="background:#fff;">
+            <td style="padding:8px 12px;border:1px solid var(--border);font-weight:600;font-family:'Inter',sans-serif;font-size:13px;">SSM output</td>
+            <td style="padding:8px 12px;border:1px solid var(--border);color:var(--orange);">[0.010, 0.048, 0.024, 0.017]</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 12px;border:1px solid var(--border);font-weight:600;font-family:'Inter',sans-serif;font-size:13px;">After gating</td>
+            <td style="padding:8px 12px;border:1px solid var(--border);color:var(--green);">[0.0012, 0.0197, 0.0012, 0.0022]</td>
+          </tr>
+          <tr style="background:#fff;">
+            <td style="padding:8px 12px;border:1px solid var(--border);font-weight:700;font-family:'Inter',sans-serif;font-size:13px;">Final output</td>
+            <td style="padding:8px 12px;border:1px solid var(--border);font-weight:700;">[0.7008, 0.2048, 0.3024, 0.6017]</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- INFERENCE STATE & MEMORY -->
+<section id="inference-state">
+  <div class="container">
+    <div class="fade-in">
+      <div class="chapter-label">Chapter 9</div>
+      <h2 class="gradient-text">What Gets Cached &mdash; And Why Mamba Never Grows</h2>
+      <p style="font-size:17px;color:var(--text-muted);max-width:660px;line-height:1.7;">
+        During inference, every model must remember something about the tokens it has already seen.
+        The question is: <strong style="color:var(--text);">how much?</strong> This is where Mamba fundamentally
+        differs from Transformers.
+      </p>
+    </div>
+
+    <!-- TRANSFORMER KV CACHE -->
+    <div class="fade-in">
+      <h3 style="margin-top:36px;">The Transformer Problem: KV Cache Grows Forever</h3>
+      <p>
+        In a Transformer, during autoregressive generation, every new token needs to attend to
+        <strong>all previous tokens</strong>. To avoid recomputing the Keys and Values of past tokens,
+        they are stored in a <strong>KV cache</strong>.
+      </p>
+    </div>
+
+    <div class="card fade-in">
+      <h4>Transformer KV Cache &mdash; Per Layer</h4>
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:14px;margin:12px 0;">
+        <span class="mono" style="color:var(--purple);font-weight:600;">Stored:</span>
+        <span>K vectors + V vectors for <strong>every token seen so far</strong></span>
+        <span class="mono" style="color:var(--purple);font-weight:600;">Shape:</span>
+        <span class="mono">2 &times; N &times; d</span>
+        <span class="mono" style="color:var(--purple);font-weight:600;">At N=100K:</span>
+        <span class="mono" style="color:var(--red);">2 &times; 100,000 &times; 2,048 &times; 2 bytes = 781 MB per layer</span>
+      </div>
+
+      <!-- Visual: growing bars -->
+      <div style="margin-top:20px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px;">CACHE SIZE AS TOKENS INCREASE:</div>
+        <div class="value-bar">
+          <div class="label" style="min-width:80px;">N=10</div>
+          <div class="bar" style="width:2%;background:var(--orange);">tiny</div>
+        </div>
+        <div class="value-bar">
+          <div class="label" style="min-width:80px;">N=1K</div>
+          <div class="bar" style="width:10%;background:var(--orange);">16 KB</div>
+        </div>
+        <div class="value-bar">
+          <div class="label" style="min-width:80px;">N=10K</div>
+          <div class="bar" style="width:30%;background:var(--red);">160 KB</div>
+        </div>
+        <div class="value-bar">
+          <div class="label" style="min-width:80px;">N=100K</div>
+          <div class="bar" style="width:70%;background:var(--red);">781 MB</div>
+        </div>
+        <div class="value-bar">
+          <div class="label" style="min-width:80px;">N=1M</div>
+          <div class="bar" style="width:100%;background:#991b1b;">7.8 GB &#128165;</div>
+        </div>
+      </div>
+      <p style="font-size:13px;color:var(--text-muted);margin:8px 0 0;">The KV cache grows <strong>linearly</strong> with sequence length. At long contexts, it can exceed GPU memory.</p>
+    </div>
+
+    <!-- MAMBA STATE -->
+    <div class="fade-in">
+      <h3 style="margin-top:36px;">Mamba's State: Fixed Size, No Matter How Long the Sequence</h3>
+      <p>
+        Mamba doesn't have a KV cache. Instead, it maintains a <strong>fixed-size hidden state</strong>
+        that gets <em>updated</em> with each token &mdash; not appended to. After processing a token,
+        the old state is gone; only the updated state remains. Here's exactly what gets stored:
+      </p>
+    </div>
+
+    <div class="card fade-in" style="border-top:3px solid var(--green);">
+      <h4 style="color:var(--green);">Mamba Inference State &mdash; Per Layer</h4>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0;">
+        <!-- SSM state -->
+        <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:20px;">
+          <div style="font-size:13px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">1. SSM Hidden State</div>
+          <div class="mono" style="font-size:15px;font-weight:700;margin-bottom:8px;">h &isin; &reals;<sup>E &times; n</sup></div>
+          <p style="font-size:13px;margin:0;">
+            Each of the <strong>E</strong> expanded dimensions maintains its own <strong>n</strong>-dimensional state vector.
+            This state summarizes <em>all past tokens</em> &mdash; like a compressed memory.
+          </p>
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid #a7f3d0;">
+            <div class="mono" style="font-size:12px;color:var(--text-muted);">Toy: E=4, n=2 &rarr; <strong>8 numbers</strong></div>
+            <div class="mono" style="font-size:12px;color:var(--text-muted);">Real: E=4096, n=16 &rarr; <strong>65,536 numbers</strong></div>
+          </div>
+        </div>
+
+        <!-- Conv buffer -->
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:20px;">
+          <div style="font-size:13px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">2. Conv1D Buffer</div>
+          <div class="mono" style="font-size:15px;font-weight:700;margin-bottom:8px;">buf &isin; &reals;<sup>E &times; (k-1)</sup></div>
+          <p style="font-size:13px;margin:0;">
+            The Conv1D needs to see the previous <strong>k-1</strong> tokens' x' values (where k is the conv kernel size, typically 4).
+            This is a tiny circular buffer.
+          </p>
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid #bfdbfe;">
+            <div class="mono" style="font-size:12px;color:var(--text-muted);">Toy: E=4, k=2 &rarr; <strong>4 numbers</strong></div>
+            <div class="mono" style="font-size:12px;color:var(--text-muted);">Real: E=4096, k=4 &rarr; <strong>12,288 numbers</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Total -->
+      <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:16px 20px;margin-top:12px;">
+        <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;">
+          <span style="font-size:14px;font-weight:700;color:var(--green);">Total state per layer:</span>
+          <span class="mono" style="font-size:14px;">E &times; n + E &times; (k &minus; 1)</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+          <div class="mono" style="font-size:13px;">Toy: 8 + 4 = <strong>12 numbers</strong></div>
+          <div class="mono" style="font-size:13px;">Real: 65,536 + 12,288 = <strong>77,824 numbers</strong></div>
+        </div>
+        <div class="mono" style="font-size:13px;margin-top:4px;">In FP16: 77,824 &times; 2 bytes = <strong style="color:var(--green);">156 KB per layer</strong></div>
+      </div>
+    </div>
+
+    <div class="callout green fade-in">
+      <strong>The crucial point:</strong> This state is <strong>FIXED</strong>. Token 1 and token 1,000,000 use the
+      <em>exact same amount</em> of state memory. The state doesn't grow &mdash; it gets <em>updated in place</em>.
+      Old information is compressed into the state via the recurrence, not stored verbatim.
+    </div>
+
+    <!-- WHY E×n AND NOT SOMETHING ELSE -->
+    <div class="fade-in">
+      <h3 style="margin-top:36px;">Why E &times; n? Understanding the State Shape</h3>
+      <p>
+        You might wonder: why is the state E &times; n, not d &times; d or N &times; d?
+        Let's trace where each dimension comes from:
+      </p>
+    </div>
+
+    <div class="card fade-in">
+      <div style="display:grid;grid-template-columns:auto auto 1fr;gap:8px 16px;font-size:14px;align-items:baseline;">
+        <span class="mono" style="color:var(--purple);font-weight:700;">E</span>
+        <span style="font-weight:600;">(expanded dim)</span>
+        <span>The input x (dim d) is projected UP to dimension E = 2d. The SSM runs E <em>independent</em> copies of the recurrence &mdash; one per expanded dimension. Each copy has its own state.</span>
+
+        <span class="mono" style="color:var(--blue);font-weight:700;">n</span>
+        <span style="font-weight:600;">(state dim)</span>
+        <span>Each independent SSM copy maintains an n-dimensional state vector. n is typically <strong>16</strong> in real Mamba. This is the "memory capacity" per channel &mdash; how many different things each channel can remember simultaneously.</span>
+      </div>
+
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+        <div style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:8px;">VISUAL: THE STATE IS E INDEPENDENT n-DIMENSIONAL VECTORS</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <div style="background:#f0ecff;border:1px solid #d4ccff;border-radius:8px;padding:8px 12px;text-align:center;min-width:80px;">
+            <div style="font-size:10px;font-weight:600;color:var(--purple);margin-bottom:4px;">Channel 0</div>
+            <div class="mono" style="font-size:11px;">h &isin; &reals;<sup>n</sup></div>
+            <div class="mono" style="font-size:10px;color:var(--text-muted);">[0.46, -0.29]</div>
+          </div>
+          <div style="background:#f0ecff;border:1px solid #d4ccff;border-radius:8px;padding:8px 12px;text-align:center;min-width:80px;">
+            <div style="font-size:10px;font-weight:600;color:var(--purple);margin-bottom:4px;">Channel 1</div>
+            <div class="mono" style="font-size:11px;">h &isin; &reals;<sup>n</sup></div>
+            <div class="mono" style="font-size:10px;color:var(--text-muted);">[0.31, 0.18]</div>
+          </div>
+          <div style="background:#f0ecff;border:1px solid #d4ccff;border-radius:8px;padding:8px 12px;text-align:center;min-width:80px;">
+            <div style="font-size:10px;font-weight:600;color:var(--purple);margin-bottom:4px;">Channel 2</div>
+            <div class="mono" style="font-size:11px;">h &isin; &reals;<sup>n</sup></div>
+            <div class="mono" style="font-size:10px;color:var(--text-muted);">[-0.12, 0.54]</div>
+          </div>
+          <div style="background:#f0ecff;border:1px solid #d4ccff;border-radius:8px;padding:8px 12px;text-align:center;min-width:80px;">
+            <div style="font-size:10px;font-weight:600;color:var(--purple);margin-bottom:4px;">Channel 3</div>
+            <div class="mono" style="font-size:11px;">h &isin; &reals;<sup>n</sup></div>
+            <div class="mono" style="font-size:10px;color:var(--text-muted);">[0.73, -0.05]</div>
+          </div>
+          <div style="color:var(--text-muted);display:flex;align-items:center;font-size:14px;padding:0 8px;">&hellip;</div>
+          <div style="background:#f0ecff;border:1px solid #d4ccff;border-radius:8px;padding:8px 12px;text-align:center;min-width:80px;">
+            <div style="font-size:10px;font-weight:600;color:var(--purple);margin-bottom:4px;">Channel E-1</div>
+            <div class="mono" style="font-size:11px;">h &isin; &reals;<sup>n</sup></div>
+            <div class="mono" style="font-size:10px;color:var(--text-muted);">[0.22, 0.67]</div>
+          </div>
+        </div>
+        <p style="font-size:13px;color:var(--text-muted);margin:12px 0 0;">
+          E = 4096 channels, each with n = 16 state values. Total: 4096 &times; 16 = 65,536 numbers.
+          <strong>This entire grid is the SSM's "memory" for the whole sequence.</strong>
+        </p>
+      </div>
+    </div>
+
+    <!-- FLOPs PER TOKEN -->
+    <div class="fade-in">
+      <h3 style="margin-top:36px;">FLOPs Per Token During Inference</h3>
+      <p>
+        During decode (generating one new token), every operation in the Mamba block runs once.
+        Let's count the FLOPs:
+      </p>
+    </div>
+
+    <div class="card fade-in">
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:14px;">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border);">
+              <th style="text-align:left;padding:8px 12px;font-weight:700;">Operation</th>
+              <th style="text-align:left;padding:8px 12px;font-weight:700;">Computation</th>
+              <th style="text-align:right;padding:8px 12px;font-weight:700;">FLOPs</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 12px;">Linear (d &rarr; 2E)</td>
+              <td style="padding:8px 12px;" class="mono">x @ W<sub>xz</sub></td>
+              <td style="padding:8px 12px;text-align:right;" class="mono">4dE</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 12px;">Conv1D (depthwise, k taps)</td>
+              <td style="padding:8px 12px;" class="mono">k multiplies per channel</td>
+              <td style="padding:8px 12px;text-align:right;" class="mono">2Ek</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 12px;">SiLU (x' path)</td>
+              <td style="padding:8px 12px;" class="mono">x &times; sigmoid(x)</td>
+              <td style="padding:8px 12px;text-align:right;" class="mono">~4E</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 12px;">Compute B<sub>t</sub></td>
+              <td style="padding:8px 12px;" class="mono">x'<sub>act</sub> @ W<sub>B</sub></td>
+              <td style="padding:8px 12px;text-align:right;" class="mono">2En</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 12px;">Compute C<sub>t</sub></td>
+              <td style="padding:8px 12px;" class="mono">x'<sub>act</sub> @ W<sub>C</sub></td>
+              <td style="padding:8px 12px;text-align:right;" class="mono">2En</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 12px;">Compute &Delta;<sub>t</sub></td>
+              <td style="padding:8px 12px;" class="mono">x'<sub>act</sub> &middot; w<sub>&Delta;</sub> + softplus</td>
+              <td style="padding:8px 12px;text-align:right;" class="mono">2E</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);background:#fffbeb;">
+              <td style="padding:8px 12px;font-weight:600;">SSM recurrence</td>
+              <td style="padding:8px 12px;" class="mono">h = A&#772; &times; h + B&#772; &times; x</td>
+              <td style="padding:8px 12px;text-align:right;font-weight:600;" class="mono" style="color:var(--orange);">4En</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);background:#fffbeb;">
+              <td style="padding:8px 12px;font-weight:600;">SSM readout</td>
+              <td style="padding:8px 12px;" class="mono">y = C<sub>t</sub> &middot; h</td>
+              <td style="padding:8px 12px;text-align:right;font-weight:600;" class="mono">2En</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 12px;">Gating</td>
+              <td style="padding:8px 12px;" class="mono">y<sub>ssm</sub> &odot; SiLU(z)</td>
+              <td style="padding:8px 12px;text-align:right;" class="mono">~5E</td>
+            </tr>
+            <tr style="border-bottom:2px solid var(--border);">
+              <td style="padding:8px 12px;">Linear (E &rarr; d)</td>
+              <td style="padding:8px 12px;" class="mono">y<sub>gated</sub> @ W<sub>out</sub></td>
+              <td style="padding:8px 12px;text-align:right;" class="mono">2Ed</td>
+            </tr>
+            <tr style="background:#f0fdf4;">
+              <td style="padding:10px 12px;font-weight:700;" colspan="2">Total per token (dominant terms)</td>
+              <td style="padding:10px 12px;text-align:right;font-weight:700;" class="mono" style="color:var(--green);">~6Ed + 10En</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+        <div style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:8px;">WITH REAL MAMBA VALUES (d=2048, E=4096, n=16, k=4):</div>
+        <div class="mono" style="font-size:14px;line-height:2;">
+          Linear projections: 6 &times; 4096 &times; 2048 = <strong>50.3M FLOPs</strong><br>
+          SSM operations: 10 &times; 4096 &times; 16 = <strong>655K FLOPs</strong><br>
+          Total: <strong style="color:var(--green);">&asymp; 51M FLOPs per token per layer</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout orange fade-in">
+      <strong>Notice:</strong> The SSM recurrence itself (the h = A&#772;&middot;h + B&#772;&middot;x step) costs only <strong>4En FLOPs</strong>.
+      The dominant cost is the linear projections (6Ed). The state update is cheap &mdash; it's the projections
+      in and out that dominate. And critically: <strong>none of these depend on N</strong> (the sequence length).
+      Token 1 costs exactly the same as token 1,000,000.
+    </div>
+
+    <!-- THE BIG COMPARISON -->
+    <div class="fade-in">
+      <h3 style="margin-top:36px;">The Complete Comparison at Scale</h3>
+    </div>
+
+    <div class="card fade-in" style="padding:0;overflow:hidden;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="background:var(--bg-alt);">
+            <th style="text-align:left;padding:12px 16px;font-weight:700;border-bottom:2px solid var(--border);">Property</th>
+            <th style="text-align:center;padding:12px 16px;font-weight:700;border-bottom:2px solid var(--border);color:var(--red);">Transformer (Full)</th>
+            <th style="text-align:center;padding:12px 16px;font-weight:700;border-bottom:2px solid var(--border);color:var(--orange);">Transformer (Sliding W=4K)</th>
+            <th style="text-align:center;padding:12px 16px;font-weight:700;border-bottom:2px solid var(--border);color:var(--green);">Mamba</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 16px;font-weight:600;">State per layer</td>
+            <td style="padding:10px 16px;text-align:center;" class="mono"><span style="color:var(--red);">2Nd</span> (grows!)</td>
+            <td style="padding:10px 16px;text-align:center;" class="mono">2Wd (fixed)</td>
+            <td style="padding:10px 16px;text-align:center;" class="mono"><span style="color:var(--green);">En + E(k&minus;1)</span> (fixed)</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 16px;font-weight:600;">Decode FLOPs/token</td>
+            <td style="padding:10px 16px;text-align:center;" class="mono"><span style="color:var(--red);">O(Nd)</span> grows!</td>
+            <td style="padding:10px 16px;text-align:center;" class="mono">O(Wd) fixed</td>
+            <td style="padding:10px 16px;text-align:center;" class="mono"><span style="color:var(--green);">O(Ed + En)</span> fixed</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:#fef2f2;">
+            <td style="padding:10px 16px;font-weight:600;">State at N=100K</td>
+            <td style="padding:10px 16px;text-align:center;" class="mono" style="font-weight:700;color:var(--red);">781 MB</td>
+            <td style="padding:10px 16px;text-align:center;" class="mono">32 MB</td>
+            <td style="padding:10px 16px;text-align:center;" class="mono" style="font-weight:700;color:var(--green);">156 KB</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 16px;font-weight:600;">FLOPs at N=100K<br><span style="font-size:11px;color:var(--text-muted);">(d=2048)</span></td>
+            <td style="padding:10px 16px;text-align:center;" class="mono">~410M</td>
+            <td style="padding:10px 16px;text-align:center;" class="mono">~16.8M</td>
+            <td style="padding:10px 16px;text-align:center;" class="mono">~34M</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 16px;font-weight:600;">Depends on N?</td>
+            <td style="padding:10px 16px;text-align:center;font-weight:700;color:var(--red);">Yes &mdash; linear growth</td>
+            <td style="padding:10px 16px;text-align:center;font-weight:600;color:var(--green);">No (capped at W)</td>
+            <td style="padding:10px 16px;text-align:center;font-weight:600;color:var(--green);">No (always fixed)</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 16px;font-weight:600;">Can handle N=1M?</td>
+            <td style="padding:10px 16px;text-align:center;color:var(--red);font-weight:700;">OOM &#128165;</td>
+            <td style="padding:10px 16px;text-align:center;">Yes (but limited recall)</td>
+            <td style="padding:10px 16px;text-align:center;color:var(--green);font-weight:700;">Yes &#10003;</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- WHY NO N² -->
+    <div class="fade-in">
+      <h3 style="margin-top:36px;">Why There's No N&sup2; Anywhere</h3>
+      <p>
+        You might have expected O(N&sup2;) somewhere &mdash; after all, Transformers have it. But Mamba
+        has <strong>no attention mechanism</strong>, and therefore <strong>no N &times; N similarity matrix</strong>.
+        Here's what each model computes during decode:
+      </p>
+    </div>
+
+    <div class="fade-in comparison" style="margin-top:16px;">
+      <div class="card" style="border-top:3px solid var(--red);">
+        <h4 style="color:var(--red);">Transformer Decode</h4>
+        <p style="font-size:13px;">
+          New query q attends to <strong>all N cached keys</strong>:<br>
+          <span class="mono">scores = q &middot; K<sup>T</sup></span> &rarr; <span class="mono" style="color:var(--red);">O(Nd)</span> per token<br>
+          <span class="mono">attn = softmax(scores) &middot; V</span> &rarr; <span class="mono" style="color:var(--red);">O(Nd)</span><br><br>
+          Cost <strong>grows</strong> as N increases because the query must "look at" every past key.
+        </p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--green);">
+        <h4 style="color:var(--green);">Mamba Decode</h4>
+        <p style="font-size:13px;">
+          New token updates the state <strong>in place</strong>:<br>
+          <span class="mono">h = A&#772; &times; h + B&#772; &times; x</span> &rarr; <span class="mono" style="color:var(--green);">O(En)</span><br>
+          <span class="mono">y = C &middot; h</span> &rarr; <span class="mono" style="color:var(--green);">O(En)</span><br><br>
+          Cost is <strong>always the same</strong>. The state h is size E&times;n regardless of how many tokens preceded it.
+        </p>
+      </div>
+    </div>
+
+    <div class="callout fade-in">
+      <strong>The trade-off:</strong> Mamba's fixed state means it <em>compresses</em> past information rather than storing it
+      verbatim. A Transformer with full attention can recall any detail from token 1 at token 100,000
+      (at the cost of a massive KV cache). Mamba's state is a lossy summary &mdash; old information
+      fades exponentially (controlled by A&#772;). This is why hybrid architectures (Mamba + a few attention layers)
+      are emerging as the practical sweet spot.
+    </div>
+
+    <!-- VISUAL SUMMARY: WHAT GETS CACHED -->
+    <div class="fade-in">
+      <h3 style="margin-top:36px;">Visual Summary: What Gets Cached</h3>
+    </div>
+
+    <div class="card fade-in" style="padding:32px;">
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:20px;align-items:start;">
+        <!-- Transformer side -->
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px;">Transformer Cache</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Stores K, V for every token ever seen:</div>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:4px;padding:4px 10px;font-size:11px;font-weight:600;" class="mono">K<sub>0</sub>, V<sub>0</sub> &mdash; "The"</div>
+            <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:4px;padding:4px 10px;font-size:11px;font-weight:600;" class="mono">K<sub>1</sub>, V<sub>1</sub> &mdash; "capital"</div>
+            <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:4px;padding:4px 10px;font-size:11px;font-weight:600;" class="mono">K<sub>2</sub>, V<sub>2</sub> &mdash; "of"</div>
+            <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:4px;padding:4px 10px;font-size:11px;font-weight:600;" class="mono">K<sub>3</sub>, V<sub>3</sub> &mdash; "France"</div>
+            <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:4px;padding:4px 10px;font-size:11px;font-weight:600;" class="mono">K<sub>4</sub>, V<sub>4</sub> &mdash; "is"</div>
+            <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:4px;padding:4px 10px;font-size:11px;color:var(--red);" class="mono">K<sub>5</sub>, V<sub>5</sub> &mdash; (next token)</div>
+            <div style="padding:4px 10px;font-size:11px;color:var(--text-muted);font-style:italic;">&hellip; keeps growing forever</div>
+          </div>
+          <div class="mono" style="font-size:12px;color:var(--red);margin-top:8px;font-weight:600;">Size: 2 &times; N &times; d &mdash; grows with N</div>
+        </div>
+
+        <!-- VS divider -->
+        <div style="display:flex;align-items:center;font-size:20px;color:var(--text-muted);font-weight:300;padding-top:60px;">vs</div>
+
+        <!-- Mamba side -->
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px;">Mamba State</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Stores compressed state (updated in place):</div>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <div style="background:#ecfdf5;border:1px solid #86efac;border-radius:4px;padding:8px 10px;font-size:11px;font-weight:600;" class="mono">
+              h[E &times; n] &mdash; SSM hidden state<br>
+              <span style="color:var(--text-muted);font-weight:400;">Summarizes ALL past tokens</span>
+            </div>
+            <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;padding:8px 10px;font-size:11px;font-weight:600;" class="mono">
+              buf[E &times; (k&minus;1)] &mdash; Conv buffer<br>
+              <span style="color:var(--text-muted);font-weight:400;">Last k&minus;1 token projections</span>
+            </div>
+          </div>
+          <div class="mono" style="font-size:12px;color:var(--green);margin-top:8px;font-weight:600;">Size: E&times;n + E&times;(k&minus;1) &mdash; FIXED forever</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="key-insight fade-in">
+      <h4>Key Insight</h4>
+      <p style="margin:0;font-size:15px;">
+        The Transformer's KV cache is <strong>lossless</strong> &mdash; it stores every past token's exact K and V.
+        Mamba's state is <strong>lossy</strong> &mdash; it compresses all past tokens into a fixed-size vector via the recurrence
+        h<sub>t</sub> = A&#772;<sub>t</sub> &times; h<sub>t-1</sub> + B&#772;<sub>t</sub> &times; x<sub>t</sub>.
+        The selectivity mechanism (&Delta;) ensures that <em>important</em> tokens are remembered strongly and
+        <em>noise</em> tokens fade quickly. This is why 156 KB can replace 781 MB &mdash; because most of those 781 MB
+        was storing information about tokens like "the", "of", "is" that the model didn't need anyway.
+      </p>
+    </div>
+
+  </div>
+</section>
+
+<!-- FINAL -->
+<section id="final" style="background:var(--bg-alt);">
+  <div class="container">
+    <div class="fade-in">
+      <div class="chapter-label">The Complete Picture</div>
+      <h2 class="gradient-text">Key Takeaways</h2>
+    </div>
+
+    <div class="card fade-in" style="margin-top:24px;padding:36px;">
+      <div class="summary-item">
+        <div class="summary-num">1</div>
+        <div>
+          <strong>Mamba replaces both Attention and FFN with a single block.</strong>
+          <p style="font-size:14px;margin:4px 0 0;">Half the parameters, same expressiveness. The selective SSM handles cross-token mixing (what Attention did) while the gating handles per-token processing (what FFN did).</p>
+        </div>
+      </div>
+
+      <div class="summary-item">
+        <div class="summary-num">2</div>
+        <div>
+          <strong>The selective SSM computes B, C, and &Delta; FROM the input &mdash; content-dependent processing.</strong>
+          <p style="font-size:14px;margin:4px 0 0;">Unlike classical SSMs (S4) where these are fixed, Mamba makes them input-dependent. Each token gets its own dynamics.</p>
+        </div>
+      </div>
+
+      <div class="summary-item">
+        <div class="summary-num">3</div>
+        <div>
+          <strong>&Delta; (delta) controls the forget/write balance &mdash; the core of selectivity.</strong>
+          <p style="font-size:14px;margin:4px 0 0;">Large &Delta; = erase old state, write new strongly. Small &Delta; = preserve state, barely write. The model learns when to remember and when to forget.</p>
+        </div>
+      </div>
+
+      <div class="summary-item">
+        <div class="summary-num">4</div>
+        <div>
+          <strong>Conv1D provides local context, SSM provides long-range context, gating provides output control.</strong>
+          <p style="font-size:14px;margin:4px 0 0;">Three complementary mechanisms working together in a single block.</p>
+        </div>
+      </div>
+
+      <div class="summary-item" style="margin-bottom:0;">
+        <div class="summary-num">5</div>
+        <div>
+          <strong>During inference: O(1) per token, constant memory. No KV cache!</strong>
+          <p style="font-size:14px;margin:4px 0 0;">The hidden state h is a fixed-size vector (N elements per channel). Unlike Transformers where the KV cache grows linearly with sequence length, Mamba's memory is constant regardless of how many tokens have been processed.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="fade-in" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px;">
+      <div class="card" style="text-align:center;border-top:3px solid var(--red);">
+        <h4 style="color:var(--red);">Transformer Inference</h4>
+        <div class="mono" style="font-size:24px;font-weight:700;margin:8px 0;">O(n)</div>
+        <p style="font-size:13px;margin:0;">KV cache grows with every token.<br>Memory: <strong>O(n &times; d)</strong> per layer.</p>
+      </div>
+      <div class="card" style="text-align:center;border-top:3px solid var(--green);">
+        <h4 style="color:var(--green);">Mamba Inference</h4>
+        <div class="mono" style="font-size:24px;font-weight:700;margin:8px 0;">O(1)</div>
+        <p style="font-size:13px;margin:0;">Fixed state, constant per token.<br>Memory: <strong>O(E &times; N)</strong> per layer.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-brand">VIZUARA AI LABS</div>
+    <div>LLM Inference Engineering Workshop &mdash; Visual Walkthrough Series</div>
+  </div>
+</footer>
+
+<script>
+// Fade-in on scroll
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+// Click sound
+function playClick() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.value = 0.08;
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.1);
+  } catch(e) {}
+}
+
+// Trace Token animation
+let tracing = false;
+function traceToken() {
+  if (tracing) return;
+  tracing = true;
+  playClick();
+
+  const btn = document.getElementById('traceBtn');
+  btn.textContent = 'Tracing...';
+  btn.style.opacity = '0.7';
+
+  const steps = document.querySelectorAll('.trace-highlight');
+  let maxStep = 0;
+  steps.forEach(s => { const st = parseInt(s.dataset.step); if (st > maxStep) maxStep = st; });
+
+  let currentStep = 0;
+  function highlightStep() {
+    // Remove all active
+    steps.forEach(s => s.classList.remove('active'));
+
+    if (currentStep > maxStep) {
+      btn.textContent = '\u25B6 Trace a Token';
+      btn.style.opacity = '1';
+      tracing = false;
+      return;
+    }
+
+    // Highlight current step
+    steps.forEach(s => {
+      if (parseInt(s.dataset.step) === currentStep) {
+        s.classList.add('active');
+      }
+    });
+
+    playClick();
+    currentStep++;
+    setTimeout(highlightStep, 800);
+  }
+
+  highlightStep();
+}
+
+// Add click sounds to all buttons
+document.querySelectorAll('.btn').forEach(btn => {
+  btn.addEventListener('click', playClick);
+});
+
+// Smooth scroll for nav
+document.querySelectorAll('.nav-links a').forEach(a => {
+  a.addEventListener('click', (e) => {
+    e.preventDefault();
+    playClick();
+    const target = document.querySelector(a.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+</script>
+
+</body>
+</html>
