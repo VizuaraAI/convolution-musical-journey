@@ -281,6 +281,28 @@
       border-color: rgba(154, 74, 60, 0.45);
     }
 
+    .thumb.eviction:before {
+      width: 78%;
+      height: 18px;
+      left: 18px;
+      top: 24px;
+      background: rgba(47, 118, 95, 0.14);
+      box-shadow:
+        0 25px 0 rgba(255, 255, 255, 0.86),
+        0 50px 0 rgba(49, 93, 141, 0.13);
+    }
+
+    .thumb.eviction:after {
+      width: 58px;
+      height: 18px;
+      left: 98px;
+      top: 49px;
+      border-style: dashed;
+      background: rgba(154, 74, 60, 0.16);
+      border-color: rgba(154, 74, 60, 0.48);
+      box-shadow: 34px 0 0 rgba(154, 74, 60, 0.12);
+    }
+
     .thumb.fft:before {
       width: 78%;
       height: 54px;
@@ -511,6 +533,7 @@
       <nav class="nav" aria-label="Page sections">
         <a href="#basics">Basics</a>
         <a href="#kv-cache">KV cache</a>
+        <a href="#kv-eviction">Eviction</a>
         <a href="#modern">Modern inference</a>
         <a href="#attention">Attention ♥</a>
       </nav>
@@ -522,7 +545,7 @@
           <div class="section-label">One library for the visual notebooks</div>
           <h1>Inference engineering, explained visually.</h1>
           <p class="lead">
-            A curated shelf of interactive walkthroughs for attention, KV cache reduction,
+            A curated shelf of interactive walkthroughs for attention, KV cache reduction and eviction,
             FFT convolution, Mamba, DeepSeek sparse attention, quantization, transformers,
             and GPU anatomy.
           </p>
@@ -532,11 +555,11 @@
           <p>
             Pick a card, open the walkthrough, and follow the story visually. The grouping is by
             learning sequence: first the machine and transformer basics, then KV-cache reduction,
-            then modern inference ideas, then attention as the heart of speeding inference.
+            then cache eviction, then modern inference ideas, then attention as the heart of speeding inference.
           </p>
           <div class="metric-grid">
-            <div class="metric"><strong>11</strong>visual pages</div>
-            <div class="metric"><strong>4</strong>learning tracks</div>
+            <div class="metric"><strong>12</strong>visual pages</div>
+            <div class="metric"><strong>5</strong>learning tracks</div>
           </div>
         </aside>
       </section>
@@ -619,10 +642,29 @@
         </div>
       </section>
 
-      <section id="modern" class="section">
+      <section id="kv-eviction" class="section">
         <div class="section-head">
           <div>
             <div class="section-label">Track 3</div>
+            <h2>KV Cache eviction</h2>
+          </div>
+          <div class="cluster-note">A focused walkthrough of dynamic KV-cache eviction: protected regions, attention scores, block removal, rotation, and representative retention.</div>
+        </div>
+        <div class="cards">
+          <a class="card" href="https://vizuaraai.github.io/convolution-musical-journey/kv-cache-eviction-walkthrough.html" target="_blank" rel="noreferrer">
+            <div class="thumb eviction"></div>
+            <div class="tag-row"><span class="tag">KV cache</span><span class="tag">eviction</span></div>
+            <h3>KV Cache Eviction Visual Walkthrough</h3>
+            <p>How OpenVINO-style cache eviction keeps start and recent tokens, scores middle blocks, and evicts low-value memory during generation.</p>
+            <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
+          </a>
+        </div>
+      </section>
+
+      <section id="modern" class="section">
+        <div class="section-head">
+          <div>
+            <div class="section-label">Track 4</div>
             <h2>Modern inference concepts</h2>
           </div>
           <div class="cluster-note">Quantization, DeepSeek-style efficiency, and selective sequence models live here.</div>
@@ -658,7 +700,7 @@
       <section id="attention" class="section">
         <div class="section-head">
           <div>
-            <div class="section-label">Track 4</div>
+            <div class="section-label">Track 5</div>
             <h2>Attention is the heart of speeding inference</h2>
           </div>
           <div class="cluster-note">Attention is where the cost often concentrates, so this guide becomes the map for making inference faster.</div>
