@@ -558,7 +558,7 @@
             then cache eviction, then modern inference ideas, then attention as the heart of speeding inference.
           </p>
           <div class="metric-grid">
-            <div class="metric"><strong>12</strong>visual pages</div>
+            <div class="metric"><strong>14</strong>visual pages</div>
             <div class="metric"><strong>5</strong>learning tracks</div>
           </div>
         </aside>
@@ -706,6 +706,22 @@
           <div class="cluster-note">Attention is where the cost often concentrates, so this guide becomes the map for making inference faster.</div>
         </div>
         <div class="cards">
+          <a class="card" href="https://vizuaraai.github.io/convolution-musical-journey/flashattention-1-2.html" target="_blank" rel="noreferrer">
+            <div class="thumb heart"></div>
+            <div class="tag-row"><span class="tag">FlashAttention</span><span class="tag">FA1 → FA2</span></div>
+            <h3>FlashAttention-1 to FlashAttention-2</h3>
+            <p>How the same exact attention math gets faster by changing the GPU schedule, tiling work, and exposing more independent Q-block jobs.</p>
+            <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
+          </a>
+
+          <a class="card" href="https://vizuaraai.github.io/convolution-musical-journey/flashattention-3.html" target="_blank" rel="noreferrer">
+            <div class="thumb heart"></div>
+            <div class="tag-row"><span class="tag">FlashAttention-3</span><span class="tag">Hopper</span></div>
+            <h3>FlashAttention-3 Visual Walkthrough</h3>
+            <p>How FA3 uses Hopper features like WGMMA and TMA to overlap memory movement, matrix multiply, and softmax work inside the attention kernel.</p>
+            <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
+          </a>
+
           <a class="card" href="https://vizuaraai.github.io/convolution-musical-journey/attention-variants-inference-comparison.html" target="_blank" rel="noreferrer">
             <div class="thumb heart"></div>
             <div class="tag-row"><span class="tag">attention</span><span class="tag">optimization</span></div>

@@ -1,0 +1,1590 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FlashAttention-3 Visual Walkthrough</title>
+  <style>
+    :root {
+      --ink: #181714;
+      --muted: #67615a;
+      --paper: #fbfaf6;
+      --line: #ddd5ca;
+      --soft: #f1ebe2;
+      --cream: #fffdf8;
+      --blue: #2f5f91;
+      --green: #30745d;
+      --red: #9b4b3d;
+      --gold: #9a742c;
+      --teal: #2f7376;
+      --violet: #65518d;
+      --shadow: 0 18px 48px rgba(32, 29, 24, 0.09);
+      --font: "Avenir Next", "Inter", "Helvetica Neue", Arial, sans-serif;
+      --mono: "Victor Mono", "SFMono-Regular", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(24, 23, 20, 0.035) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(24, 23, 20, 0.03) 1px, transparent 1px),
+        var(--paper);
+      background-size: 28px 28px;
+      font-family: var(--font);
+      letter-spacing: 0;
+      overflow-x: hidden;
+    }
+
+    button { font: inherit; }
+
+    .shell {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0 72px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 12px 0;
+      background: rgba(251, 250, 246, 0.88);
+      border-bottom: 1px solid rgba(221, 213, 202, 0.72);
+      backdrop-filter: blur(14px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      min-width: 0;
+      font-weight: 800;
+    }
+
+    .mark {
+      width: 35px;
+      height: 35px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--ink);
+      background: var(--cream);
+      box-shadow: 4px 4px 0 var(--ink);
+      flex: 0 0 auto;
+    }
+
+    .mark svg { width: 22px; height: 22px; }
+
+    .nav {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .nav a {
+      color: var(--muted);
+      text-decoration: none;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.56);
+      font-size: 13px;
+    }
+
+    .nav a:hover {
+      color: var(--ink);
+      border-color: var(--ink);
+    }
+
+    .hero {
+      min-height: min(720px, calc(100vh - 94px));
+      margin-top: 18px;
+      padding: clamp(24px, 5vw, 56px);
+      display: grid;
+      grid-template-columns: minmax(0, 0.95fr) minmax(360px, 1.05fr);
+      gap: 30px;
+      align-items: end;
+      border: 1px solid var(--ink);
+      background:
+        linear-gradient(135deg, rgba(251, 250, 246, 0.98), rgba(242, 235, 224, 0.84)),
+        radial-gradient(circle at 80% 16%, rgba(47, 95, 145, 0.20), transparent 34%),
+        radial-gradient(circle at 64% 86%, rgba(48, 116, 93, 0.18), transparent 34%);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .hero-copy,
+    .hero-visual {
+      position: relative;
+      z-index: 1;
+      min-width: 0;
+    }
+
+    .label {
+      color: var(--gold);
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      margin-bottom: 11px;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 780px;
+      font-size: clamp(42px, 6vw, 82px);
+      line-height: 0.95;
+      letter-spacing: 0;
+      overflow-wrap: break-word;
+    }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: clamp(28px, 3vw, 42px);
+      line-height: 1.03;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 0 0 9px;
+      font-size: 18px;
+      line-height: 1.18;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.62;
+      overflow-wrap: break-word;
+    }
+
+    .lead {
+      max-width: 780px;
+      margin-top: 22px;
+      font-size: 19px;
+      color: #3e3933;
+      overflow-wrap: break-word;
+    }
+
+    .hero-strip {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      font-family: var(--mono);
+    }
+
+    .hero-strip div {
+      border: 1px solid rgba(24, 23, 20, 0.22);
+      background: rgba(255, 255, 255, 0.66);
+      padding: 12px;
+      min-height: 86px;
+      min-width: 0;
+      overflow-wrap: break-word;
+    }
+
+    .hero-strip strong {
+      display: block;
+      color: var(--ink);
+      margin-bottom: 5px;
+    }
+
+    .section {
+      margin-top: 54px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      scroll-margin-top: 112px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: minmax(0, 0.92fr) minmax(360px, 1.08fr);
+      gap: 24px;
+      align-items: start;
+    }
+
+    .stage,
+    .truth,
+    .card {
+      background: #fff;
+      border: 1px solid var(--ink);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      min-width: 0;
+    }
+
+    .soft-card {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.68);
+      padding: 18px;
+      min-width: 0;
+    }
+
+    .note {
+      margin-top: 16px;
+      padding: 14px 16px;
+      color: var(--ink);
+      background: #e7f0ed;
+      border-left: 4px solid var(--green);
+      font-size: 15px;
+      line-height: 1.56;
+    }
+
+    .equation {
+      margin-top: 14px;
+      padding: 14px 16px;
+      background: #fff;
+      border: 1px solid var(--line);
+      color: #24211e;
+      font-family: var(--mono);
+      font-size: 14px;
+      line-height: 1.55;
+      overflow-x: auto;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .big-equation {
+      border-color: var(--ink);
+      box-shadow: 5px 5px 0 var(--ink);
+      font-size: 18px;
+    }
+
+    .mini-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      min-width: 0;
+    }
+
+    .mini-title strong {
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    .perf-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 14px;
+      min-height: 126px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 28px;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .factory {
+      display: grid;
+      gap: 12px;
+      font-family: var(--mono);
+    }
+
+    .factory-row {
+      display: grid;
+      grid-template-columns: 126px minmax(0, 1fr) 84px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .factory-label,
+    .factory-value {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 10px;
+      font-size: 13px;
+    }
+
+    .factory-track {
+      height: 34px;
+      border: 1px solid var(--line);
+      background: var(--soft);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .factory-fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: var(--w);
+      background: rgba(47, 95, 145, 0.24);
+      border-right: 1px solid rgba(47, 95, 145, 0.48);
+    }
+
+    .factory-row.memory .factory-fill {
+      background: rgba(48, 116, 93, 0.24);
+      border-color: rgba(48, 116, 93, 0.48);
+    }
+
+    .factory-row.overhead .factory-fill {
+      background: rgba(155, 75, 61, 0.22);
+      border-color: rgba(155, 75, 61, 0.48);
+    }
+
+    .tool-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .tool-card {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 16px;
+      min-height: 208px;
+      display: grid;
+      align-content: start;
+      gap: 10px;
+    }
+
+    .tool-card.hot {
+      border-color: var(--ink);
+      box-shadow: 4px 4px 0 var(--ink);
+    }
+
+    .icon-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 5px;
+      height: 80px;
+      align-items: end;
+    }
+
+    .icon-bar {
+      border: 1px solid var(--line);
+      background: rgba(47, 95, 145, 0.18);
+      min-height: var(--h);
+    }
+
+    .tool-card.tma .icon-bar { background: rgba(48, 116, 93, 0.18); }
+    .tool-card.fp8 .icon-bar { background: rgba(155, 75, 61, 0.16); }
+
+    .gpu-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+      gap: 18px;
+      align-items: start;
+      margin-top: 18px;
+    }
+
+    .gpu-chip {
+      border: 1px solid var(--ink);
+      background: #fff;
+      box-shadow: var(--shadow);
+      padding: 16px;
+      min-width: 0;
+    }
+
+    .chip-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+      font-family: var(--mono);
+    }
+
+    .chip-block {
+      border: 1px solid var(--line);
+      background: var(--soft);
+      min-height: 88px;
+      padding: 10px;
+      display: grid;
+      align-content: space-between;
+      font-size: 12px;
+      line-height: 1.3;
+      overflow-wrap: anywhere;
+    }
+
+    .chip-block.tc { background: rgba(47, 95, 145, 0.15); border-color: rgba(47, 95, 145, 0.46); }
+    .chip-block.tma { background: rgba(48, 116, 93, 0.15); border-color: rgba(48, 116, 93, 0.46); }
+    .chip-block.sfu { background: rgba(155, 75, 61, 0.13); border-color: rgba(155, 75, 61, 0.42); }
+    .chip-block.smem { background: rgba(154, 116, 44, 0.14); border-color: rgba(154, 116, 44, 0.42); }
+
+    .chip-block strong {
+      display: block;
+      color: var(--ink);
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+
+    .before-after {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .mini-pipeline {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 12px;
+      min-width: 0;
+      font-family: var(--mono);
+    }
+
+    .mini-pipeline h3 {
+      font-size: 15px;
+      margin-bottom: 10px;
+    }
+
+    .pipe-lane {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .pipe-cell {
+      min-height: 40px;
+      border: 1px solid var(--line);
+      background: var(--soft);
+      padding: 7px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      font-size: 11px;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+
+    .pipe-cell.load { background: rgba(48, 116, 93, 0.16); border-color: rgba(48, 116, 93, 0.45); }
+    .pipe-cell.gemm { background: rgba(47, 95, 145, 0.16); border-color: rgba(47, 95, 145, 0.45); }
+    .pipe-cell.wait {
+      color: #928a80;
+      background: repeating-linear-gradient(135deg, #f7f1e8 0 8px, #efe7dc 8px 16px);
+    }
+    .pipe-cell.fp8 { background: rgba(101, 81, 141, 0.16); border-color: rgba(101, 81, 141, 0.45); }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .detail-card {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 16px;
+      min-width: 0;
+    }
+
+    .detail-card h3 {
+      color: var(--ink);
+    }
+
+    .detail-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .detail-item {
+      border: 1px solid var(--line);
+      background: var(--soft);
+      padding: 9px;
+    }
+
+    .memory-path {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+      font-family: var(--mono);
+    }
+
+    .path-row {
+      display: grid;
+      grid-template-columns: 82px repeat(4, minmax(0, 1fr));
+      gap: 6px;
+      align-items: stretch;
+    }
+
+    .path-label,
+    .path-box {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 8px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      font-size: 11px;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+
+    .path-label {
+      color: var(--ink);
+      font-weight: 800;
+      justify-items: start;
+    }
+
+    .path-box.global { background: rgba(154, 116, 44, 0.13); border-color: rgba(154, 116, 44, 0.42); }
+    .path-box.thread { background: rgba(47, 95, 145, 0.13); border-color: rgba(47, 95, 145, 0.42); }
+    .path-box.register { background: rgba(155, 75, 61, 0.14); border-color: rgba(155, 75, 61, 0.46); }
+    .path-box.shared { background: rgba(48, 116, 93, 0.15); border-color: rgba(48, 116, 93, 0.46); }
+    .path-box.tma { background: rgba(48, 116, 93, 0.22); border-color: var(--green); }
+    .path-box.skip {
+      color: #928a80;
+      background: repeating-linear-gradient(135deg, #f7f1e8 0 8px, #efe7dc 8px 16px);
+    }
+
+    .sm-map {
+      margin-top: 18px;
+      border: 1px solid #66d95d;
+      background: #071409;
+      color: #79ff72;
+      padding: 18px;
+      font-family: var(--mono);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
+      overflow: hidden;
+    }
+
+    .sm-map-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 14px;
+      color: #79ff72;
+      font-weight: 800;
+    }
+
+    .sm-map-title span {
+      color: #39d7ff;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .sm-top-cache,
+    .sm-bottom-cache,
+    .sm-tma {
+      border: 1px solid #39d7ff;
+      background: rgba(28, 118, 119, 0.22);
+      color: #39d7ff;
+      padding: 10px;
+      text-align: center;
+      font-size: 12px;
+      letter-spacing: 0;
+    }
+
+    .sm-quads {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin: 14px 0;
+    }
+
+    .sm-quad {
+      border: 1px solid #66d95d;
+      background: rgba(23, 62, 19, 0.75);
+      padding: 10px;
+      min-width: 0;
+    }
+
+    .sm-line {
+      border: 1px solid #c9d91e;
+      color: #d6e334;
+      padding: 6px;
+      text-align: center;
+      font-size: 11px;
+      margin-bottom: 7px;
+    }
+
+    .sm-register {
+      border: 1px solid #39d7ff;
+      color: #39d7ff;
+      padding: 9px;
+      text-align: center;
+      font-size: 11px;
+      margin-bottom: 9px;
+      background: rgba(28, 118, 119, 0.18);
+    }
+
+    .sm-units {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 116px;
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .sm-lanes {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 4px;
+    }
+
+    .sm-lane {
+      border: 1px solid #66d95d;
+      background: rgba(79, 184, 96, 0.12);
+      min-height: 24px;
+      display: grid;
+      place-items: center;
+      font-size: 10px;
+    }
+
+    .sm-tensor {
+      border: 1px solid #66d95d;
+      background: rgba(79, 184, 96, 0.12);
+      min-height: 128px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      font-size: 12px;
+      line-height: 1.3;
+    }
+
+    .sm-sfu-row {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 5px;
+      margin-top: 8px;
+    }
+
+    .sm-sfu {
+      border: 1px solid #ff72d8;
+      background: rgba(166, 63, 135, 0.22);
+      color: #ff8de0;
+      min-height: 28px;
+      display: grid;
+      place-items: center;
+      font-size: 10px;
+    }
+
+    .sm-tma {
+      border-color: #66d95d;
+      color: #79ff72;
+      background: rgba(38, 104, 29, 0.42);
+      margin: 8px 0 12px;
+      position: relative;
+    }
+
+    .sm-bottom-cache {
+      position: relative;
+      color: #39d7ff;
+    }
+
+    .sm-memory-source {
+      margin-top: 12px;
+      border: 1px solid #9a742c;
+      color: #f0c15b;
+      background: rgba(154, 116, 44, 0.12);
+      padding: 10px;
+      text-align: center;
+      font-size: 12px;
+    }
+
+    .sm-arrows {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin: 10px 0;
+      font-size: 11px;
+      text-align: center;
+    }
+
+    .sm-arrow {
+      border: 1px solid #66d95d;
+      background: rgba(38, 104, 29, 0.22);
+      color: #79ff72;
+      padding: 8px;
+    }
+
+    .fa-tile-shelf {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .fa-tile {
+      border: 1px solid #39d7ff;
+      background: rgba(57, 215, 255, 0.10);
+      color: #bdf3ff;
+      padding: 8px;
+      min-height: 54px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      font-size: 11px;
+      line-height: 1.25;
+    }
+
+    .sm-callouts {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .sm-callout {
+      border: 1px solid rgba(121, 255, 114, 0.66);
+      background: rgba(255, 255, 255, 0.04);
+      padding: 10px;
+      color: #dbffd8;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .sm-callout strong {
+      display: block;
+      color: #79ff72;
+      margin-bottom: 4px;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+      font-family: var(--mono);
+    }
+
+    .time-row {
+      display: grid;
+      grid-template-columns: 120px repeat(8, minmax(0, 1fr));
+      gap: 6px;
+      align-items: stretch;
+    }
+
+    .time-label,
+    .time-cell {
+      min-height: 46px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 8px;
+      font-size: 12px;
+      line-height: 1.25;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      overflow-wrap: anywhere;
+    }
+
+    .time-label {
+      justify-items: start;
+      color: var(--ink);
+      font-weight: 800;
+    }
+
+    .time-cell.wait {
+      color: #928a80;
+      background: repeating-linear-gradient(135deg, #f7f1e8 0 8px, #efe7dc 8px 16px);
+    }
+
+    .time-cell.load { background: rgba(48, 116, 93, 0.18); border-color: rgba(48, 116, 93, 0.48); }
+    .time-cell.gemm { background: rgba(47, 95, 145, 0.18); border-color: rgba(47, 95, 145, 0.48); }
+    .time-cell.softmax { background: rgba(155, 75, 61, 0.16); border-color: rgba(155, 75, 61, 0.48); }
+    .time-cell.fp8 { background: rgba(101, 81, 141, 0.16); border-color: rgba(101, 81, 141, 0.48); }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .control-button {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      padding: 9px 12px;
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+
+    .control-button:hover,
+    .control-button.active {
+      border-color: var(--ink);
+      color: var(--ink);
+      box-shadow: 3px 3px 0 var(--ink);
+    }
+
+    .warp-stage {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
+      gap: 18px;
+      align-items: start;
+      margin-top: 18px;
+    }
+
+    .warp-diagram {
+      display: grid;
+      gap: 10px;
+      font-family: var(--mono);
+    }
+
+    .warp-row {
+      display: grid;
+      grid-template-columns: 96px repeat(6, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .warp-label,
+    .warp-cell {
+      border: 1px solid var(--line);
+      background: #fff;
+      min-height: 52px;
+      padding: 8px;
+      font-size: 12px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+    }
+
+    .warp-label {
+      color: var(--ink);
+      font-weight: 800;
+      justify-items: start;
+    }
+
+    .warp-cell.gemm { background: rgba(47, 95, 145, 0.18); border-color: rgba(47, 95, 145, 0.48); }
+    .warp-cell.softmax { background: rgba(155, 75, 61, 0.16); border-color: rgba(155, 75, 61, 0.48); }
+    .warp-cell.load { background: rgba(48, 116, 93, 0.18); border-color: rgba(48, 116, 93, 0.48); }
+    .warp-cell.wait {
+      color: #928a80;
+      background: repeating-linear-gradient(135deg, #f7f1e8 0 8px, #efe7dc 8px 16px);
+    }
+
+    .outlier-lab {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .bar-box {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 14px;
+      min-width: 0;
+    }
+
+    .bars {
+      height: 190px;
+      display: grid;
+      grid-template-columns: repeat(16, minmax(0, 1fr));
+      gap: 6px;
+      align-items: end;
+      margin-top: 14px;
+    }
+
+    .bar {
+      min-height: 10px;
+      height: var(--h);
+      border: 1px solid var(--line);
+      background: rgba(47, 95, 145, 0.18);
+    }
+
+    .bar.hot {
+      background: rgba(155, 75, 61, 0.22);
+      border-color: rgba(155, 75, 61, 0.58);
+    }
+
+    .bar.mixed {
+      background: rgba(48, 116, 93, 0.20);
+      border-color: rgba(48, 116, 93, 0.48);
+    }
+
+    .scoreboard {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .score {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 16px;
+      min-height: 180px;
+    }
+
+    .score.hot {
+      border-color: var(--ink);
+      box-shadow: 4px 4px 0 var(--ink);
+    }
+
+    .sources {
+      margin-top: 20px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .sources a {
+      color: var(--blue);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(47, 95, 145, 0.32);
+    }
+
+    @media (max-width: 980px) {
+      .hero,
+      .grid-2,
+      .warp-stage,
+      .gpu-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .tool-grid,
+      .scoreboard,
+      .perf-grid,
+      .detail-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .nav {
+        width: 100%;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        justify-content: stretch;
+      }
+
+      .nav a {
+        text-align: center;
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .hero {
+        display: block;
+        min-height: auto;
+      }
+
+      .hero-visual {
+        margin-top: 24px;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .shell { width: min(100% - 22px, 1180px); padding-top: 16px; }
+      h1 { font-size: 42px; }
+
+      .hero {
+        padding: 18px;
+      }
+
+      .brand {
+        width: 100%;
+        overflow-wrap: anywhere;
+      }
+
+      .stage,
+      .truth,
+      .card,
+      .soft-card,
+      .metric,
+      .tool-card,
+      .score,
+      .bar-box {
+        min-width: 0;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+      }
+
+      .hero-strip,
+      .outlier-lab,
+      .before-after,
+      .sm-quads,
+      .sm-callouts {
+        grid-template-columns: 1fr;
+      }
+
+      .factory-row,
+      .time-row,
+      .warp-row,
+      .path-row {
+        grid-template-columns: 1fr;
+      }
+
+      .time-cell,
+      .warp-cell {
+        min-height: 38px;
+      }
+
+      .sm-units {
+        grid-template-columns: 1fr;
+      }
+
+      .sm-arrows,
+      .fa-tile-shelf {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <nav class="topbar" aria-label="Page navigation">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none">
+            <path d="M7 23V9h5l8 14h5V9" stroke="#181714" stroke-width="2.2" stroke-linecap="square"/>
+            <path d="M8 23h17" stroke="#30745d" stroke-width="2.2"/>
+          </svg>
+        </div>
+        <span>FlashAttention-3 Visual Walkthrough</span>
+      </div>
+      <div class="nav">
+        <a href="#bottleneck">Bottleneck</a>
+        <a href="#hopper">Hopper Tools</a>
+        <a href="#overlap">Overlap</a>
+        <a href="#fp8">FP8</a>
+        <a href="index.html">FA1 → FA2</a>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="label">FlashAttention-3</div>
+        <h1>Less waiting inside the attention kernel.</h1>
+        <p class="lead">
+          FlashAttention-3 keeps the same exact attention idea, but rewrites the schedule for Hopper GPUs:
+          use WGMMA for faster matmul, TMA for asynchronous tile movement, overlap softmax with matmul,
+          and use FP8 without letting outliers dominate error.
+        </p>
+        <div class="hero-strip">
+          <div><strong>FA1</strong>Stop writing the N × N attention matrix.</div>
+          <div><strong>FA2</strong>Create more independent GPU work.</div>
+          <div><strong>FA3</strong>Keep Hopper’s units busy at the same time.</div>
+        </div>
+      </div>
+
+      <div class="hero-visual">
+        <div class="stage">
+          <div class="mini-title">
+            <strong>FA2 → FA3 on H100</strong>
+            <span>rough forward-pass story</span>
+          </div>
+          <div class="perf-grid">
+            <div class="metric">
+              <strong>~35%</strong>
+              <span>FA2 utilization of theoretical max FLOPs on H100, as described by the PyTorch FA3 blog.</span>
+            </div>
+            <div class="metric">
+              <strong>~75%</strong>
+              <span>FA3 FP16 reaches up to about 740 TFLOPS, closer to Hopper peak.</span>
+            </div>
+            <div class="metric">
+              <strong>~1.2P</strong>
+              <span>FA3 FP8 can approach 1.2 PFLOPS while controlling quantization error.</span>
+            </div>
+          </div>
+          <div class="equation">
+            FA3 = Hopper hardware + asynchronous scheduling + lower precision done carefully
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="bottleneck" class="section grid-2">
+      <div>
+        <div class="label">First principles</div>
+        <h2>Horace’s useful lens: compute, memory, overhead.</h2>
+        <p>
+          A GPU can be limited by different things. If data movement is the bottleneck, adding more FLOPs
+          does not help. If matmul is the bottleneck, you want Tensor Cores. If small operations or scheduling
+          leave gaps, the GPU is not truly running at peak.
+        </p>
+        <div class="note">
+          FA1 attacked memory traffic. FA2 attacked work partitioning. FA3 attacks the remaining gaps inside
+          the kernel, especially on Hopper where matmul is extremely fast.
+        </div>
+      </div>
+      <div class="truth">
+        <div class="mini-title">
+          <strong>Where time can disappear</strong>
+          <span>factory view</span>
+        </div>
+        <div class="factory">
+          <div class="factory-row compute">
+            <div class="factory-label">compute</div>
+            <div class="factory-track"><div class="factory-fill" style="--w:78%"></div></div>
+            <div class="factory-value">matmul</div>
+          </div>
+          <div class="factory-row memory">
+            <div class="factory-label">memory</div>
+            <div class="factory-track"><div class="factory-fill" style="--w:52%"></div></div>
+            <div class="factory-value">tiles</div>
+          </div>
+          <div class="factory-row overhead">
+            <div class="factory-label">non-matmul</div>
+            <div class="factory-track"><div class="factory-fill" style="--w:44%"></div></div>
+            <div class="factory-value">softmax</div>
+          </div>
+        </div>
+        <div class="equation">
+          Attention has fast matmuls plus slower softmax/exp work. FA3 tries to run them concurrently.
+        </div>
+      </div>
+    </section>
+
+    <section id="hopper" class="section">
+      <div class="label">Hopper tools</div>
+      <h2>FA3 uses hardware features that FA2 did not fully exploit.</h2>
+      <p>
+        Hopper gives the kernel new machinery. The point is not just “faster hardware”; the point is that
+        the hardware is asynchronous, so the algorithm can overlap work that used to wait in line.
+      </p>
+      <div class="sm-map" aria-label="Simplified Hopper SM map showing TMA and shared memory">
+        <div class="sm-map-title">
+          <strong>Hopper SM map for FlashAttention-3</strong>
+          <span>simplified from the hardware layout: where tiles move and where compute happens</span>
+        </div>
+        <div class="sm-top-cache">L1 instruction cache / instruction supply</div>
+        <div class="sm-quads">
+          <div class="sm-quad">
+            <div class="sm-line">warp scheduler + dispatch</div>
+            <div class="sm-register">register file: private per-thread working values</div>
+            <div class="sm-units">
+              <div>
+                <div class="sm-lanes">
+                  <div class="sm-lane">FP32</div><div class="sm-lane">INT32</div><div class="sm-lane">LD/ST</div><div class="sm-lane">SFU</div>
+                  <div class="sm-lane">FP32</div><div class="sm-lane">INT32</div><div class="sm-lane">LD/ST</div><div class="sm-lane">SFU</div>
+                  <div class="sm-lane">FP32</div><div class="sm-lane">INT32</div><div class="sm-lane">LD/ST</div><div class="sm-lane">SFU</div>
+                </div>
+                <div class="sm-sfu-row">
+                  <div class="sm-sfu">exp</div><div class="sm-sfu">max</div><div class="sm-sfu">sum</div><div class="sm-sfu">scale</div><div class="sm-sfu">mask</div>
+                </div>
+              </div>
+              <div class="sm-tensor">Tensor Core<br>WGMMA</div>
+            </div>
+          </div>
+          <div class="sm-quad">
+            <div class="sm-line">warp scheduler + dispatch</div>
+            <div class="sm-register">register file: accumulators, fragments, softmax stats</div>
+            <div class="sm-units">
+              <div>
+                <div class="sm-lanes">
+                  <div class="sm-lane">FP32</div><div class="sm-lane">INT32</div><div class="sm-lane">LD/ST</div><div class="sm-lane">SFU</div>
+                  <div class="sm-lane">FP32</div><div class="sm-lane">INT32</div><div class="sm-lane">LD/ST</div><div class="sm-lane">SFU</div>
+                  <div class="sm-lane">FP32</div><div class="sm-lane">INT32</div><div class="sm-lane">LD/ST</div><div class="sm-lane">SFU</div>
+                </div>
+                <div class="sm-sfu-row">
+                  <div class="sm-sfu">exp</div><div class="sm-sfu">max</div><div class="sm-sfu">sum</div><div class="sm-sfu">scale</div><div class="sm-sfu">mask</div>
+                </div>
+              </div>
+              <div class="sm-tensor">Tensor Core<br>WGMMA</div>
+            </div>
+          </div>
+        </div>
+        <div class="sm-memory-source">HBM / global memory: full Q, K, V tensors live here</div>
+        <div class="sm-arrows">
+          <div class="sm-arrow">TMA reads rectangular K/V tile descriptors</div>
+          <div class="sm-arrow">bulk copy bypasses temporary register staging</div>
+          <div class="sm-arrow">tile lands in L1 data cache / shared memory</div>
+        </div>
+        <div class="sm-tma">Tensor Memory Accelerator: HBM → shared memory tile copy</div>
+        <div class="sm-bottom-cache">
+          256 KB L1 data cache / shared memory
+          <div class="fa-tile-shelf">
+            <div class="fa-tile">Q tile<br>for active rows</div>
+            <div class="fa-tile">K tile<br>loaded by TMA</div>
+            <div class="fa-tile">V tile<br>loaded by TMA</div>
+            <div class="fa-tile">softmax stats<br>m, l, O</div>
+          </div>
+        </div>
+        <div class="sm-callouts">
+          <div class="sm-callout">
+            <strong>Where FlashAttention uses shared memory</strong>
+            Q/K/V blocks are staged here so WGMMA can repeatedly consume them without round-tripping to HBM.
+          </div>
+          <div class="sm-callout">
+            <strong>What TMA changes</strong>
+            The K/V tile moves from HBM to shared memory through the TMA engine, instead of each thread loading pieces into registers first.
+          </div>
+          <div class="sm-callout">
+            <strong>Why registers still matter</strong>
+            Registers are saved for compute: matmul fragments, output accumulators, and online softmax state.
+          </div>
+        </div>
+      </div>
+      <div class="gpu-layout">
+        <div class="gpu-chip">
+          <div class="mini-title">
+            <strong>One Hopper SM, simplified</strong>
+            <span>what FA3 tries to keep busy</span>
+          </div>
+          <div class="chip-grid">
+            <div class="chip-block tc">
+              <strong>Tensor Cores</strong>
+              WGMMA runs large matrix multiplies for QKᵀ and PV.
+            </div>
+            <div class="chip-block tma">
+              <strong>TMA engine</strong>
+              Copies multidimensional tiles into shared memory asynchronously.
+            </div>
+            <div class="chip-block smem">
+              <strong>Shared memory</strong>
+              Staging area for Q, K, V tiles inside the SM.
+            </div>
+            <div class="chip-block sfu">
+              <strong>Scalar / exp work</strong>
+              Softmax max, exp, sum, and rescaling around the matmuls.
+            </div>
+          </div>
+        </div>
+        <div class="gpu-chip">
+          <div class="mini-title">
+            <strong>What changed?</strong>
+            <span>from waiting to overlapping</span>
+          </div>
+          <div class="before-after">
+            <div class="mini-pipeline">
+              <h3>Older style</h3>
+              <p>Threads spend instructions on loading, address math, then compute waits for the next tile.</p>
+              <div class="pipe-lane">
+                <div class="pipe-cell load">thread load</div>
+                <div class="pipe-cell wait">wait</div>
+                <div class="pipe-cell gemm">matmul</div>
+                <div class="pipe-cell wait">wait</div>
+              </div>
+            </div>
+            <div class="mini-pipeline">
+              <h3>FA3 style</h3>
+              <p>TMA prepares the next tile while WGMMA computes the current tile.</p>
+              <div class="pipe-lane">
+                <div class="pipe-cell load">TMA load</div>
+                <div class="pipe-cell gemm">WGMMA</div>
+                <div class="pipe-cell load">next tile</div>
+                <div class="pipe-cell gemm">WGMMA</div>
+              </div>
+            </div>
+          </div>
+          <div class="note">
+            The big shift is that memory movement becomes more like a background supply line instead of
+            work that the same compute workers must babysit step by step.
+          </div>
+        </div>
+      </div>
+      <div class="tool-grid">
+        <article class="tool-card hot">
+          <h3>WGMMA</h3>
+          <p>
+            WGMMA means Warpgroup Matrix Multiply-Accumulate. Instead of one warp issuing a smaller Tensor Core
+            operation, a group of warps cooperates on a larger matrix multiply instruction.
+          </p>
+          <div class="icon-grid" aria-hidden="true">
+            <span class="icon-bar" style="--h:36%"></span>
+            <span class="icon-bar" style="--h:56%"></span>
+            <span class="icon-bar" style="--h:74%"></span>
+            <span class="icon-bar" style="--h:92%"></span>
+          </div>
+          <div class="detail-list">
+            <div class="detail-item">Before: smaller warp-level MMA instructions.</div>
+            <div class="detail-item">Hopper: warpgroups issue larger asynchronous WGMMA work.</div>
+            <div class="detail-item">FA3 benefit: more Tensor Core throughput if scheduling feeds it well.</div>
+          </div>
+        </article>
+        <article class="tool-card tma">
+          <h3>TMA</h3>
+          <p>
+            Tensor Memory Accelerator is a Hopper copy engine. Give it a tile shape and memory layout,
+            and it moves the tile into shared memory with less per-thread address work.
+          </p>
+          <div class="memory-path" aria-label="TMA memory path comparison">
+            <div class="path-row">
+              <div class="path-label">before</div>
+              <div class="path-box global">HBM / global memory</div>
+              <div class="path-box thread">many threads issue loads</div>
+              <div class="path-box register">registers hold pieces</div>
+              <div class="path-box shared">shared memory tile</div>
+            </div>
+            <div class="path-row">
+              <div class="path-label">TMA</div>
+              <div class="path-box global">HBM / global memory</div>
+              <div class="path-box tma">TMA copy engine</div>
+              <div class="path-box skip">bypass registers</div>
+              <div class="path-box shared">shared memory tile</div>
+            </div>
+          </div>
+          <div class="icon-grid" aria-hidden="true">
+            <span class="icon-bar" style="--h:70%"></span>
+            <span class="icon-bar" style="--h:70%"></span>
+            <span class="icon-bar" style="--h:70%"></span>
+            <span class="icon-bar" style="--h:70%"></span>
+          </div>
+          <div class="detail-list">
+            <div class="detail-item">Before: many threads calculate addresses and issue copies.</div>
+            <div class="detail-item">Hopper: TMA handles multidimensional tile copies.</div>
+            <div class="detail-item">Bypass registers: data goes HBM → shared memory, not HBM → registers → shared memory.</div>
+            <div class="detail-item">Why this matters: fewer registers are occupied by temporary copy data, so register pressure falls.</div>
+            <div class="detail-item">Also: CUDA cores do less address arithmetic for rectangular tiles.</div>
+            <div class="detail-item">FA3 benefit: compute can continue while the next tile arrives.</div>
+          </div>
+        </article>
+        <article class="tool-card fp8">
+          <h3>FP8</h3>
+          <p>
+            FP8 stores numbers in 8 bits instead of 16. Hopper Tensor Cores can run FP8 matmuls faster,
+            but attention must manage scale and outliers carefully.
+          </p>
+          <div class="icon-grid" aria-hidden="true">
+            <span class="icon-bar" style="--h:28%"></span>
+            <span class="icon-bar" style="--h:42%"></span>
+            <span class="icon-bar" style="--h:95%"></span>
+            <span class="icon-bar" style="--h:34%"></span>
+          </div>
+          <div class="detail-list">
+            <div class="detail-item">Good: less data and faster FP8 Tensor Core matmul.</div>
+            <div class="detail-item">Risk: outlier dimensions distort quantization scale.</div>
+            <div class="detail-item">FA3 fix: mix Q/K so outlier energy is spread before quantization.</div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="overlap" class="section">
+      <div class="label">Asynchrony</div>
+      <h2>The main FA3 idea: hide one kind of work behind another.</h2>
+      <p>
+        If matmul, memory copies, and softmax happen in separate chunks, some hardware units sit idle.
+        FA3 pipelines them: TMA loads future tiles while WGMMA computes current tiles, and softmax runs
+        while another matmul is already underway.
+      </p>
+      <div class="controls" aria-label="Timeline controls">
+        <button class="control-button active" type="button" data-timeline="fa2">FA2-like timeline</button>
+        <button class="control-button" type="button" data-timeline="tma">TMA + WGMMA overlap</button>
+        <button class="control-button" type="button" data-timeline="pingpong">Ping-pong softmax</button>
+      </div>
+      <div class="stage" style="margin-top:18px;">
+        <div class="mini-title">
+          <strong id="timelineTitle">FA2-like timeline</strong>
+          <span id="timelineHint">work happens, then the next thing starts</span>
+        </div>
+        <div id="timeline" class="timeline"></div>
+        <div id="timelineNote" class="note"></div>
+      </div>
+
+      <div class="warp-stage">
+        <div>
+          <h3>Ping-pong scheduling in plain language</h3>
+          <p>
+            Imagine two warpgroups inside the same kernel. While one warpgroup is doing Tensor Core matmul,
+            the other can spend time on softmax work from a nearby tile. The exact kernel is more subtle,
+            but this is the picture to remember.
+          </p>
+          <div class="equation">
+            goal: keep Tensor Cores and special-function units useful at the same time
+          </div>
+        </div>
+        <div class="stage">
+          <div class="mini-title"><strong>Two warpgroups</strong><span>alternating roles</span></div>
+          <div class="warp-diagram">
+            <div class="warp-row">
+              <div class="warp-label">group A</div>
+              <div class="warp-cell gemm">GEMM 0</div>
+              <div class="warp-cell softmax">softmax 0</div>
+              <div class="warp-cell gemm">GEMM 2</div>
+              <div class="warp-cell softmax">softmax 2</div>
+              <div class="warp-cell gemm">GEMM 4</div>
+              <div class="warp-cell softmax">softmax 4</div>
+            </div>
+            <div class="warp-row">
+              <div class="warp-label">group B</div>
+              <div class="warp-cell wait">ready</div>
+              <div class="warp-cell gemm">GEMM 1</div>
+              <div class="warp-cell softmax">softmax 1</div>
+              <div class="warp-cell gemm">GEMM 3</div>
+              <div class="warp-cell softmax">softmax 3</div>
+              <div class="warp-cell gemm">GEMM 5</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="fp8" class="section grid-2">
+      <div>
+        <div class="label">Low precision</div>
+        <h2>FP8 is fast, but outliers make it fragile.</h2>
+        <p>
+          FP8 gives much higher Tensor Core throughput, but activations can contain rare large values.
+          If one feature dimension has a giant outlier, quantization has to cover that giant range,
+          and many normal values become coarse.
+        </p>
+        <div class="note">
+          FA3 uses incoherent processing: apply a random-sign Hadamard transform to Q and K to spread out
+          outlier energy before FP8 quantization.
+        </div>
+      </div>
+      <div class="stage">
+        <div class="mini-title">
+          <strong>Outlier before and after mixing</strong>
+          <span>visual intuition</span>
+        </div>
+        <div class="outlier-lab">
+          <div class="bar-box">
+            <h3>Before</h3>
+            <p>One dimension dominates the scale.</p>
+            <div id="beforeBars" class="bars" aria-label="Before incoherent processing"></div>
+          </div>
+          <div class="bar-box">
+            <h3>After</h3>
+            <p>The large value is spread across dimensions.</p>
+            <div id="afterBars" class="bars" aria-label="After incoherent processing"></div>
+          </div>
+        </div>
+        <div class="equation">
+          result in the blog’s experiment: FP8 error was reduced by about 2.6× versus baseline FP8 attention
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="label">Final comparison</div>
+      <h2>FA2 gave more work to the GPU. FA3 removes waiting inside that work.</h2>
+      <p>
+        The story is cumulative. FA3 does not replace the FA1/FA2 insights. It builds on them and makes
+        the attention kernel match Hopper’s hardware more closely.
+      </p>
+      <div class="scoreboard">
+        <article class="score">
+          <h3>FA1</h3>
+          <p>Avoid materializing the N × N attention matrix in HBM. Use tiling and online softmax.</p>
+        </article>
+        <article class="score">
+          <h3>FA2</h3>
+          <p>Improve work partitioning and parallelism so more thread blocks and warps stay useful.</p>
+        </article>
+        <article class="score hot">
+          <h3>FA3</h3>
+          <p>Exploit Hopper: WGMMA, TMA, overlapping matmul/softmax, and FP8 with outlier-aware mixing.</p>
+        </article>
+      </div>
+      <div class="equation big-equation">
+        FA3 mental model: the best kernel is not just fast work. It is fast work with fewer empty slots between work.
+      </div>
+      <p class="sources">
+        Sources:
+        <a href="https://pytorch.org/blog/flashattention-3/">PyTorch FlashAttention-3 blog</a> and
+        <a href="https://horace.io/brrr_intro.html">Horace He’s performance bottleneck guide</a>.
+      </p>
+    </section>
+  </main>
+
+  <script>
+    const timelineData = {
+      fa2: {
+        title: "FA2-like timeline",
+        hint: "work happens, then the next thing starts",
+        note: "This is the simplified picture FA3 improves: copies, matmuls, and softmax appear as separate chunks, so some hardware can wait.",
+        rows: [
+          ["TMA / load", "load K0", "wait", "load K1", "wait", "load K2", "wait", "load K3", "wait"],
+          ["Tensor Cores", "wait", "QK0", "wait", "QK1", "wait", "QK2", "wait", "QK3"],
+          ["softmax units", "wait", "wait", "softmax0", "wait", "softmax1", "wait", "softmax2", "softmax3"]
+        ]
+      },
+      tma: {
+        title: "TMA + WGMMA overlap",
+        hint: "load the next tile while computing the current tile",
+        note: "TMA acts like a hardware supply line. While WGMMA consumes one tile, TMA prepares the next tile in shared memory.",
+        rows: [
+          ["TMA / load", "load K0", "load K1", "load K2", "load K3", "load K4", "load K5", "load K6", "load K7"],
+          ["Tensor Cores", "wait", "QK0", "QK1", "QK2", "QK3", "QK4", "QK5", "QK6"],
+          ["softmax units", "wait", "softmax0", "softmax1", "softmax2", "softmax3", "softmax4", "softmax5", "softmax6"]
+        ]
+      },
+      pingpong: {
+        title: "Ping-pong softmax overlap",
+        hint: "one group computes while another handles softmax",
+        note: "The goal is not to make exp faster. The goal is to hide more of exp under nearby matrix multiplies.",
+        rows: [
+          ["warpgroup A", "GEMM0", "softmax0", "GEMM2", "softmax2", "GEMM4", "softmax4", "GEMM6", "softmax6"],
+          ["warpgroup B", "ready", "GEMM1", "softmax1", "GEMM3", "softmax3", "GEMM5", "softmax5", "GEMM7"],
+          ["hardware view", "TC busy", "mixed", "TC busy", "mixed", "TC busy", "mixed", "TC busy", "mixed"]
+        ]
+      }
+    };
+
+    function cellClass(text) {
+      const lower = text.toLowerCase();
+      if (lower.includes("wait") || lower.includes("ready")) return "wait";
+      if (lower.includes("load")) return "load";
+      if (lower.includes("gemm") || lower.includes("qk") || lower.includes("tc")) return "gemm";
+      if (lower.includes("softmax") || lower.includes("mixed")) return "softmax";
+      if (lower.includes("fp8")) return "fp8";
+      return "";
+    }
+
+    function renderTimeline(kind) {
+      const data = timelineData[kind];
+      document.getElementById("timelineTitle").textContent = data.title;
+      document.getElementById("timelineHint").textContent = data.hint;
+      document.getElementById("timelineNote").textContent = data.note;
+      document.querySelectorAll("[data-timeline]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.timeline === kind);
+      });
+
+      document.getElementById("timeline").innerHTML = data.rows.map((row) => `
+        <div class="time-row">
+          <div class="time-label">${row[0]}</div>
+          ${row.slice(1).map((cell) => `<div class="time-cell ${cellClass(cell)}">${cell}</div>`).join("")}
+        </div>
+      `).join("");
+    }
+
+    function renderBars() {
+      const before = [18, 22, 20, 26, 21, 19, 24, 92, 20, 23, 18, 27, 21, 19, 25, 22];
+      const after = [42, 37, 45, 39, 41, 36, 44, 40, 38, 43, 35, 46, 39, 42, 37, 41];
+      document.getElementById("beforeBars").innerHTML = before.map((value, index) => `
+        <span class="bar ${index === 7 ? "hot" : ""}" style="--h:${value}%"></span>
+      `).join("");
+      document.getElementById("afterBars").innerHTML = after.map((value) => `
+        <span class="bar mixed" style="--h:${value}%"></span>
+      `).join("");
+    }
+
+    document.querySelectorAll("[data-timeline]").forEach((button) => {
+      button.addEventListener("click", () => renderTimeline(button.dataset.timeline));
+    });
+
+    renderTimeline("fa2");
+    renderBars();
+  </script>
+</body>
+</html>

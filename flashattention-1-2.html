@@ -1,0 +1,1389 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FlashAttention-1 to FlashAttention-2: A Visual Walkthrough</title>
+  <style>
+    :root {
+      --ink: #181714;
+      --muted: #67615a;
+      --paper: #fbfaf6;
+      --line: #ddd5ca;
+      --soft: #f1ebe2;
+      --cream: #fffdf8;
+      --blue: #2f5f91;
+      --green: #30745d;
+      --red: #9b4b3d;
+      --gold: #9a742c;
+      --teal: #2f7376;
+      --violet: #64518f;
+      --shadow: 0 18px 48px rgba(32, 29, 24, 0.09);
+      --font: "Avenir Next", "Inter", "Helvetica Neue", Arial, sans-serif;
+      --mono: "Victor Mono", "SFMono-Regular", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(24, 23, 20, 0.035) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(24, 23, 20, 0.03) 1px, transparent 1px),
+        var(--paper);
+      background-size: 28px 28px;
+      font-family: var(--font);
+      letter-spacing: 0;
+      overflow-x: hidden;
+    }
+
+    button, input { font: inherit; }
+
+    .shell {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0 72px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 12px 0;
+      background: rgba(251, 250, 246, 0.88);
+      border-bottom: 1px solid rgba(221, 213, 202, 0.72);
+      backdrop-filter: blur(14px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      min-width: 0;
+      font-weight: 800;
+    }
+
+    .mark {
+      width: 35px;
+      height: 35px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--ink);
+      background: var(--cream);
+      box-shadow: 4px 4px 0 var(--ink);
+      flex: 0 0 auto;
+    }
+
+    .mark svg { width: 22px; height: 22px; }
+
+    .nav {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .nav a {
+      color: var(--muted);
+      text-decoration: none;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.56);
+      font-size: 13px;
+    }
+
+    .nav a:hover {
+      color: var(--ink);
+      border-color: var(--ink);
+    }
+
+    .hero {
+      min-height: min(720px, calc(100vh - 94px));
+      margin-top: 18px;
+      padding: clamp(24px, 5vw, 56px);
+      display: grid;
+      grid-template-columns: minmax(0, 0.94fr) minmax(360px, 1.06fr);
+      gap: 30px;
+      align-items: end;
+      border: 1px solid var(--ink);
+      background:
+        linear-gradient(135deg, rgba(251, 250, 246, 0.98), rgba(243, 236, 224, 0.84)),
+        radial-gradient(circle at 82% 18%, rgba(48, 116, 93, 0.20), transparent 34%),
+        radial-gradient(circle at 62% 88%, rgba(47, 95, 145, 0.18), transparent 34%);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .hero:after {
+      content: "";
+      position: absolute;
+      inset: auto 0 0;
+      height: 20%;
+      background: linear-gradient(180deg, transparent, rgba(251, 250, 246, 0.78));
+      pointer-events: none;
+    }
+
+    .hero-copy, .hero-visual {
+      position: relative;
+      z-index: 1;
+      min-width: 0;
+    }
+
+    .label {
+      color: var(--gold);
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      margin-bottom: 11px;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 780px;
+      font-size: clamp(42px, 6vw, 82px);
+      line-height: 0.95;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: clamp(28px, 3vw, 42px);
+      line-height: 1.03;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 0 0 9px;
+      font-size: 18px;
+      line-height: 1.18;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.62;
+      overflow-wrap: break-word;
+    }
+
+    .lead {
+      max-width: 780px;
+      margin-top: 22px;
+      font-size: 19px;
+      color: #3e3933;
+    }
+
+    .hero-strip {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      font-family: var(--mono);
+    }
+
+    .hero-strip div {
+      border: 1px solid rgba(24, 23, 20, 0.22);
+      background: rgba(255, 255, 255, 0.66);
+      padding: 12px;
+      min-height: 86px;
+      min-width: 0;
+      overflow-wrap: break-word;
+    }
+
+    .hero-strip strong {
+      display: block;
+      color: var(--ink);
+      margin-bottom: 5px;
+    }
+
+    .section {
+      margin-top: 54px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      scroll-margin-top: 112px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: minmax(0, 0.92fr) minmax(360px, 1.08fr);
+      gap: 24px;
+      align-items: start;
+    }
+
+    .band {
+      background: rgba(255, 255, 255, 0.62);
+      border: 1px solid var(--line);
+      padding: 22px;
+    }
+
+    .truth {
+      background: #fff;
+      border: 1px solid var(--ink);
+      box-shadow: var(--shadow);
+      padding: 20px;
+    }
+
+    .note {
+      margin-top: 16px;
+      padding: 14px 16px;
+      color: var(--ink);
+      background: #e7f0ed;
+      border-left: 4px solid var(--green);
+      font-size: 15px;
+      line-height: 1.56;
+    }
+
+    .warning {
+      background: #f4e6e1;
+      border-left-color: var(--red);
+    }
+
+    .equation {
+      margin-top: 14px;
+      padding: 14px 16px;
+      background: #fff;
+      border: 1px solid var(--line);
+      color: #24211e;
+      font-family: var(--mono);
+      font-size: 14px;
+      line-height: 1.55;
+      overflow-x: auto;
+      white-space: normal;
+    }
+
+    .big-equation {
+      border-color: var(--ink);
+      box-shadow: 5px 5px 0 var(--ink);
+      font-size: 18px;
+    }
+
+    .stage {
+      background: #fff;
+      border: 1px solid var(--ink);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      min-width: 0;
+    }
+
+    .hero-visual .stage {
+      transform: rotate(0.4deg);
+    }
+
+    .gpu {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .sm {
+      min-height: 66px;
+      border: 1px solid var(--line);
+      background: var(--soft);
+      padding: 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+      display: grid;
+      align-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .sm.busy {
+      border-color: rgba(47, 116, 93, 0.56);
+      background: rgba(47, 116, 93, 0.14);
+    }
+
+    .sm.idle {
+      color: #928a80;
+      background: repeating-linear-gradient(135deg, #f7f1e8 0 8px, #efe7dc 8px 16px);
+    }
+
+    .sm .load {
+      height: 7px;
+      width: var(--load, 20%);
+      background: var(--green);
+      margin-top: 9px;
+    }
+
+    .sm.fa1.busy { background: rgba(155, 75, 61, 0.13); border-color: rgba(155, 75, 61, 0.46); }
+    .sm.fa1 .load { background: var(--red); }
+    .sm.fa2.busy { background: rgba(47, 95, 145, 0.13); border-color: rgba(47, 95, 145, 0.46); }
+    .sm.fa2 .load { background: var(--blue); }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 13px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 7px 9px;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .swatch {
+      width: 12px;
+      height: 12px;
+      border: 1px solid var(--ink);
+      background: var(--blue);
+    }
+
+    .swatch.red { background: var(--red); }
+    .swatch.green { background: var(--green); }
+    .swatch.idle { background: #efe7dc; }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .control-button {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      padding: 9px 12px;
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+
+    .control-button:hover,
+    .control-button.active {
+      border-color: var(--ink);
+      color: var(--ink);
+      box-shadow: 3px 3px 0 var(--ink);
+    }
+
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .compare-card {
+      background: #fff;
+      border: 1px solid var(--ink);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      min-width: 0;
+    }
+
+    .compare-card.fa1 h3 { color: var(--red); }
+    .compare-card.fa2 h3 { color: var(--blue); }
+
+    .loop-box {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+
+    .loop-line {
+      border: 1px solid var(--line);
+      background: var(--soft);
+      padding: 10px;
+    }
+
+    .loop-line.hot {
+      border-color: var(--ink);
+      background: #fff;
+      box-shadow: 3px 3px 0 var(--ink);
+    }
+
+    .matrix-wrap {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr);
+      gap: 8px;
+      align-items: stretch;
+      font-family: var(--mono);
+    }
+
+    .q-axis {
+      display: grid;
+      grid-template-rows: repeat(4, 1fr);
+      gap: 6px;
+    }
+
+    .q-axis div,
+    .k-axis div {
+      border: 1px solid var(--line);
+      background: #fff;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 12px;
+      min-height: 30px;
+    }
+
+    .matrix-body {
+      display: grid;
+      grid-template-rows: 34px 1fr;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .k-axis {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+
+    .tile-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(4, 1fr);
+      gap: 6px;
+      aspect-ratio: 1 / 0.8;
+      min-height: 230px;
+    }
+
+    .attn-tile {
+      border: 1px solid var(--line);
+      background: var(--soft);
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 12px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .attn-tile.active-fa1 {
+      color: var(--ink);
+      background: rgba(155, 75, 61, 0.16);
+      border-color: rgba(155, 75, 61, 0.55);
+    }
+
+    .attn-tile.active-fa2 {
+      color: var(--ink);
+      background: rgba(47, 95, 145, 0.16);
+      border-color: rgba(47, 95, 145, 0.55);
+    }
+
+    .attn-tile.owner {
+      border-color: var(--ink);
+      box-shadow: inset 0 0 0 2px rgba(24, 23, 20, 0.10);
+    }
+
+    .attn-tile .worker-dot {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border: 1px solid var(--ink);
+      background: var(--green);
+      top: 6px;
+      right: 6px;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+      font-family: var(--mono);
+    }
+
+    .flow-step {
+      border: 1px solid var(--line);
+      background: #fff;
+      min-height: 118px;
+      padding: 12px;
+      font-size: 13px;
+      line-height: 1.42;
+    }
+
+    .flow-step strong {
+      display: block;
+      color: var(--ink);
+      font-size: 15px;
+      margin-bottom: 6px;
+    }
+
+    .flow-step.hot {
+      border-color: var(--ink);
+      box-shadow: 4px 4px 0 var(--ink);
+    }
+
+    .ownership-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1.1fr);
+      gap: 22px;
+      align-items: start;
+      margin-top: 18px;
+    }
+
+    .owner-card {
+      background: #fff;
+      border: 1px solid var(--ink);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      min-width: 0;
+    }
+
+    .owner-map {
+      display: grid;
+      gap: 12px;
+      margin-top: 14px;
+      font-family: var(--mono);
+    }
+
+    .owner-row {
+      display: grid;
+      grid-template-columns: 90px repeat(4, minmax(0, 1fr)) 116px;
+      gap: 7px;
+      align-items: stretch;
+    }
+
+    .owner-cell {
+      min-height: 54px;
+      border: 1px solid var(--line);
+      background: var(--soft);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 8px;
+      font-size: 12px;
+      line-height: 1.25;
+      color: var(--muted);
+    }
+
+    .owner-cell.label-cell {
+      background: #fff;
+      color: var(--ink);
+      font-weight: 800;
+    }
+
+    .owner-cell.k-split {
+      background: rgba(155, 75, 61, 0.14);
+      border-color: rgba(155, 75, 61, 0.48);
+      color: var(--ink);
+    }
+
+    .owner-cell.q-split {
+      background: rgba(47, 95, 145, 0.14);
+      border-color: rgba(47, 95, 145, 0.48);
+      color: var(--ink);
+    }
+
+    .owner-cell.safe {
+      background: rgba(47, 116, 93, 0.15);
+      border-color: rgba(47, 116, 93, 0.50);
+      color: var(--ink);
+    }
+
+    .merge-box {
+      border-color: var(--ink);
+      background: #fff;
+      box-shadow: 3px 3px 0 var(--ink);
+      color: var(--ink);
+    }
+
+    .mini-code {
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      background: var(--soft);
+      padding: 13px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.55;
+      overflow-x: auto;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 14px;
+      min-height: 126px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 28px;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .occupancy {
+      display: grid;
+      gap: 12px;
+      margin-top: 18px;
+      font-family: var(--mono);
+    }
+
+    .occ-row {
+      display: grid;
+      grid-template-columns: 132px minmax(0, 1fr) 86px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .occ-label,
+    .occ-value {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 10px;
+      font-size: 13px;
+    }
+
+    .occ-bar {
+      height: 34px;
+      border: 1px solid var(--line);
+      background: var(--soft);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .occ-fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: var(--w);
+      background: rgba(155, 75, 61, 0.22);
+      border-right: 1px solid rgba(155, 75, 61, 0.48);
+    }
+
+    .occ-row.fa2 .occ-fill {
+      background: rgba(47, 95, 145, 0.24);
+      border-color: rgba(47, 95, 145, 0.48);
+    }
+
+    .scenario-panel {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 18px;
+      align-items: start;
+      margin-top: 18px;
+    }
+
+    .scenario-copy {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 16px;
+    }
+
+    .scenario-copy h3 {
+      color: var(--ink);
+    }
+
+    .schedule-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .schedule {
+      border: 1px solid var(--ink);
+      background: #fff;
+      padding: 14px;
+      min-width: 0;
+    }
+
+    .mini-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      min-width: 0;
+    }
+
+    .mini-title strong {
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    .thread-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .thread {
+      min-height: 42px;
+      border: 1px solid var(--line);
+      background: var(--soft);
+      display: grid;
+      place-items: center;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+      text-align: center;
+      padding: 4px;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .thread.busy-fa1 {
+      background: rgba(155, 75, 61, 0.15);
+      border-color: rgba(155, 75, 61, 0.54);
+      color: var(--ink);
+    }
+
+    .thread.busy-fa2 {
+      background: rgba(47, 95, 145, 0.15);
+      border-color: rgba(47, 95, 145, 0.54);
+      color: var(--ink);
+    }
+
+    .thread.idle {
+      background: repeating-linear-gradient(135deg, #f7f1e8 0 8px, #ece4d8 8px 16px);
+    }
+
+    .pretrain-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .mode-card {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 16px;
+      min-height: 188px;
+    }
+
+    .mode-card.hot {
+      border-color: var(--ink);
+      box-shadow: 4px 4px 0 var(--ink);
+    }
+
+    .mode-card h3 { margin-bottom: 8px; }
+
+    .token-row {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 4px;
+      margin-top: 14px;
+    }
+
+    .tok {
+      height: 28px;
+      border: 1px solid var(--line);
+      background: var(--soft);
+    }
+
+    .tok.q { background: rgba(47, 95, 145, 0.20); border-color: rgba(47, 95, 145, 0.48); }
+    .tok.kv { background: rgba(47, 116, 93, 0.20); border-color: rgba(47, 116, 93, 0.48); }
+    .tok.one { background: rgba(155, 75, 61, 0.20); border-color: rgba(155, 75, 61, 0.48); }
+
+    .takeaway {
+      display: grid;
+      grid-template-columns: 92px minmax(0, 1fr);
+      gap: 16px;
+      align-items: center;
+      margin-top: 22px;
+      padding: 18px;
+      border: 1px solid var(--ink);
+      background: #fff;
+      box-shadow: var(--shadow);
+    }
+
+    .takeaway-badge {
+      width: 76px;
+      height: 76px;
+      display: grid;
+      place-items: center;
+      background: var(--ink);
+      color: #fff;
+      font-family: var(--mono);
+      font-weight: 800;
+    }
+
+    .sources {
+      margin-top: 20px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .sources a {
+      color: var(--blue);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(47, 95, 145, 0.32);
+    }
+
+    .sources a:hover { border-color: var(--blue); }
+
+    @media (max-width: 920px) {
+      .hero,
+      .grid-2,
+      .scenario-panel {
+        grid-template-columns: 1fr;
+      }
+
+      .compare-grid,
+      .schedule-grid,
+      .pretrain-grid,
+      .ownership-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-strip,
+      .metric-grid,
+      .flow {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .shell { width: min(100% - 22px, 1180px); padding-top: 16px; }
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .nav {
+        width: 100%;
+        justify-content: flex-start;
+      }
+      .nav a { white-space: normal; }
+      .hero { min-height: auto; }
+      .hero,
+      .stage,
+      .truth,
+      .band,
+      .compare-card,
+      .schedule,
+      .scenario-copy,
+      .mode-card {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      h1 { font-size: 42px; }
+      .gpu { grid-template-columns: repeat(2, 1fr); }
+      .matrix-wrap { grid-template-columns: 32px minmax(0, 1fr); }
+      .tile-grid { min-height: 190px; gap: 4px; }
+      .attn-tile { font-size: 10px; }
+      .occ-row { grid-template-columns: 1fr; }
+      .takeaway { grid-template-columns: 1fr; }
+      .thread-grid { grid-template-columns: repeat(4, 1fr); }
+      .owner-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <nav class="topbar" aria-label="Page navigation">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none">
+            <path d="M7 22V10h5l8 12h5V10" stroke="#181714" stroke-width="2.2" stroke-linecap="square"/>
+            <path d="M7 22h18" stroke="#30745d" stroke-width="2.2"/>
+          </svg>
+        </div>
+        <span>FA1 → FA2 Visual Walkthrough</span>
+      </div>
+      <div class="nav">
+        <a href="#core">Core Idea</a>
+        <a href="#loops">Loop Order</a>
+        <a href="#inference">Inference</a>
+        <a href="#modes">Training vs Inference</a>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="label">FlashAttention evolution</div>
+        <h1>Same attention. Better GPU schedule.</h1>
+        <p class="lead">
+          FlashAttention-1 made attention IO-aware: do not write the N × N attention matrix to HBM.
+          FlashAttention-2 keeps the same math, but exposes more independent work to the GPU,
+          especially when batch size is small and the sequence is long.
+        </p>
+        <div class="hero-strip">
+          <div><strong>FA1</strong>Parallel work mainly comes from batch × head.</div>
+          <div><strong>Problem</strong>Inference often has batch = 1 and long context.</div>
+          <div><strong>FA2</strong>Split work across Q blocks too.</div>
+        </div>
+      </div>
+
+      <div class="hero-visual">
+        <div class="stage">
+          <div class="mini-title">
+            <strong>GPU occupancy picture</strong>
+            <span>small batch, long sequence</span>
+          </div>
+          <div id="heroGpu" class="gpu" aria-label="GPU occupancy comparison"></div>
+          <div class="legend">
+            <span class="chip"><span class="swatch red"></span>FA1-style work units</span>
+            <span class="chip"><span class="swatch"></span>FA2 sequence-split work units</span>
+            <span class="chip"><span class="swatch idle"></span>idle capacity</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="core" class="section grid-2">
+      <div>
+        <div class="label">The key idea</div>
+        <h2>FA1 found the memory trick. FA2 found more parallel work.</h2>
+        <p>
+          Both versions compute exact attention. They tile Q, K, and V into on-chip memory and
+          use online softmax so the full attention matrix never needs to be stored. The difference
+          is how the GPU workers are assigned.
+        </p>
+        <div class="equation big-equation">
+          O = softmax(QKᵀ / √d) V &nbsp;&nbsp; // same result in FA1 and FA2
+        </div>
+        <div class="note">
+          The clean teaching version: FA1 is excellent when batch × heads gives the GPU many independent jobs.
+          FA2 adds parallelism inside a single head by splitting along sequence/query blocks.
+        </div>
+      </div>
+      <div class="truth">
+        <div class="label">What changed?</div>
+        <div class="metric-grid">
+          <div class="metric">
+            <strong>25-40%</strong>
+            <span>FA1 reached this rough range of theoretical max FLOPs/s on A100 in the FA2 paper.</span>
+          </div>
+          <div class="metric">
+            <strong>50-73%</strong>
+            <span>FA2 gets closer to GEMM efficiency by improving work partitioning.</span>
+          </div>
+          <div class="metric">
+            <strong>same math</strong>
+            <span>The speedup is from scheduling, fewer scalar operations, and less shared-memory traffic.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="loops" class="section">
+      <div class="label">Loop order</div>
+      <h2>Look at who owns the output rows.</h2>
+      <p>
+        In FA1, a useful mental model is: load a K/V tile, then visit Q tiles. That gives reuse of K/V,
+        but the parallel work is naturally organized over batch and heads. In FA2 forward pass, a worker
+        owns a block of Q rows and streams across all K/V blocks, so different Q blocks can run at the same time.
+      </p>
+      <div class="note">
+        Important: this is not because K blocks are impossible to run in parallel. It is because splitting
+        one query row across K blocks creates partial softmax pieces that must be merged before the final
+        output row is known.
+      </div>
+
+      <div class="controls" role="tablist" aria-label="Attention tile animation controls">
+        <button class="control-button active" data-step="0" type="button">1. Batch × heads</button>
+        <button class="control-button" data-step="1" type="button">2. FA1 schedule</button>
+        <button class="control-button" data-step="2" type="button">3. FA2 schedule</button>
+        <button class="control-button" data-step="3" type="button">4. Why it matters</button>
+      </div>
+
+      <div class="compare-grid" style="margin-top:18px;">
+        <article class="compare-card fa1">
+          <h3>FlashAttention-1: enough jobs only when B × H is large</h3>
+          <p id="fa1Caption">Training often has many batches and heads, so FA1 can fill the GPU with independent attention problems.</p>
+          <div class="loop-box">
+            <div class="loop-line hot">parallel axis: batch × attention head</div>
+            <div class="loop-line">outer loop: K/V blocks</div>
+            <div class="loop-line">inner loop: Q blocks, update partial softmax/output</div>
+          </div>
+          <div id="fa1Matrix" class="matrix-wrap"></div>
+        </article>
+
+        <article class="compare-card fa2">
+          <h3>FlashAttention-2: split one head across Q blocks</h3>
+          <p id="fa2Caption">Even with one batch and a few heads, a long sequence contains many Q blocks that can become independent GPU jobs.</p>
+          <div class="loop-box">
+            <div class="loop-line hot">parallel axis: batch × head × Q-block</div>
+            <div class="loop-line">outer ownership: Q rows / output rows</div>
+            <div class="loop-line">inner loop: stream through K/V blocks</div>
+          </div>
+          <div id="fa2Matrix" class="matrix-wrap"></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="label">The confusing part</div>
+      <h2>Why not run K0, K1, K2, K3 in parallel?</h2>
+      <p>
+        For one query row, attention is a softmax over all keys. If four workers each handle a different
+        K block, they do not produce four independent outputs. They produce four partial pieces of the
+        same output row. Those pieces need a max/sum/output merge.
+      </p>
+
+      <div class="ownership-grid">
+        <div class="owner-card">
+          <h3>Splitting across K blocks creates a reduction problem</h3>
+          <p>
+            The same Q row owns one final output vector Oᵢ. Every K/V block contributes to that same Oᵢ,
+            and softmax normalization couples all K blocks together.
+          </p>
+          <div class="owner-map" aria-label="K split ownership map">
+            <div class="owner-row">
+              <div class="owner-cell label-cell">Q row i</div>
+              <div class="owner-cell k-split">K0/V0<br>partial m,l,O</div>
+              <div class="owner-cell k-split">K1/V1<br>partial m,l,O</div>
+              <div class="owner-cell k-split">K2/V2<br>partial m,l,O</div>
+              <div class="owner-cell k-split">K3/V3<br>partial m,l,O</div>
+              <div class="owner-cell merge-box">must merge<br>one Oᵢ</div>
+            </div>
+          </div>
+          <div class="mini-code">
+            softmax([QᵢK0ᵀ, QᵢK1ᵀ, QᵢK2ᵀ, QᵢK3ᵀ]) V<br>
+            needs one global max, one global denominator, one final output row.
+          </div>
+        </div>
+
+        <div class="owner-card">
+          <h3>Splitting across Q blocks avoids that merge</h3>
+          <p>
+            Q rows are independent output rows. Q0 produces O0. Q1 produces O1. Q2 produces O2.
+            Each worker can stream across all K/V blocks and finish its own rows locally.
+          </p>
+          <div class="owner-map" aria-label="Q split ownership map">
+            <div class="owner-row">
+              <div class="owner-cell label-cell">worker A</div>
+              <div class="owner-cell q-split">Q0 × all K/V</div>
+              <div class="owner-cell safe">owns O0</div>
+              <div class="owner-cell label-cell">worker B</div>
+              <div class="owner-cell q-split">Q1 × all K/V</div>
+              <div class="owner-cell safe">owns O1</div>
+            </div>
+            <div class="owner-row">
+              <div class="owner-cell label-cell">worker C</div>
+              <div class="owner-cell q-split">Q2 × all K/V</div>
+              <div class="owner-cell safe">owns O2</div>
+              <div class="owner-cell label-cell">worker D</div>
+              <div class="owner-cell q-split">Q3 × all K/V</div>
+              <div class="owner-cell safe">owns O3</div>
+            </div>
+          </div>
+          <div class="mini-code">
+            worker for Q block r:<br>
+            &nbsp;&nbsp;keep mᵣ, lᵣ, Oᵣ locally<br>
+            &nbsp;&nbsp;for every K/V block: update local online softmax
+          </div>
+        </div>
+      </div>
+
+      <div class="note warning">
+        K-block parallelism is possible, but it needs an extra combine step. That style appears in
+        specialized long-context decode kernels, where Q length may be one token and splitting across Q
+        rows gives no parallelism. FA2's clean forward-pass improvement is to split across Q blocks.
+      </div>
+    </section>
+
+    <section id="inference" class="section grid-2">
+      <div>
+        <div class="label">Small batch, long context</div>
+        <h2>Inference exposes the weakness of only using batch × head parallelism.</h2>
+        <p>
+          During prefill, inference may process a long prompt with batch size 1. If the kernel can only
+          create one job per head, the GPU can be under-occupied. FA2 creates more jobs by splitting the
+          sequence dimension, so one long prompt can occupy many thread blocks.
+        </p>
+        <div class="note">
+          This is the key story to show visually: FA2 does not reduce the N² attention math.
+          It gives the GPU more simultaneous pieces of that math to execute.
+        </div>
+      </div>
+      <div class="stage">
+        <div class="mini-title">
+          <strong>Try the workload</strong>
+          <span>how many worker groups exist?</span>
+        </div>
+        <div class="controls" id="scenarioButtons"></div>
+        <div class="scenario-panel">
+          <div class="scenario-copy">
+            <h3 id="scenarioTitle"></h3>
+            <p id="scenarioBody"></p>
+            <div class="occupancy">
+              <div class="occ-row fa1">
+                <div class="occ-label">FA1 jobs</div>
+                <div class="occ-bar"><div id="fa1Occ" class="occ-fill" style="--w:25%"></div></div>
+                <div id="fa1OccValue" class="occ-value"></div>
+              </div>
+              <div class="occ-row fa2">
+                <div class="occ-label">FA2 jobs</div>
+                <div class="occ-bar"><div id="fa2Occ" class="occ-fill" style="--w:88%"></div></div>
+                <div id="fa2OccValue" class="occ-value"></div>
+              </div>
+            </div>
+          </div>
+          <div class="schedule-grid">
+            <div class="schedule">
+              <div class="mini-title"><strong>FA1 worker map</strong><span>batch × head</span></div>
+              <div id="fa1Threads" class="thread-grid"></div>
+            </div>
+            <div class="schedule">
+              <div class="mini-title"><strong>FA2 worker map</strong><span>batch × head × Q-block</span></div>
+              <div id="fa2Threads" class="thread-grid"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section grid-2">
+      <div>
+        <div class="label">Why more peak FLOPs?</div>
+        <h2>Tensor cores like big, steady matrix work. FA2 removes more of the waiting around it.</h2>
+        <p>
+          FA1 already avoided the giant HBM writes. But compared with GEMM, it still had overhead:
+          scalar softmax work, synchronization, and shared-memory movement between warps. FA2 improves
+          the work partitioning so more time is spent in the high-throughput matmul parts.
+        </p>
+      </div>
+      <div class="stage">
+        <div class="flow">
+          <div class="flow-step">
+            <strong>1. More blocks</strong>
+            One long sequence can create many independent Q-block jobs.
+          </div>
+          <div class="flow-step hot">
+            <strong>2. Less waiting</strong>
+            Higher occupancy means more SMs have useful work at the same time.
+          </div>
+          <div class="flow-step">
+            <strong>3. Better warp split</strong>
+            FA2 reduces communication through shared memory inside a thread block.
+          </div>
+        </div>
+        <div class="equation">
+          FA2 speedup = better parallelism + fewer non-matmul FLOPs + less shared-memory traffic
+        </div>
+      </div>
+    </section>
+
+    <section id="modes" class="section">
+      <div class="label">Training vs inference</div>
+      <h2>Does FA1 vs FA2 change between pre-training and inference?</h2>
+      <p>
+        The attention formula does not change. What changes is the shape of the workload.
+        That shape decides whether FA2's extra sequence parallelism is especially valuable.
+      </p>
+      <div class="pretrain-grid">
+        <article class="mode-card">
+          <h3>Pre-training</h3>
+          <p>Usually many batches and heads. FA1 already has lots of independent attention jobs, so it works well. FA2 still improves throughput.</p>
+          <div class="token-row" aria-hidden="true">
+            <span class="tok q"></span><span class="tok q"></span><span class="tok q"></span><span class="tok q"></span>
+            <span class="tok q"></span><span class="tok q"></span><span class="tok q"></span><span class="tok q"></span>
+            <span class="tok q"></span><span class="tok q"></span><span class="tok q"></span><span class="tok q"></span>
+          </div>
+        </article>
+        <article class="mode-card hot">
+          <h3>Inference prefill</h3>
+          <p>Often batch is small, but the prompt is long. This is the clean case where FA2's Q-block sequence parallelism helps keep the GPU busy.</p>
+          <div class="token-row" aria-hidden="true">
+            <span class="tok q"></span><span class="tok q"></span><span class="tok q"></span><span class="tok q"></span>
+            <span class="tok q"></span><span class="tok q"></span><span class="tok q"></span><span class="tok q"></span>
+            <span class="tok q"></span><span class="tok q"></span><span class="tok q"></span><span class="tok q"></span>
+          </div>
+        </article>
+        <article class="mode-card">
+          <h3>Inference decode</h3>
+          <p>Usually q length is 1 token and K/V comes from cache. Splitting across Q rows is less useful; specialized decode kernels split work over the long K/V cache.</p>
+          <div class="token-row" aria-hidden="true">
+            <span class="tok one"></span><span class="tok kv"></span><span class="tok kv"></span><span class="tok kv"></span>
+            <span class="tok kv"></span><span class="tok kv"></span><span class="tok kv"></span><span class="tok kv"></span>
+            <span class="tok kv"></span><span class="tok kv"></span><span class="tok kv"></span><span class="tok kv"></span>
+          </div>
+        </article>
+      </div>
+      <div class="takeaway">
+        <div class="takeaway-badge">gist</div>
+        <p>
+          FA2 is not a different attention layer. It is a better GPU implementation of the FlashAttention idea:
+          same exact output, better work scheduling. Its sequence parallelism is most important when batch × heads
+          alone is too small to fill the GPU, which is common in long-context inference prefill.
+        </p>
+      </div>
+      <p class="sources">
+        Sources: Tri Dao et al.,
+        <a href="https://arxiv.org/abs/2205.14135">FlashAttention</a> and
+        <a href="https://arxiv.org/abs/2307.08691">FlashAttention-2</a>.
+      </p>
+    </section>
+  </main>
+
+  <script>
+    const smCount = 16;
+    const qLabels = ["Q0", "Q1", "Q2", "Q3"];
+    const kLabels = ["K0", "K1", "K2", "K3"];
+
+    function renderGpu(containerId, mode) {
+      const container = document.getElementById(containerId);
+      const busy = mode === "fa1" ? 4 : 14;
+      container.innerHTML = Array.from({ length: smCount }, (_, index) => {
+        const isBusy = index < busy;
+        const cls = isBusy ? `sm busy ${mode}` : "sm idle";
+        const label = isBusy ? (mode === "fa1" ? `B/H ${index + 1}` : `Q block ${index + 1}`) : "idle";
+        const load = isBusy ? (mode === "fa1" ? "58%" : "86%") : "12%";
+        return `<div class="${cls}" style="--load:${load}"><span>SM ${index + 1}</span><span>${label}</span><div class="load"></div></div>`;
+      }).join("");
+    }
+
+    function matrixMarkup(mode, step) {
+      const activeClass = mode === "fa1" ? "active-fa1" : "active-fa2";
+      const cells = [];
+      for (let r = 0; r < 4; r += 1) {
+        for (let c = 0; c < 4; c += 1) {
+          let active = false;
+          let owner = false;
+          if (step === 1 && mode === "fa1") active = c === 1;
+          if (step === 2 && mode === "fa2") active = true, owner = r >= 0;
+          if (step === 3 && mode === "fa1") active = c === 1 && r < 2;
+          if (step === 3 && mode === "fa2") active = r < 4;
+          const dot = mode === "fa2" && (step === 2 || step === 3) ? '<span class="worker-dot"></span>' : "";
+          cells.push(`<div class="attn-tile ${active ? activeClass : ""} ${owner ? "owner" : ""}">${qLabels[r]}×${kLabels[c]}${dot}</div>`);
+        }
+      }
+
+      return `
+        <div class="q-axis">${qLabels.map((q) => `<div>${q}</div>`).join("")}</div>
+        <div class="matrix-body">
+          <div class="k-axis">${kLabels.map((k) => `<div>${k}</div>`).join("")}</div>
+          <div class="tile-grid">${cells.join("")}</div>
+        </div>
+      `;
+    }
+
+    const captions = [
+      {
+        fa1: "When batch × heads is large, each attention head is an independent job. FA1 has enough work.",
+        fa2: "FA2 can still use batch × heads, but it also has another axis waiting: Q blocks."
+      },
+      {
+        fa1: "FA1-style schedule loads a K/V block and walks through Q blocks, updating partial softmax/output.",
+        fa2: "FA2 keeps the same tiling idea, but makes Q blocks the independent output-row owners."
+      },
+      {
+        fa1: "You could split K blocks, but then several workers would fight over the same output row and need a merge.",
+        fa2: "FA2 assigns different Q blocks to different workers. Each worker streams through K/V and finishes its own rows."
+      },
+      {
+        fa1: "FA1 avoids that K-split merge by keeping one owner for the softmax state of an output row.",
+        fa2: "More simultaneous Q-block jobs increase occupancy and make the kernel behave more like efficient GEMM."
+      }
+    ];
+
+    function renderStep(step) {
+      document.querySelectorAll("[data-step]").forEach((button) => {
+        button.classList.toggle("active", Number(button.dataset.step) === step);
+      });
+      document.getElementById("fa1Caption").textContent = captions[step].fa1;
+      document.getElementById("fa2Caption").textContent = captions[step].fa2;
+      document.getElementById("fa1Matrix").innerHTML = matrixMarkup("fa1", step);
+      document.getElementById("fa2Matrix").innerHTML = matrixMarkup("fa2", step);
+    }
+
+    const scenarios = [
+      {
+        id: "train",
+        label: "Training",
+        title: "Large batch training",
+        body: "Example: batch = 16, heads = 32. Batch × heads already gives hundreds of independent attention jobs. FA2 still wins, but FA1 is not starved for work.",
+        fa1Jobs: 16,
+        fa2Jobs: 16
+      },
+      {
+        id: "prefill",
+        label: "Long prefill",
+        title: "Small batch, long prompt",
+        body: "Example: batch = 1, heads = 8, sequence = 16k. FA1-style work over heads alone is thin. FA2 splits each head across many Q blocks.",
+        fa1Jobs: 4,
+        fa2Jobs: 15
+      },
+      {
+        id: "decode",
+        label: "Decode",
+        title: "One new token at a time",
+        body: "In autoregressive decode, Q length is often 1. FA2's Q-row split has little room to operate; specialized decode attention often splits across the K/V cache instead.",
+        fa1Jobs: 3,
+        fa2Jobs: 5
+      }
+    ];
+
+    function renderThreads(containerId, count, cls) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = Array.from({ length: 16 }, (_, index) => {
+        const active = index < count;
+        return `<div class="thread ${active ? cls : "idle"}">${active ? `job ${index + 1}` : "idle"}</div>`;
+      }).join("");
+    }
+
+    function renderScenario(index) {
+      const scenario = scenarios[index];
+      document.querySelectorAll("[data-scenario]").forEach((button) => {
+        button.classList.toggle("active", Number(button.dataset.scenario) === index);
+      });
+      document.getElementById("scenarioTitle").textContent = scenario.title;
+      document.getElementById("scenarioBody").textContent = scenario.body;
+      document.getElementById("fa1Occ").style.setProperty("--w", `${Math.max(10, scenario.fa1Jobs / 16 * 100)}%`);
+      document.getElementById("fa2Occ").style.setProperty("--w", `${Math.max(10, scenario.fa2Jobs / 16 * 100)}%`);
+      document.getElementById("fa1OccValue").textContent = `${scenario.fa1Jobs}/16`;
+      document.getElementById("fa2OccValue").textContent = `${scenario.fa2Jobs}/16`;
+      renderThreads("fa1Threads", scenario.fa1Jobs, "busy-fa1");
+      renderThreads("fa2Threads", scenario.fa2Jobs, "busy-fa2");
+    }
+
+    function bindScenarioButtons() {
+      const holder = document.getElementById("scenarioButtons");
+      holder.innerHTML = scenarios.map((scenario, index) => `
+        <button class="control-button ${index === 1 ? "active" : ""}" type="button" data-scenario="${index}">
+          ${scenario.label}
+        </button>
+      `).join("");
+      holder.querySelectorAll("button").forEach((button) => {
+        button.addEventListener("click", () => renderScenario(Number(button.dataset.scenario)));
+      });
+    }
+
+    document.querySelectorAll("[data-step]").forEach((button) => {
+      button.addEventListener("click", () => renderStep(Number(button.dataset.step)));
+    });
+
+    renderGpu("heroGpu", "fa2");
+    renderStep(0);
+    bindScenarioButtons();
+    renderScenario(1);
+  </script>
+</body>
+</html>
