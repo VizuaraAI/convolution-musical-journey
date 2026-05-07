@@ -1,0 +1,1664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Anatomy of Perplexity — A Visual Guide</title>
+<meta name="description" content="An interactive, first-principles visual guide to Perplexity loss in Large Language Models." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=JetBrains+Mono:wght@400;500;700&family=Inter+Tight:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:        #f4ecd8;
+    --paper-deep:   #ebe1c7;
+    --ink:          #1a1815;
+    --ink-soft:     #3d3833;
+    --ink-faint:    #6b6359;
+    --rule:         #2a2622;
+    --accent:       #c8351b;          /* vermilion */
+    --accent-soft:  #e08a76;
+    --gold:         #b8862f;
+    --teal:         #2f5e5a;
+    --blue:         #2e4a7b;
+    --green:        #4a6b3a;
+    --hot:          #c8351b;
+    --cool:         #2e4a7b;
+    --margin:       max(2rem, calc(50vw - 38rem));
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Fraunces', 'Times New Roman', serif;
+    font-feature-settings: "ss01" on, "ss02" on, "onum" on;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.55;
+    font-size: 18px;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Subtle paper grain */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(120,90,40,0.04) 0%, transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(60,40,20,0.035) 0%, transparent 40%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.15 0 0 0 0 0.12 0 0 0 0 0.08 0 0 0 0.18 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.35;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  main { position: relative; z-index: 2; }
+
+  /* ---------- TYPOGRAPHY ---------- */
+  h1, h2, h3, h4 {
+    font-family: 'Fraunces', serif;
+    font-variation-settings: "opsz" 144;
+    color: var(--ink);
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    font-weight: 500;
+  }
+  h2 { font-size: clamp(2.2rem, 5vw, 3.6rem); margin-bottom: 1.5rem; font-weight: 400; }
+  h3 { font-size: clamp(1.5rem, 3vw, 2.1rem); margin: 2.5rem 0 1rem; font-weight: 500; }
+  h4 { font-size: 1.25rem; margin: 1.5rem 0 0.6rem; font-weight: 600; font-variation-settings: "opsz" 14; }
+
+  p { font-size: 1.125rem; margin-bottom: 1.25rem; max-width: 65ch; }
+  p.lede {
+    font-size: 1.45rem;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    font-style: italic;
+    font-weight: 300;
+    max-width: 60ch;
+  }
+  .small-caps {
+    font-family: 'Inter Tight', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ink-faint);
+  }
+  .drop::first-letter {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 4.5rem;
+    float: left;
+    line-height: 0.85;
+    margin: 0.4rem 0.5rem 0 0;
+    color: var(--accent);
+  }
+
+  code, .mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9em;
+    background: rgba(40,30,20,0.06);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    color: var(--ink);
+  }
+
+  /* ---------- LAYOUT ---------- */
+  section {
+    padding: 6rem var(--margin);
+    position: relative;
+    border-bottom: 1px solid rgba(40,30,20,0.08);
+  }
+  section:last-child { border-bottom: none; }
+
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    margin-bottom: 1rem;
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--accent);
+    border-radius: 2px;
+  }
+
+  /* ---------- HERO ---------- */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4rem var(--margin) 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 0.75rem;
+    margin-bottom: 3rem;
+  }
+  .hero-meta .vol {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 1rem;
+    color: var(--ink-soft);
+  }
+  .hero h1 {
+    font-size: clamp(3rem, 9.5vw, 8rem);
+    font-weight: 300;
+    line-height: 0.92;
+    margin: 1rem 0 2rem;
+    font-variation-settings: "opsz" 144, "wght" 300;
+  }
+  .hero h1 em {
+    font-style: italic;
+    color: var(--accent);
+    font-variation-settings: "opsz" 144, "wght" 400;
+  }
+  .hero-sub {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    margin-top: 3rem;
+    border-top: 1px solid rgba(40,30,20,0.2);
+    padding-top: 1.5rem;
+  }
+  .hero-sub p { font-size: 1rem; color: var(--ink-soft); }
+
+  .hero-formula {
+    margin: 2rem 0;
+    padding: 2rem;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'JetBrains Mono', monospace;
+    text-align: center;
+    border-radius: 2px;
+    position: relative;
+  }
+  .hero-formula .label {
+    position: absolute;
+    top: -0.7rem; left: 1rem;
+    background: var(--paper);
+    color: var(--ink);
+    padding: 0 0.5rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .hero-formula .eq {
+    font-size: 1.6rem;
+    letter-spacing: 0.05em;
+  }
+  .hero-formula .eq .var { color: var(--accent-soft); }
+
+  /* ---------- TABLE OF CONTENTS ---------- */
+  .toc {
+    background: var(--paper-deep);
+    padding: 4rem var(--margin);
+    border-top: 1px solid rgba(40,30,20,0.15);
+    border-bottom: 1px solid rgba(40,30,20,0.15);
+  }
+  .toc h2 {
+    font-size: 1.2rem;
+    font-family: 'Inter Tight', sans-serif;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 2rem;
+    font-weight: 600;
+  }
+  .toc-list { list-style: none; }
+  .toc-list li {
+    border-top: 1px solid rgba(40,30,20,0.15);
+    padding: 1rem 0;
+    display: flex;
+    align-items: baseline;
+    gap: 1.5rem;
+  }
+  .toc-list li:last-child { border-bottom: 1px solid rgba(40,30,20,0.15); }
+  .toc-list .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--accent);
+    width: 3rem;
+    flex-shrink: 0;
+  }
+  .toc-list a {
+    color: var(--ink);
+    text-decoration: none;
+    font-family: 'Fraunces', serif;
+    font-size: 1.4rem;
+    flex-grow: 1;
+    transition: color 0.2s;
+  }
+  .toc-list a:hover { color: var(--accent); font-style: italic; }
+  .toc-list .pg {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+  }
+
+  /* ---------- FIGURES ---------- */
+  figure {
+    margin: 3rem auto;
+    padding: 0;
+    text-align: center;
+    max-width: 100%;
+  }
+  figure svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+    background: var(--paper);
+  }
+  figcaption {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+    margin-top: 1rem;
+    line-height: 1.4;
+    max-width: 50ch;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+  }
+  figcaption .fig-label {
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.72rem;
+    margin-right: 0.5rem;
+  }
+
+  /* ---------- INTERACTIVE BLOCKS ---------- */
+  .interactive {
+    background: var(--paper-deep);
+    border: 1px solid rgba(40,30,20,0.15);
+    padding: 2rem;
+    border-radius: 4px;
+    margin: 3rem 0;
+    position: relative;
+  }
+  .interactive::before {
+    content: 'Try it ↓';
+    position: absolute;
+    top: -0.6rem; left: 1.2rem;
+    background: var(--accent);
+    color: var(--paper);
+    padding: 0.15rem 0.7rem;
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-weight: 700;
+    border-radius: 2px;
+  }
+
+  /* Buttons & controls */
+  button {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: all 0.15s;
+  }
+  button:hover { background: var(--accent); }
+  button.ghost {
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--ink);
+  }
+  button.ghost:hover { background: var(--ink); color: var(--paper); }
+  button.ghost.active {
+    background: var(--accent);
+    color: var(--paper);
+    border-color: var(--accent);
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: rgba(40,30,20,0.2);
+    outline: none;
+    border-radius: 2px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px; height: 20px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+    border: 3px solid var(--paper);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 20px; height: 20px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+    border: 3px solid var(--paper);
+  }
+
+  /* Pull quote */
+  .pull-quote {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: clamp(1.6rem, 3.8vw, 2.6rem);
+    line-height: 1.25;
+    color: var(--ink);
+    margin: 4rem auto;
+    padding: 2.5rem 0;
+    max-width: 50ch;
+    text-align: center;
+    border-top: 1px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+    position: relative;
+  }
+  .pull-quote::before {
+    content: '"';
+    position: absolute;
+    top: -1.5rem; left: 50%;
+    transform: translateX(-50%);
+    background: var(--paper);
+    padding: 0 1rem;
+    font-size: 4rem;
+    color: var(--accent);
+    line-height: 1;
+    font-style: normal;
+  }
+
+  /* Margin notes */
+  .marginalia {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+    line-height: 1.4;
+    border-left: 2px solid var(--accent);
+    padding-left: 1rem;
+    margin: 1.5rem 0;
+    font-style: italic;
+  }
+
+  /* Formula display */
+  .formula {
+    background: var(--paper-deep);
+    border: 1px solid rgba(40,30,20,0.15);
+    padding: 1.5rem 2rem;
+    margin: 2rem 0;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.15rem;
+    border-radius: 3px;
+    overflow-x: auto;
+  }
+  .formula em { color: var(--accent); font-style: normal; font-weight: 700; }
+  .formula .sub { font-size: 0.7em; vertical-align: -0.3em; }
+  .formula .sup { font-size: 0.7em; vertical-align: 0.5em; }
+  .formula .frac {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    vertical-align: middle;
+    margin: 0 0.3rem;
+    font-size: 0.95em;
+  }
+  .formula .frac .top {
+    border-bottom: 1.5px solid currentColor;
+    padding: 0 0.5rem 0.1rem;
+  }
+  .formula .frac .bot { padding: 0.1rem 0.5rem 0; }
+
+  /* Token cards */
+  .token-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 1.5rem 0;
+    align-items: center;
+    justify-content: center;
+  }
+  .tok {
+    display: inline-block;
+    padding: 0.45rem 0.75rem;
+    background: var(--paper-deep);
+    border: 1px solid rgba(40,30,20,0.2);
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.95rem;
+    color: var(--ink);
+    position: relative;
+  }
+  .tok.active { background: var(--accent); color: var(--paper); border-color: var(--accent); }
+  .tok.target { background: var(--gold); color: var(--paper); border-color: var(--gold); }
+  .tok.context { opacity: 0.65; }
+
+  /* Stats grid */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0;
+    margin: 2.5rem 0;
+    border-top: 1px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+  }
+  .stat {
+    padding: 1.5rem;
+    border-right: 1px solid rgba(40,30,20,0.15);
+    text-align: center;
+  }
+  .stat:last-child { border-right: none; }
+  .stat .num {
+    font-family: 'Fraunces', serif;
+    font-variation-settings: "opsz" 144, "wght" 400;
+    font-size: 3rem;
+    color: var(--accent);
+    line-height: 1;
+    display: block;
+  }
+  .stat .lbl {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-faint);
+    margin-top: 0.5rem;
+    display: block;
+  }
+
+  /* Two-col */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    margin: 2rem 0;
+  }
+  @media (max-width: 768px) {
+    .two-col { grid-template-columns: 1fr; gap: 1.5rem; }
+    .hero-sub { grid-template-columns: 1fr; }
+    .stat-grid { grid-template-columns: 1fr 1fr; }
+    .stat { border-right: 1px solid rgba(40,30,20,0.15); border-bottom: 1px solid rgba(40,30,20,0.15); }
+  }
+
+  /* Footer */
+  footer {
+    padding: 4rem var(--margin) 3rem;
+    background: var(--ink);
+    color: var(--paper);
+    text-align: center;
+  }
+  footer p { color: var(--paper); margin: 0 auto 0.5rem; max-width: none; }
+  footer .small-caps { color: var(--accent-soft); }
+
+  /* SVG defaults inside figures */
+  .svg-text {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 13px;
+    fill: var(--ink);
+  }
+  .svg-mono { font-family: 'JetBrains Mono', monospace; }
+  .svg-serif { font-family: 'Fraunces', serif; font-style: italic; }
+
+  /* Highlight */
+  .hl { background: linear-gradient(180deg, transparent 60%, rgba(200,53,27,0.25) 60%); padding: 0 0.1em; }
+  .hl-gold { background: linear-gradient(180deg, transparent 60%, rgba(184,134,47,0.3) 60%); padding: 0 0.1em; }
+
+  /* Section divider ornament */
+  .ornament {
+    text-align: center;
+    margin: 3rem 0;
+    color: var(--ink-faint);
+    font-size: 1.5rem;
+    letter-spacing: 1rem;
+  }
+
+  /* Animation */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .anim { animation: fadeUp 0.8s ease-out backwards; }
+
+  /* Tooltip */
+  .info {
+    display: inline-block;
+    width: 1.1em; height: 1.1em;
+    line-height: 1.1em;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 50%;
+    text-align: center;
+    font-size: 0.7em;
+    cursor: help;
+    font-family: 'Inter Tight', sans-serif;
+    vertical-align: middle;
+    margin: 0 0.2em;
+  }
+</style>
+</head>
+<body>
+<main>
+
+<!-- ===================================================================== -->
+<!-- HERO                                                                  -->
+<!-- ===================================================================== -->
+<section class="hero">
+  <div class="hero-meta">
+    <span class="small-caps">Vizuara · Visual Field Notes</span>
+    <span class="vol">Vol. III · An interactive essay</span>
+    <span class="small-caps">No. 07 · Perplexity</span>
+  </div>
+
+  <p class="small-caps anim" style="animation-delay:.05s">A first-principles tour of</p>
+  <h1 class="anim" style="animation-delay:.15s">
+    The <em>Anatomy</em><br>
+    of <em>Perplexity</em>
+  </h1>
+  <p class="lede anim" style="animation-delay:.35s">
+    How surprised is your language model? We'll build the answer from a single token, one careful step at a time — until a single number tells you everything about how confused, or how confident, the model really is.
+  </p>
+
+  <div class="hero-formula anim" style="animation-delay:.55s">
+    <span class="label">The destination</span>
+    <div class="eq">
+      Perplexity = exp(− <span class="var">1/N</span> · Σ log <span class="var">P(x<sub>i</sub> | x<sub>&lt;i</sub>)</span>)
+    </div>
+  </div>
+
+  <div class="hero-sub anim" style="animation-delay:.75s">
+    <p>By the end, this equation will feel obvious. We will derive every symbol from a single, almost childish question: <em>when the model guesses the next word, how often is it right?</em></p>
+    <p style="text-align:right">Scroll to begin.<br><span style="font-size:1.5rem">↓</span></p>
+  </div>
+</section>
+
+<!-- ===================================================================== -->
+<!-- TABLE OF CONTENTS                                                     -->
+<!-- ===================================================================== -->
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol class="toc-list">
+    <li><span class="num">I</span><a href="#s1">A model is a guesser of next tokens</a><span class="pg">p. 01</span></li>
+    <li><span class="num">II</span><a href="#s2">Tokens, and the probability they live in</a><span class="pg">p. 02</span></li>
+    <li><span class="num">III</span><a href="#s3">Surprise, measured in bits</a><span class="pg">p. 03</span></li>
+    <li><span class="num">IV</span><a href="#s4">From one token to a sentence: cross-entropy</a><span class="pg">p. 04</span></li>
+    <li><span class="num">V</span><a href="#s5">The exponential trick: from log to choices</a><span class="pg">p. 05</span></li>
+    <li><span class="num">VI</span><a href="#s6">Perplexity, finally — a number with a soul</a><span class="pg">p. 06</span></li>
+    <li><span class="num">VII</span><a href="#s7">An interactive perplexity laboratory</a><span class="pg">p. 07</span></li>
+    <li><span class="num">VIII</span><a href="#s8">What the number does (and doesn't) say</a><span class="pg">p. 08</span></li>
+  </ol>
+</nav>
+
+<!-- ===================================================================== -->
+<!-- SECTION I                                                             -->
+<!-- ===================================================================== -->
+<section id="s1">
+  <span class="section-num">§ I</span>
+  <h2>A model is a guesser of next tokens.</h2>
+  <p class="lede">Forget — for a moment — everything you've heard about transformers, attention, billions of parameters. Strip the model down to the only thing it actually does at inference time.</p>
+
+  <p class="drop">A language model, at its irreducible core, plays a single game over and over: <em>given some text so far, predict what comes next.</em> Not a sentence. Not a paragraph. Just the next single piece — the next <span class="hl">token</span>.</p>
+
+  <p>Show it "The cat sat on the". The model does not "know" the answer. It produces a probability over every possible token in its vocabulary — a long ranked list. <span class="mono">mat</span> might get 41%. <span class="mono">floor</span> 12%. <span class="mono">roof</span> 4%. <span class="mono">banana</span>, mercifully, 0.001%.</p>
+
+  <figure>
+    <svg viewBox="0 0 800 380" xmlns="http://www.w3.org/2000/svg">
+      <!-- Context tokens -->
+      <g transform="translate(40,40)">
+        <text class="svg-text" style="font-size:11px;letter-spacing:0.15em" fill="#6b6359">CONTEXT</text>
+        <g transform="translate(0,15)">
+          <rect x="0" y="0" width="60" height="32" rx="3" fill="#ebe1c7" stroke="#3d3833" stroke-width="1"/>
+          <text class="svg-text svg-mono" x="30" y="21" text-anchor="middle">The</text>
+          <rect x="68" y="0" width="60" height="32" rx="3" fill="#ebe1c7" stroke="#3d3833" stroke-width="1"/>
+          <text class="svg-text svg-mono" x="98" y="21" text-anchor="middle">cat</text>
+          <rect x="136" y="0" width="60" height="32" rx="3" fill="#ebe1c7" stroke="#3d3833" stroke-width="1"/>
+          <text class="svg-text svg-mono" x="166" y="21" text-anchor="middle">sat</text>
+          <rect x="204" y="0" width="60" height="32" rx="3" fill="#ebe1c7" stroke="#3d3833" stroke-width="1"/>
+          <text class="svg-text svg-mono" x="234" y="21" text-anchor="middle">on</text>
+          <rect x="272" y="0" width="60" height="32" rx="3" fill="#ebe1c7" stroke="#3d3833" stroke-width="1"/>
+          <text class="svg-text svg-mono" x="302" y="21" text-anchor="middle">the</text>
+          <rect x="340" y="0" width="60" height="32" rx="3" fill="#1a1815" stroke="#1a1815" stroke-width="1" stroke-dasharray="3,3"/>
+          <text class="svg-text svg-mono" x="370" y="21" text-anchor="middle" fill="#f4ecd8">?</text>
+        </g>
+      </g>
+
+      <!-- Arrow into model -->
+      <g transform="translate(440,55)">
+        <path d="M0,0 L40,0 L40,-5 L55,5 L40,15 L40,10 L0,10 Z" fill="#1a1815"/>
+      </g>
+
+      <!-- Model box -->
+      <g transform="translate(510,30)">
+        <rect x="0" y="0" width="240" height="60" rx="4" fill="#1a1815"/>
+        <text class="svg-text" x="120" y="25" text-anchor="middle" fill="#f4ecd8" style="font-size:13px;letter-spacing:0.1em">LANGUAGE MODEL</text>
+        <text class="svg-text svg-serif" x="120" y="46" text-anchor="middle" fill="#e08a76" style="font-size:14px">a probability machine</text>
+      </g>
+
+      <!-- Output distribution -->
+      <g transform="translate(40,150)">
+        <text class="svg-text" style="font-size:11px;letter-spacing:0.15em" fill="#6b6359">PROBABILITY OVER VOCABULARY (next token)</text>
+
+        <!-- Bars -->
+        <g transform="translate(0,30)" font-family="JetBrains Mono, monospace">
+          <!-- mat -->
+          <rect x="80" y="0" width="295" height="22" fill="#c8351b"/>
+          <text x="75" y="16" text-anchor="end" font-size="13" fill="#1a1815">mat</text>
+          <text x="385" y="16" font-size="12" fill="#1a1815">0.41</text>
+
+          <!-- floor -->
+          <rect x="80" y="28" width="86" height="22" fill="#c8351b" opacity="0.6"/>
+          <text x="75" y="44" text-anchor="end" font-size="13" fill="#1a1815">floor</text>
+          <text x="176" y="44" font-size="12" fill="#1a1815">0.12</text>
+
+          <!-- chair -->
+          <rect x="80" y="56" width="65" height="22" fill="#c8351b" opacity="0.45"/>
+          <text x="75" y="72" text-anchor="end" font-size="13" fill="#1a1815">chair</text>
+          <text x="155" y="72" font-size="12" fill="#1a1815">0.09</text>
+
+          <!-- couch -->
+          <rect x="80" y="84" width="50" height="22" fill="#c8351b" opacity="0.35"/>
+          <text x="75" y="100" text-anchor="end" font-size="13" fill="#1a1815">couch</text>
+          <text x="140" y="100" font-size="12" fill="#1a1815">0.07</text>
+
+          <!-- roof -->
+          <rect x="80" y="112" width="29" height="22" fill="#c8351b" opacity="0.25"/>
+          <text x="75" y="128" text-anchor="end" font-size="13" fill="#1a1815">roof</text>
+          <text x="119" y="128" font-size="12" fill="#1a1815">0.04</text>
+
+          <!-- ... -->
+          <text x="80" y="156" font-size="14" fill="#6b6359">⋯  thousands of other tokens, each with tiny probability  ⋯</text>
+
+          <!-- banana -->
+          <rect x="80" y="168" width="0.7" height="22" fill="#c8351b" opacity="0.15"/>
+          <text x="75" y="184" text-anchor="end" font-size="13" fill="#1a1815">banana</text>
+          <text x="92" y="184" font-size="12" fill="#1a1815">0.00001</text>
+        </g>
+
+        <!-- Sum line -->
+        <g transform="translate(0,235)">
+          <line x1="80" y1="0" x2="650" y2="0" stroke="#1a1815" stroke-width="1"/>
+          <text x="80" y="16" font-size="12" fill="#6b6359" font-family="Fraunces, serif" font-style="italic">All probabilities sum to exactly 1 — a complete map of "how surprised would I be"</text>
+        </g>
+      </g>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 1.1</span>The single move every language model makes: ingest context, output a probability distribution over the entire vocabulary.</figcaption>
+  </figure>
+
+  <p>That ranked list <em>is</em> the model's belief about the world, frozen at this exact moment, given this exact prefix. Everything we are about to do — every formula, every metric — is just a different lens for asking the same question:</p>
+
+  <div class="pull-quote">When the truth is revealed, was the model's bet a wise one?</div>
+</section>
+
+<!-- ===================================================================== -->
+<!-- SECTION II                                                            -->
+<!-- ===================================================================== -->
+<section id="s2">
+  <span class="section-num">§ II</span>
+  <h2>Tokens, and the probability they live in.</h2>
+
+  <p class="lede">A "token" is not a word. A token is whatever your tokenizer says it is — a chunk of text that the model treats as a single atom.</p>
+
+  <p>For GPT-style models, the word <span class="mono">"unbelievable"</span> might split into three tokens: <span class="mono">un</span> · <span class="mono">believ</span> · <span class="mono">able</span>. The word <span class="mono">"the"</span> is one token. A space matters. Punctuation matters. A typo can fragment a word into a long string of tiny pieces.</p>
+
+  <p>This matters for perplexity for one specific reason: <span class="hl">perplexity is computed per token</span>. Two models with different tokenizers, scored on the same English sentence, are not directly comparable. Always check the tokenizer.</p>
+
+  <figure>
+    <svg viewBox="0 0 800 250" xmlns="http://www.w3.org/2000/svg">
+      <!-- Sentence -->
+      <text class="svg-text svg-serif" x="400" y="35" text-anchor="middle" font-size="20" fill="#1a1815">"unbelievably tokenized"</text>
+
+      <!-- Arrow down -->
+      <line x1="400" y1="55" x2="400" y2="85" stroke="#1a1815" stroke-width="1.5"/>
+      <polygon points="400,90 395,80 405,80" fill="#1a1815"/>
+
+      <!-- Token row 1 (BPE) -->
+      <text class="svg-text" x="400" y="110" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#6b6359">GPT-style BPE TOKENIZER</text>
+      <g transform="translate(180,125)" font-family="JetBrains Mono, monospace">
+        <g transform="translate(0,0)">
+          <rect x="0" y="0" width="55" height="32" rx="3" fill="#c8351b"/>
+          <text x="27" y="21" text-anchor="middle" font-size="13" fill="#f4ecd8">un</text>
+        </g>
+        <g transform="translate(60,0)">
+          <rect x="0" y="0" width="75" height="32" rx="3" fill="#c8351b"/>
+          <text x="37" y="21" text-anchor="middle" font-size="13" fill="#f4ecd8">believ</text>
+        </g>
+        <g transform="translate(140,0)">
+          <rect x="0" y="0" width="60" height="32" rx="3" fill="#c8351b"/>
+          <text x="30" y="21" text-anchor="middle" font-size="13" fill="#f4ecd8">ably</text>
+        </g>
+        <g transform="translate(208,0)">
+          <rect x="0" y="0" width="105" height="32" rx="3" fill="#c8351b"/>
+          <text x="52" y="21" text-anchor="middle" font-size="13" fill="#f4ecd8">tokenized</text>
+        </g>
+        <text x="160" y="58" text-anchor="middle" font-size="12" fill="#6b6359" font-family="Inter Tight">4 tokens</text>
+      </g>
+
+      <!-- Token row 2 (char) -->
+      <text class="svg-text" x="400" y="200" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#6b6359">CHARACTER TOKENIZER (extreme case)</text>
+      <g transform="translate(70,215)" font-family="JetBrains Mono, monospace">
+        <g>
+          <text x="330" y="20" text-anchor="middle" font-size="13" fill="#1a1815">u·n·b·e·l·i·e·v·a·b·l·y · t·o·k·e·n·i·z·e·d</text>
+          <text x="330" y="36" text-anchor="middle" font-size="12" fill="#6b6359" font-family="Inter Tight">21 tokens — the same sentence, very different bookkeeping</text>
+        </g>
+      </g>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 2.1</span>The same English string yields different token counts under different tokenizers. Perplexity on the same text but different tokenizers is not the same number.</figcaption>
+  </figure>
+
+  <h3>The probability simplex</h3>
+  <p>Whenever the model sees a context, it outputs a vector of length <span class="mono">|V|</span> (the vocabulary size — typically 30,000 to 200,000 entries) where every entry is non-negative and the entire vector sums to 1.</p>
+
+  <p>This object lives on what mathematicians call the <em>probability simplex</em>. You can picture it, for a tiny three-token vocabulary, as a triangle:</p>
+
+  <figure>
+    <svg viewBox="0 0 800 360" xmlns="http://www.w3.org/2000/svg">
+      <!-- Three triangles showing different distributions -->
+
+      <!-- Triangle 1: confident -->
+      <g transform="translate(60,40)">
+        <text class="svg-text" x="100" y="0" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#6b6359">CONFIDENT</text>
+        <polygon points="100,30 30,200 170,200" fill="#ebe1c7" stroke="#1a1815" stroke-width="1.2"/>
+        <text class="svg-text svg-mono" x="100" y="22" text-anchor="middle" font-size="11">mat</text>
+        <text class="svg-text svg-mono" x="20" y="215" text-anchor="middle" font-size="11">floor</text>
+        <text class="svg-text svg-mono" x="180" y="215" text-anchor="middle" font-size="11">roof</text>
+        <!-- Distribution dot -->
+        <circle cx="100" cy="65" r="9" fill="#c8351b"/>
+        <text class="svg-text svg-serif" x="100" y="245" text-anchor="middle" font-size="13" fill="#1a1815" font-style="italic">P = (0.85, 0.10, 0.05)</text>
+        <text class="svg-text" x="100" y="275" text-anchor="middle" font-size="12" fill="#6b6359">most mass on one token</text>
+        <text class="svg-text" x="100" y="291" text-anchor="middle" font-size="12" fill="#6b6359">low surprise if it's right</text>
+      </g>
+
+      <!-- Triangle 2: balanced -->
+      <g transform="translate(310,40)">
+        <text class="svg-text" x="100" y="0" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#6b6359">UNCERTAIN</text>
+        <polygon points="100,30 30,200 170,200" fill="#ebe1c7" stroke="#1a1815" stroke-width="1.2"/>
+        <text class="svg-text svg-mono" x="100" y="22" text-anchor="middle" font-size="11">mat</text>
+        <text class="svg-text svg-mono" x="20" y="215" text-anchor="middle" font-size="11">floor</text>
+        <text class="svg-text svg-mono" x="180" y="215" text-anchor="middle" font-size="11">roof</text>
+        <circle cx="100" cy="143" r="9" fill="#c8351b"/>
+        <text class="svg-text svg-serif" x="100" y="245" text-anchor="middle" font-size="13" fill="#1a1815" font-style="italic">P = (0.45, 0.35, 0.20)</text>
+        <text class="svg-text" x="100" y="275" text-anchor="middle" font-size="12" fill="#6b6359">mass spread across options</text>
+        <text class="svg-text" x="100" y="291" text-anchor="middle" font-size="12" fill="#6b6359">moderate surprise everywhere</text>
+      </g>
+
+      <!-- Triangle 3: uniform -->
+      <g transform="translate(560,40)">
+        <text class="svg-text" x="100" y="0" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#6b6359">CLUELESS</text>
+        <polygon points="100,30 30,200 170,200" fill="#ebe1c7" stroke="#1a1815" stroke-width="1.2"/>
+        <text class="svg-text svg-mono" x="100" y="22" text-anchor="middle" font-size="11">mat</text>
+        <text class="svg-text svg-mono" x="20" y="215" text-anchor="middle" font-size="11">floor</text>
+        <text class="svg-text svg-mono" x="180" y="215" text-anchor="middle" font-size="11">roof</text>
+        <circle cx="100" cy="143" r="9" fill="#c8351b"/>
+        <text class="svg-text svg-serif" x="100" y="245" text-anchor="middle" font-size="13" fill="#1a1815" font-style="italic">P = (0.33, 0.33, 0.33)</text>
+        <text class="svg-text" x="100" y="275" text-anchor="middle" font-size="12" fill="#6b6359">uniform — pure ignorance</text>
+        <text class="svg-text" x="100" y="291" text-anchor="middle" font-size="12" fill="#6b6359">maximally surprised</text>
+      </g>
+
+    </svg>
+    <figcaption><span class="fig-label">Fig. 2.2</span>The "shape" of the model's belief. A peaked distribution is a confident model; a flat one is an ignorant model. Perplexity will turn this geometry into a single number.</figcaption>
+  </figure>
+
+  <p class="marginalia">Every probability vector in this essay sums to 1. We will harp on this. It matters for the algebra.</p>
+</section>
+
+<!-- ===================================================================== -->
+<!-- SECTION III                                                           -->
+<!-- ===================================================================== -->
+<section id="s3">
+  <span class="section-num">§ III</span>
+  <h2>Surprise, measured in bits.</h2>
+  <p class="lede">If we want to grade the model, we need a number that is large when the model is wrong and small when the model is right. The most natural such number is <em>surprise</em>.</p>
+
+  <p class="drop">Imagine I tell you the sun rose this morning. You are not surprised. The probability you assigned to that event was essentially 1. Now imagine I tell you a meteor landed in your kitchen. You are <em>extremely</em> surprised — the probability you'd have assigned to that was nearly 0.</p>
+
+  <p>So surprise is some function of probability that goes to 0 when <span class="mono">P → 1</span> and to infinity when <span class="mono">P → 0</span>. Many functions could do this, but one specific choice — the <em>negative log probability</em> — has properties so beautiful that information theory was built on it.</p>
+
+  <div class="formula">
+    surprise(<em>x</em>) = − log <em>P</em>(<em>x</em>)
+  </div>
+
+  <p>Why this exact formula? Three reasons, each of which is the entire reason we use it.</p>
+
+  <figure>
+    <svg viewBox="0 0 800 380" xmlns="http://www.w3.org/2000/svg">
+      <!-- Surprise curve -->
+      <g transform="translate(60,40)">
+        <text class="svg-text" x="0" y="0" font-size="11" letter-spacing="0.15em" fill="#6b6359">SURPRISE = −log₂ P</text>
+
+        <!-- Axes -->
+        <line x1="0" y1="280" x2="600" y2="280" stroke="#1a1815" stroke-width="1.2"/>
+        <line x1="0" y1="280" x2="0" y2="20" stroke="#1a1815" stroke-width="1.2"/>
+
+        <!-- X axis labels -->
+        <text class="svg-text" x="600" y="305" text-anchor="end" font-size="12" fill="#6b6359">Probability P(x)</text>
+        <text class="svg-text" x="0" y="295" text-anchor="middle" font-size="11" fill="#1a1815">0</text>
+        <text class="svg-text" x="150" y="295" text-anchor="middle" font-size="11" fill="#1a1815">0.25</text>
+        <text class="svg-text" x="300" y="295" text-anchor="middle" font-size="11" fill="#1a1815">0.5</text>
+        <text class="svg-text" x="450" y="295" text-anchor="middle" font-size="11" fill="#1a1815">0.75</text>
+        <text class="svg-text" x="600" y="295" text-anchor="middle" font-size="11" fill="#1a1815">1.0</text>
+
+        <!-- Y axis labels -->
+        <text class="svg-text" x="-10" y="280" text-anchor="end" font-size="11" fill="#1a1815">0</text>
+        <text class="svg-text" x="-10" y="220" text-anchor="end" font-size="11" fill="#1a1815">1 bit</text>
+        <text class="svg-text" x="-10" y="160" text-anchor="end" font-size="11" fill="#1a1815">2 bits</text>
+        <text class="svg-text" x="-10" y="100" text-anchor="end" font-size="11" fill="#1a1815">4 bits</text>
+        <text class="svg-text" x="-10" y="40" text-anchor="end" font-size="11" fill="#1a1815">8 bits</text>
+
+        <!-- The curve: y = -log2(x) mapped. height range 20 to 280; map: x in [0,1]->[0,600] -->
+        <!-- We'll plot: surprise=8 bits at top (y=40), 0 at bottom (y=280). 30px per bit.
+             So y = 280 - 30*surprise = 280 - 30 * (-log2(x)) = 280 + 30 log2(x). For x=1: y=280. For x=0.5: y=280-30=250. For x=0.25: y=220. For x=0.0625 (1/16): y=160. -->
+        <path d="
+          M 6 40
+          L 9 70
+          L 14 100
+          L 23 130
+          L 38 160
+          L 61 190
+          L 95 220
+          L 150 250
+          L 240 270
+          L 350 277
+          L 600 280
+        " fill="none" stroke="#c8351b" stroke-width="2.5"/>
+
+        <!-- annotations -->
+        <circle cx="600" cy="280" r="5" fill="#1a1815"/>
+        <text class="svg-text svg-serif" x="595" y="265" text-anchor="end" font-size="13" fill="#1a1815" font-style="italic">P=1: zero surprise</text>
+
+        <circle cx="300" cy="250" r="5" fill="#1a1815"/>
+        <text class="svg-text svg-serif" x="320" y="248" font-size="13" fill="#1a1815" font-style="italic">P=½: 1 bit (a coin flip)</text>
+
+        <circle cx="38" cy="160" r="5" fill="#1a1815"/>
+        <text class="svg-text svg-serif" x="55" y="155" font-size="13" fill="#1a1815" font-style="italic">P=1/16: 4 bits</text>
+
+        <text class="svg-text svg-serif" x="20" y="55" font-size="13" fill="#c8351b" font-style="italic">P→0: surprise →∞</text>
+      </g>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 3.1</span>The shape of surprise. A truth assigned probability 1 produces zero surprise. A truth assigned probability ½ produces 1 bit. Toward zero, the curve diverges — the model paid an infinite price for declaring "this can never happen."</figcaption>
+  </figure>
+
+  <h3>Why <em>this</em> function and not another?</h3>
+
+  <div class="two-col">
+    <div>
+      <h4>① It has a unit: bits.</h4>
+      <p>If <span class="mono">P = 1/2</span>, the surprise is exactly 1 bit — the information needed to answer one yes/no question. <span class="mono">P = 1/256</span>? That's 8 bits, the size of a byte. Surprise becomes a quantity you can <em>store</em>.</p>
+    </div>
+    <div>
+      <h4>② It is additive across independent events.</h4>
+      <p>If two independent things both happen, their probabilities multiply (<span class="mono">P(A,B) = P(A)·P(B)</span>) but their surprises <em>add</em>: <span class="mono">−log P(A,B) = −log P(A) + −log P(B)</span>. Surprise behaves like a budget.</p>
+    </div>
+  </div>
+
+  <h4>③ It punishes overconfidence catastrophically.</h4>
+  <p>If your model says "this token has probability 0.0001" and that token is what actually appears next, you are charged <span class="mono">−log₂(0.0001) ≈ 13.3 bits</span> of surprise — a lot. If your model said "0", you would be charged <em>infinity</em>. This is exactly the right behaviour: a model that confidently rules out the truth deserves an infinite penalty.</p>
+
+  <p class="marginalia">Throughout this essay we use the natural log (base e) when doing math, because the perplexity formula uses <span class="mono">exp</span>. Conceptually, base-2 logs (bits) are easier to feel. The ratio between them is just a constant — they mean the same thing.</p>
+</section>
+
+<!-- ===================================================================== -->
+<!-- SECTION IV                                                            -->
+<!-- ===================================================================== -->
+<section id="s4">
+  <span class="section-num">§ IV</span>
+  <h2>From one token to a sentence.</h2>
+  <p class="lede">A model doesn't predict one token in isolation. It predicts an entire stream — token after token, each one conditioned on what came before. To grade it on a sentence, we average its surprise.</p>
+
+  <p>Take the sentence <span class="mono">"the cat sat on the mat"</span>. Tokenized — let's pretend each word is one token — it has 6 tokens. As we slide through it left-to-right, the model produces 6 probability distributions, one per position:</p>
+
+  <figure>
+    <svg viewBox="0 0 800 460" xmlns="http://www.w3.org/2000/svg">
+      <!-- Title -->
+      <text class="svg-text" x="40" y="30" font-size="11" letter-spacing="0.15em" fill="#6b6359">SLIDING WINDOW: ONE PREDICTION PER TOKEN</text>
+
+      <!-- For each step show context bar and probability assigned to true token -->
+      <!-- Step format: y baseline -->
+      <g font-family="JetBrains Mono, monospace">
+
+        <!-- Step 1: predict 'the' from <BOS> -->
+        <g transform="translate(40,55)">
+          <text x="0" y="0" font-size="10" fill="#6b6359" font-family="Inter Tight">STEP 1</text>
+          <text x="50" y="0" font-size="10" fill="#6b6359" font-family="Inter Tight">CONTEXT</text>
+          <text x="450" y="0" font-size="10" fill="#6b6359" font-family="Inter Tight">TRUE NEXT</text>
+          <text x="555" y="0" font-size="10" fill="#6b6359" font-family="Inter Tight">P(true)</text>
+          <text x="655" y="0" font-size="10" fill="#6b6359" font-family="Inter Tight">SURPRISE</text>
+
+          <text x="0" y="22" font-size="13" fill="#1a1815">⟨bos⟩</text>
+          <rect x="50" y="8" width="380" height="20" rx="2" fill="#ebe1c7" stroke="#3d3833"/>
+          <text x="60" y="22" font-size="13" fill="#1a1815">⟨start of sentence⟩</text>
+          <rect x="448" y="8" width="50" height="20" rx="2" fill="#b8862f"/>
+          <text x="473" y="22" text-anchor="middle" font-size="13" fill="#f4ecd8">the</text>
+          <text x="555" y="22" font-size="13" fill="#1a1815">0.10</text>
+          <text x="655" y="22" font-size="13" fill="#c8351b">3.32 bits</text>
+        </g>
+
+        <!-- Step 2 -->
+        <g transform="translate(40,95)">
+          <text x="0" y="0" font-size="10" fill="#6b6359" font-family="Inter Tight">STEP 2</text>
+          <text x="0" y="22" font-size="13" fill="#1a1815">⟨bos⟩</text>
+          <rect x="50" y="8" width="380" height="20" rx="2" fill="#ebe1c7" stroke="#3d3833"/>
+          <text x="60" y="22" font-size="13" fill="#1a1815">the</text>
+          <rect x="448" y="8" width="50" height="20" rx="2" fill="#b8862f"/>
+          <text x="473" y="22" text-anchor="middle" font-size="13" fill="#f4ecd8">cat</text>
+          <text x="555" y="22" font-size="13" fill="#1a1815">0.04</text>
+          <text x="655" y="22" font-size="13" fill="#c8351b">4.64 bits</text>
+        </g>
+
+        <!-- Step 3 -->
+        <g transform="translate(40,135)">
+          <text x="0" y="0" font-size="10" fill="#6b6359" font-family="Inter Tight">STEP 3</text>
+          <text x="0" y="22" font-size="13" fill="#1a1815">⟨bos⟩</text>
+          <rect x="50" y="8" width="380" height="20" rx="2" fill="#ebe1c7" stroke="#3d3833"/>
+          <text x="60" y="22" font-size="13" fill="#1a1815">the cat</text>
+          <rect x="448" y="8" width="50" height="20" rx="2" fill="#b8862f"/>
+          <text x="473" y="22" text-anchor="middle" font-size="13" fill="#f4ecd8">sat</text>
+          <text x="555" y="22" font-size="13" fill="#1a1815">0.08</text>
+          <text x="655" y="22" font-size="13" fill="#c8351b">3.64 bits</text>
+        </g>
+
+        <!-- Step 4 -->
+        <g transform="translate(40,175)">
+          <text x="0" y="0" font-size="10" fill="#6b6359" font-family="Inter Tight">STEP 4</text>
+          <text x="0" y="22" font-size="13" fill="#1a1815">⟨bos⟩</text>
+          <rect x="50" y="8" width="380" height="20" rx="2" fill="#ebe1c7" stroke="#3d3833"/>
+          <text x="60" y="22" font-size="13" fill="#1a1815">the cat sat</text>
+          <rect x="448" y="8" width="50" height="20" rx="2" fill="#b8862f"/>
+          <text x="473" y="22" text-anchor="middle" font-size="13" fill="#f4ecd8">on</text>
+          <text x="555" y="22" font-size="13" fill="#1a1815">0.30</text>
+          <text x="655" y="22" font-size="13" fill="#c8351b">1.74 bits</text>
+        </g>
+
+        <!-- Step 5 -->
+        <g transform="translate(40,215)">
+          <text x="0" y="0" font-size="10" fill="#6b6359" font-family="Inter Tight">STEP 5</text>
+          <text x="0" y="22" font-size="13" fill="#1a1815">⟨bos⟩</text>
+          <rect x="50" y="8" width="380" height="20" rx="2" fill="#ebe1c7" stroke="#3d3833"/>
+          <text x="60" y="22" font-size="13" fill="#1a1815">the cat sat on</text>
+          <rect x="448" y="8" width="50" height="20" rx="2" fill="#b8862f"/>
+          <text x="473" y="22" text-anchor="middle" font-size="13" fill="#f4ecd8">the</text>
+          <text x="555" y="22" font-size="13" fill="#1a1815">0.55</text>
+          <text x="655" y="22" font-size="13" fill="#c8351b">0.86 bits</text>
+        </g>
+
+        <!-- Step 6 -->
+        <g transform="translate(40,255)">
+          <text x="0" y="0" font-size="10" fill="#6b6359" font-family="Inter Tight">STEP 6</text>
+          <text x="0" y="22" font-size="13" fill="#1a1815">⟨bos⟩</text>
+          <rect x="50" y="8" width="380" height="20" rx="2" fill="#ebe1c7" stroke="#3d3833"/>
+          <text x="60" y="22" font-size="13" fill="#1a1815">the cat sat on the</text>
+          <rect x="448" y="8" width="50" height="20" rx="2" fill="#b8862f"/>
+          <text x="473" y="22" text-anchor="middle" font-size="13" fill="#f4ecd8">mat</text>
+          <text x="555" y="22" font-size="13" fill="#1a1815">0.41</text>
+          <text x="655" y="22" font-size="13" fill="#c8351b">1.29 bits</text>
+        </g>
+
+        <!-- Sum bar -->
+        <line x1="40" y1="295" x2="760" y2="295" stroke="#1a1815" stroke-width="1"/>
+        <g transform="translate(40,310)" font-family="Inter Tight, sans-serif">
+          <text x="0" y="15" font-size="13" fill="#1a1815" font-weight="600">TOTAL surprise across all 6 tokens</text>
+          <text x="655" y="15" font-size="13" fill="#1a1815" font-weight="600" font-family="JetBrains Mono">15.49 bits</text>
+        </g>
+        <g transform="translate(40,335)" font-family="Inter Tight, sans-serif">
+          <text x="0" y="15" font-size="13" fill="#1a1815" font-weight="600">AVERAGE surprise per token</text>
+          <text x="655" y="15" font-size="13" fill="#c8351b" font-weight="700" font-family="JetBrains Mono">2.58 bits</text>
+        </g>
+      </g>
+
+      <!-- Big formula at bottom -->
+      <g transform="translate(40,395)">
+        <rect x="0" y="0" width="720" height="50" rx="3" fill="#1a1815"/>
+        <text x="360" y="20" text-anchor="middle" font-size="12" fill="#e08a76" letter-spacing="0.15em" font-family="Inter Tight, sans-serif">CROSS-ENTROPY LOSS — the average surprise per token</text>
+        <text x="360" y="42" text-anchor="middle" font-size="16" fill="#f4ecd8" font-family="JetBrains Mono, monospace">L = − (1/N) · Σᵢ log P(xᵢ | x&lt;ᵢ)</text>
+      </g>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 4.1</span>Per-token bookkeeping over a 6-token sentence. The cross-entropy loss is just the bookkeeper's bottom line: <em>average</em> surprise per token. This single quantity is what is minimized during language model training.</figcaption>
+  </figure>
+
+  <p>That last line is the famous <span class="hl">cross-entropy loss</span> — the loss function used to train every modern language model. It is, mechanically, an average of negative log-probabilities. Conceptually, it is the average surprise per token.</p>
+
+  <div class="formula">
+    L = − <span class="frac"><span class="top">1</span><span class="bot">N</span></span> Σ<span class="sub">i=1</span><span class="sup">N</span> log <em>P</em>(<em>x</em><span class="sub">i</span> | <em>x</em><span class="sub">&lt;i</span>)
+  </div>
+
+  <p class="marginalia">Read aloud: "negative one-over-N, sum over all positions, of the log probability the model gave to the actual next token at that position." Every term in this formula is now familiar.</p>
+
+  <p>This is the number that appears on every loss curve in every transformer paper ever published. When you see GPT-2 reach a training loss of 3.0, that means: <em>on average, every token in the validation set cost the model 3.0 nats of surprise</em>.</p>
+</section>
+
+<!-- ===================================================================== -->
+<!-- SECTION V                                                             -->
+<!-- ===================================================================== -->
+<section id="s5">
+  <span class="section-num">§ V</span>
+  <h2>The exponential trick.</h2>
+  <p class="lede">Cross-entropy is mathematically clean — but it speaks in nats, an abstract unit. Researchers wanted a number whose units felt like something you could <em>see</em>. So they exponentiated. The result is perplexity.</p>
+
+  <p class="drop">Here's the move. We have an average log-probability. If we exponentiate it, we get back to a probability. And one over that probability has a beautiful interpretation: <em>the effective number of equally-likely choices</em> the model is hesitating between.</p>
+
+  <div class="formula">
+    Perplexity = <em>exp</em>(L) = <em>exp</em>(− <span class="frac"><span class="top">1</span><span class="bot">N</span></span> Σ log P(x<span class="sub">i</span> | x<span class="sub">&lt;i</span>))
+  </div>
+
+  <p>To see why, suppose the model is perfectly uniform over a vocabulary of size <span class="mono">k</span>. Every token gets probability <span class="mono">1/k</span>. Surprise per token is <span class="mono">log(k)</span>. Exponentiating gets you back to <span class="mono">k</span>. So a model that's totally guessing among <span class="mono">k</span> tokens has perplexity <span class="mono">k</span>. <span class="hl-gold">Perplexity is the size of the implicit "guess pool."</span></p>
+
+  <figure>
+    <svg viewBox="0 0 800 320" xmlns="http://www.w3.org/2000/svg">
+      <!-- Three scenarios with dice-like illustrations -->
+      <text class="svg-text" x="400" y="30" font-size="11" letter-spacing="0.15em" fill="#6b6359" text-anchor="middle">PERPLEXITY = "AS UNCERTAIN AS GUESSING UNIFORMLY AMONG THIS MANY TOKENS"</text>
+
+      <!-- Scenario A: ppl 2 -->
+      <g transform="translate(50,60)">
+        <text class="svg-text svg-serif" x="100" y="20" text-anchor="middle" font-size="14" fill="#1a1815" font-style="italic">a coin flip</text>
+
+        <!-- two boxes -->
+        <g>
+          <rect x="40" y="40" width="50" height="60" rx="3" fill="#c8351b"/>
+          <text x="65" y="76" text-anchor="middle" font-size="20" fill="#f4ecd8" font-family="JetBrains Mono">?</text>
+          <rect x="110" y="40" width="50" height="60" rx="3" fill="#c8351b"/>
+          <text x="135" y="76" text-anchor="middle" font-size="20" fill="#f4ecd8" font-family="JetBrains Mono">?</text>
+        </g>
+
+        <text x="100" y="135" text-anchor="middle" font-size="11" fill="#6b6359" letter-spacing="0.1em">PERPLEXITY</text>
+        <text x="100" y="170" text-anchor="middle" font-size="38" fill="#1a1815" font-family="Fraunces">2</text>
+        <text x="100" y="200" text-anchor="middle" font-size="12" fill="#6b6359" font-family="Inter Tight">"choosing between 2 things"</text>
+      </g>
+
+      <!-- Scenario B: ppl 6 -->
+      <g transform="translate(290,60)">
+        <text class="svg-text svg-serif" x="100" y="20" text-anchor="middle" font-size="14" fill="#1a1815" font-style="italic">a six-sided die</text>
+
+        <g font-family="JetBrains Mono">
+          <rect x="20" y="40" width="35" height="50" rx="3" fill="#c8351b"/>
+          <text x="37" y="71" text-anchor="middle" font-size="16" fill="#f4ecd8">?</text>
+          <rect x="58" y="40" width="35" height="50" rx="3" fill="#c8351b"/>
+          <text x="75" y="71" text-anchor="middle" font-size="16" fill="#f4ecd8">?</text>
+          <rect x="96" y="40" width="35" height="50" rx="3" fill="#c8351b"/>
+          <text x="113" y="71" text-anchor="middle" font-size="16" fill="#f4ecd8">?</text>
+          <rect x="134" y="40" width="35" height="50" rx="3" fill="#c8351b"/>
+          <text x="151" y="71" text-anchor="middle" font-size="16" fill="#f4ecd8">?</text>
+          <rect x="172" y="40" width="35" height="50" rx="3" fill="#c8351b"/>
+          <text x="189" y="71" text-anchor="middle" font-size="16" fill="#f4ecd8">?</text>
+          <rect x="20" y="93" width="35" height="20" rx="3" fill="#c8351b"/>
+          <text x="37" y="108" text-anchor="middle" font-size="13" fill="#f4ecd8">?</text>
+        </g>
+
+        <text x="100" y="135" text-anchor="middle" font-size="11" fill="#6b6359" letter-spacing="0.1em">PERPLEXITY</text>
+        <text x="100" y="170" text-anchor="middle" font-size="38" fill="#1a1815" font-family="Fraunces">6</text>
+        <text x="100" y="200" text-anchor="middle" font-size="12" fill="#6b6359" font-family="Inter Tight">"choosing between 6 things"</text>
+      </g>
+
+      <!-- Scenario C: GPT-2 ppl ~30 -->
+      <g transform="translate(530,60)">
+        <text class="svg-text svg-serif" x="100" y="20" text-anchor="middle" font-size="14" fill="#1a1815" font-style="italic">a trained LM</text>
+
+        <g font-family="JetBrains Mono">
+          <!-- Show a haze of small boxes representing ~30 -->
+          <g fill="#c8351b" opacity="0.85">
+            <rect x="0" y="35" width="14" height="14" rx="2"/>
+            <rect x="16" y="35" width="14" height="14" rx="2"/>
+            <rect x="32" y="35" width="14" height="14" rx="2"/>
+            <rect x="48" y="35" width="14" height="14" rx="2"/>
+            <rect x="64" y="35" width="14" height="14" rx="2"/>
+            <rect x="80" y="35" width="14" height="14" rx="2"/>
+            <rect x="96" y="35" width="14" height="14" rx="2"/>
+            <rect x="112" y="35" width="14" height="14" rx="2"/>
+            <rect x="128" y="35" width="14" height="14" rx="2"/>
+            <rect x="144" y="35" width="14" height="14" rx="2"/>
+            <rect x="160" y="35" width="14" height="14" rx="2"/>
+            <rect x="176" y="35" width="14" height="14" rx="2"/>
+          </g>
+          <g fill="#c8351b" opacity="0.85">
+            <rect x="0" y="51" width="14" height="14" rx="2"/>
+            <rect x="16" y="51" width="14" height="14" rx="2"/>
+            <rect x="32" y="51" width="14" height="14" rx="2"/>
+            <rect x="48" y="51" width="14" height="14" rx="2"/>
+            <rect x="64" y="51" width="14" height="14" rx="2"/>
+            <rect x="80" y="51" width="14" height="14" rx="2"/>
+            <rect x="96" y="51" width="14" height="14" rx="2"/>
+            <rect x="112" y="51" width="14" height="14" rx="2"/>
+            <rect x="128" y="51" width="14" height="14" rx="2"/>
+            <rect x="144" y="51" width="14" height="14" rx="2"/>
+          </g>
+          <g fill="#c8351b" opacity="0.85">
+            <rect x="0" y="67" width="14" height="14" rx="2"/>
+            <rect x="16" y="67" width="14" height="14" rx="2"/>
+            <rect x="32" y="67" width="14" height="14" rx="2"/>
+            <rect x="48" y="67" width="14" height="14" rx="2"/>
+            <rect x="64" y="67" width="14" height="14" rx="2"/>
+            <rect x="80" y="67" width="14" height="14" rx="2"/>
+            <rect x="96" y="67" width="14" height="14" rx="2"/>
+            <rect x="112" y="67" width="14" height="14" rx="2"/>
+          </g>
+        </g>
+
+        <text x="95" y="135" text-anchor="middle" font-size="11" fill="#6b6359" letter-spacing="0.1em">PERPLEXITY</text>
+        <text x="95" y="170" text-anchor="middle" font-size="38" fill="#1a1815" font-family="Fraunces">≈ 30</text>
+        <text x="95" y="200" text-anchor="middle" font-size="12" fill="#6b6359" font-family="Inter Tight">a strong LM on Wikipedia</text>
+      </g>
+
+    </svg>
+    <figcaption><span class="fig-label">Fig. 5.1</span>Perplexity converts the abstract average log-loss into a concrete branching factor. A perplexity of 30 means: at every position, the model is no more confident than someone choosing uniformly among 30 possibilities — no matter how skewed its actual distribution looks.</figcaption>
+  </figure>
+
+  <h3>The same number, three voices</h3>
+  <p>Perplexity, cross-entropy, and average log-probability all carry the same information; they just speak different dialects.</p>
+
+  <div class="formula" style="text-align:left">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;font-size:0.95rem">
+      <div>average log-prob:</div><div><em>ℓ</em>  =  (1/N) Σ log P(x<span class="sub">i</span>|x<span class="sub">&lt;i</span>)</div>
+      <div>cross-entropy (loss):</div><div><em>L</em>  =  −<em>ℓ</em></div>
+      <div>perplexity:</div><div><em>PPL</em>  =  exp(<em>L</em>)  =  exp(−<em>ℓ</em>)</div>
+    </div>
+  </div>
+
+  <p>If you train a model and watch its loss drop from 4.0 to 3.0, you have just watched its perplexity drop from <span class="mono">e⁴ ≈ 54.6</span> to <span class="mono">e³ ≈ 20.1</span>. The model's effective "guess pool" has nearly halved.</p>
+
+  <div class="pull-quote">A loss of 3.0 sounds abstract. A perplexity of 20 sounds like something. That is the entire reason the unit exists.</div>
+</section>
+
+<!-- ===================================================================== -->
+<!-- SECTION VI                                                            -->
+<!-- ===================================================================== -->
+<section id="s6">
+  <span class="section-num">§ VI</span>
+  <h2>Perplexity, finally — a number with a soul.</h2>
+  <p class="lede">Now the formula has nowhere left to hide. Every symbol means something. Let's read it left to right and feel each piece.</p>
+
+  <figure>
+    <svg viewBox="0 0 900 380" xmlns="http://www.w3.org/2000/svg">
+      <!-- Background paper -->
+      <rect x="0" y="0" width="900" height="380" fill="none"/>
+
+      <!-- Center the formula at the top -->
+      <g transform="translate(450,80)" text-anchor="middle">
+        <text font-family="JetBrains Mono, monospace" font-size="42" fill="#1a1815">
+          <tspan>PPL =</tspan>
+          <tspan dx="6" fill="#c8351b">exp</tspan>
+          <tspan>(−</tspan>
+          <tspan dx="2" fill="#2e4a7b">1/N</tspan>
+          <tspan dx="6" fill="#4a6b3a">Σ</tspan>
+          <tspan dx="6">log</tspan>
+          <tspan dx="6" fill="#b8862f">P(xᵢ|x&lt;ᵢ)</tspan>
+          <tspan>)</tspan>
+        </text>
+      </g>
+
+      <!-- Annotations -->
+      <!-- exp -->
+      <g>
+        <line x1="380" y1="100" x2="350" y2="170" stroke="#c8351b" stroke-width="1.2"/>
+        <rect x="170" y="170" width="200" height="80" rx="3" fill="#c8351b" opacity="0.1" stroke="#c8351b"/>
+        <text class="svg-text" x="270" y="190" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#c8351b" font-weight="700">EXP</text>
+        <text class="svg-text" x="270" y="210" text-anchor="middle" font-size="12" fill="#1a1815">undoes the log so we land</text>
+        <text class="svg-text" x="270" y="226" text-anchor="middle" font-size="12" fill="#1a1815">on a "branching factor"</text>
+        <text class="svg-text" x="270" y="242" text-anchor="middle" font-size="12" fill="#1a1815">instead of an abstract loss</text>
+      </g>
+
+      <!-- 1/N -->
+      <g>
+        <line x1="475" y1="100" x2="475" y2="170" stroke="#2e4a7b" stroke-width="1.2"/>
+        <rect x="385" y="170" width="180" height="80" rx="3" fill="#2e4a7b" opacity="0.1" stroke="#2e4a7b"/>
+        <text class="svg-text" x="475" y="190" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#2e4a7b" font-weight="700">AVERAGE</text>
+        <text class="svg-text" x="475" y="210" text-anchor="middle" font-size="12" fill="#1a1815">divide by token count so</text>
+        <text class="svg-text" x="475" y="226" text-anchor="middle" font-size="12" fill="#1a1815">long & short texts are</text>
+        <text class="svg-text" x="475" y="242" text-anchor="middle" font-size="12" fill="#1a1815">on the same scale</text>
+      </g>
+
+      <!-- Sigma -->
+      <g>
+        <line x1="555" y1="100" x2="610" y2="170" stroke="#4a6b3a" stroke-width="1.2"/>
+        <rect x="580" y="170" width="180" height="80" rx="3" fill="#4a6b3a" opacity="0.1" stroke="#4a6b3a"/>
+        <text class="svg-text" x="670" y="190" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#4a6b3a" font-weight="700">SUM</text>
+        <text class="svg-text" x="670" y="210" text-anchor="middle" font-size="12" fill="#1a1815">add up the surprises</text>
+        <text class="svg-text" x="670" y="226" text-anchor="middle" font-size="12" fill="#1a1815">across every position in</text>
+        <text class="svg-text" x="670" y="242" text-anchor="middle" font-size="12" fill="#1a1815">the sequence</text>
+      </g>
+
+      <!-- P(x|...) -->
+      <g>
+        <line x1="685" y1="100" x2="685" y2="280" stroke="#b8862f" stroke-width="1.2"/>
+        <rect x="500" y="280" width="370" height="80" rx="3" fill="#b8862f" opacity="0.1" stroke="#b8862f"/>
+        <text class="svg-text" x="685" y="300" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#b8862f" font-weight="700">CONDITIONAL PROBABILITY</text>
+        <text class="svg-text" x="685" y="320" text-anchor="middle" font-size="12" fill="#1a1815">probability the model assigned to the actual</text>
+        <text class="svg-text" x="685" y="336" text-anchor="middle" font-size="12" fill="#1a1815">token xᵢ that appeared, given everything before it.</text>
+        <text class="svg-text" x="685" y="352" text-anchor="middle" font-size="12" fill="#1a1815">This number — and only this number — is what gets graded.</text>
+      </g>
+
+      <!-- Title cap above -->
+      <text x="450" y="35" text-anchor="middle" font-family="Inter Tight, sans-serif" font-size="11" letter-spacing="0.2em" fill="#6b6359">DECONSTRUCTING THE PERPLEXITY FORMULA</text>
+
+    </svg>
+    <figcaption><span class="fig-label">Fig. 6.1</span>Every operator in the perplexity formula does a specific job. <span style="color:var(--gold)">P(x<sub>i</sub>|x<sub>&lt;i</sub>)</span> is the model's bet. <span style="color:#4a6b3a">log + Σ</span> turns those bets into additive surprise. <span style="color:#2e4a7b">1/N</span> averages it. <span style="color:var(--accent)">exp</span> ushers it back into a unit you can picture.</figcaption>
+  </figure>
+
+  <h3>An equivalent and equally lovely form</h3>
+  <p>Take that formula and untangle the algebra:</p>
+
+  <div class="formula">
+    PPL = exp(− <span class="frac"><span class="top">1</span><span class="bot">N</span></span> Σ log P<span class="sub">i</span>) = (P<span class="sub">1</span> · P<span class="sub">2</span> · ⋯ · P<span class="sub">N</span>)<span class="sup">−1/N</span>
+  </div>
+
+  <p>Read aloud: <em>perplexity is the inverse of the geometric mean of the probabilities the model assigned to the actual tokens.</em> The geometric mean punishes outliers — even one near-zero probability tanks the whole product. This is exactly why a single confidently-wrong prediction can wreck a model's perplexity score.</p>
+
+  <p class="marginalia">Geometric mean instead of arithmetic mean: probabilities multiply, so the average of <em>their</em> contributions must be multiplicative too. Logs let us add; exponentiation undoes it.</p>
+</section>
+
+<!-- ===================================================================== -->
+<!-- SECTION VII — INTERACTIVE                                             -->
+<!-- ===================================================================== -->
+<section id="s7">
+  <span class="section-num">§ VII</span>
+  <h2>The perplexity laboratory.</h2>
+  <p class="lede">Theory does only so much. Drag the sliders below and feel — directly — how a single distribution's shape sets the perplexity, how a sequence of bets compounds, and what happens when the model is overconfident and wrong.</p>
+
+  <!-- LAB 1: Distribution shape -->
+  <div class="interactive">
+    <h4>Lab 1 · The shape of belief</h4>
+    <p style="font-size:0.95rem;color:var(--ink-soft)">A vocabulary of 5 tokens. Slide the temperature to redistribute probability mass. Watch perplexity follow.</p>
+
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:2rem;align-items:center;margin-top:1.5rem">
+      <div>
+        <svg id="lab1-svg" viewBox="0 0 500 240" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto"></svg>
+        <div style="margin-top:1rem">
+          <label style="font-family:'Inter Tight';font-size:0.85rem;color:var(--ink-faint);display:block;margin-bottom:0.4rem">
+            Temperature: <span id="lab1-temp" class="mono" style="color:var(--accent);font-weight:700">1.0</span>
+          </label>
+          <input type="range" id="lab1-slider" min="0.1" max="5" step="0.05" value="1.0">
+          <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--ink-faint);margin-top:0.3rem">
+            <span>peaked / confident</span>
+            <span>flat / clueless</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align:center;border-left:1px solid rgba(40,30,20,0.15);padding-left:2rem">
+        <div class="small-caps" style="margin-bottom:0.5rem">Perplexity</div>
+        <div id="lab1-ppl" style="font-family:'Fraunces';font-size:4rem;color:var(--accent);line-height:1;font-weight:400">1.00</div>
+        <div style="font-family:'Inter Tight';font-size:0.85rem;color:var(--ink-soft);margin-top:0.5rem">out of vocabulary size 5</div>
+
+        <div style="margin-top:2rem;font-family:'Inter Tight';font-size:0.8rem;color:var(--ink-faint);line-height:1.5">
+          Cross-entropy: <span id="lab1-ce" class="mono" style="color:var(--ink)">0.000</span> nats<br>
+          Entropy bits: <span id="lab1-bits" class="mono" style="color:var(--ink)">0.000</span> bits
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LAB 2: Confidence vs reality -->
+  <div class="interactive">
+    <h4>Lab 2 · The penalty for being wrong</h4>
+    <p style="font-size:0.95rem;color:var(--ink-soft)">The true next token is fixed (gold). Slide the model's probability for that token between 0 and 1 to see how much surprise it pays. Notice the cliff near zero.</p>
+
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:2rem;align-items:center;margin-top:1.5rem">
+      <div>
+        <svg id="lab2-svg" viewBox="0 0 500 220" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto"></svg>
+        <div style="margin-top:1rem">
+          <label style="font-family:'Inter Tight';font-size:0.85rem;color:var(--ink-faint);display:block;margin-bottom:0.4rem">
+            P assigned to true token: <span id="lab2-p" class="mono" style="color:var(--accent);font-weight:700">0.50</span>
+          </label>
+          <input type="range" id="lab2-slider" min="0.001" max="0.999" step="0.001" value="0.5">
+        </div>
+      </div>
+
+      <div style="text-align:center;border-left:1px solid rgba(40,30,20,0.15);padding-left:2rem">
+        <div class="small-caps" style="margin-bottom:0.5rem">Surprise</div>
+        <div id="lab2-bits" style="font-family:'Fraunces';font-size:3rem;color:var(--accent);line-height:1;font-weight:400">1.00</div>
+        <div style="font-family:'Inter Tight';font-size:0.85rem;color:var(--ink-soft);margin-top:0.5rem">bits of cost</div>
+
+        <div style="margin-top:1.5rem;font-family:'Inter Tight';font-size:0.8rem;color:var(--ink-faint);line-height:1.5">
+          Per-token PPL: <span id="lab2-ppl" class="mono" style="color:var(--ink);font-weight:700">2.00</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LAB 3: Sequence -->
+  <div class="interactive">
+    <h4>Lab 3 · A whole sentence's worth</h4>
+    <p style="font-size:0.95rem;color:var(--ink-soft)">Pick a model character. Each predicts the same 8-token sentence with different per-token confidences. See how those confidences compound into a single perplexity.</p>
+
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin:1.2rem 0">
+      <button class="ghost active" data-model="ideal">Ideal model</button>
+      <button class="ghost" data-model="strong">Strong (GPT-ish)</button>
+      <button class="ghost" data-model="weak">Weak (n-gram)</button>
+      <button class="ghost" data-model="terrible">Confused</button>
+      <button class="ghost" data-model="random">Random / untrained</button>
+    </div>
+
+    <svg id="lab3-svg" viewBox="0 0 760 320" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto"></svg>
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1.5rem;border-top:1px solid rgba(40,30,20,0.15);padding-top:1.5rem">
+      <div style="text-align:center">
+        <div class="small-caps">Avg log-prob</div>
+        <div id="lab3-avglog" class="mono" style="font-size:1.6rem;color:var(--ink);margin-top:0.3rem">—</div>
+      </div>
+      <div style="text-align:center">
+        <div class="small-caps">Cross-entropy</div>
+        <div id="lab3-ce" class="mono" style="font-size:1.6rem;color:var(--ink);margin-top:0.3rem">—</div>
+      </div>
+      <div style="text-align:center">
+        <div class="small-caps">Perplexity</div>
+        <div id="lab3-ppl" class="mono" style="font-size:1.6rem;color:var(--accent);font-weight:700;margin-top:0.3rem">—</div>
+      </div>
+    </div>
+  </div>
+
+  <p class="marginalia">Notice: in Lab 3, even one bad token (a low orange bar) drags the whole perplexity up — because the geometric mean is unforgiving. This is exactly the behavior we predicted from the algebra in §VI.</p>
+</section>
+
+<!-- ===================================================================== -->
+<!-- SECTION VIII                                                          -->
+<!-- ===================================================================== -->
+<section id="s8">
+  <span class="section-num">§ VIII</span>
+  <h2>What the number does — and doesn't — say.</h2>
+  <p class="lede">Perplexity is one of the most widely-cited LM metrics, and one of the most widely-misused. Here's a sober view of when to trust it, and when to look elsewhere.</p>
+
+  <div class="stat-grid">
+    <div class="stat"><span class="num">1</span><span class="lbl">perfect oracle (P=1 always)</span></div>
+    <div class="stat"><span class="num">≈ 30</span><span class="lbl">strong LLM on Wikipedia</span></div>
+    <div class="stat"><span class="num">≈ 50K</span><span class="lbl">untrained model · vocab size</span></div>
+    <div class="stat"><span class="num">∞</span><span class="lbl">model gives P=0 to any truth</span></div>
+  </div>
+
+  <h3>What perplexity gets right</h3>
+  <p>Perplexity is the right metric for one specific question: <em>how well does this model compress text from this distribution?</em> A lower perplexity literally means fewer bits-per-token are needed to encode the corpus under the model's distribution. This is why perplexity is the gold-standard <em>training</em> objective and a beautifully principled <em>scaling-law</em> metric.</p>
+
+  <h3>What perplexity gets wrong</h3>
+
+  <div class="two-col">
+    <div>
+      <h4>Tokenizers ruin comparisons.</h4>
+      <p>A model with a finer tokenizer will, all else equal, have a <em>higher</em> per-token perplexity — it's spreading the same surprise across more tokens. Always compare bits-per-character or bits-per-byte instead of raw perplexity across different tokenizers.</p>
+    </div>
+    <div>
+      <h4>It only measures local fluency.</h4>
+      <p>Perplexity is averaged over single-token predictions. A model can have wonderful perplexity and still hallucinate facts, contradict itself across paragraphs, or fail at any task that requires reasoning. Perplexity grades the words, not the thoughts.</p>
+    </div>
+    <div>
+      <h4>It is sensitive to the test corpus.</h4>
+      <p>Perplexity on Wikipedia, on Reddit, on Python code, and on poetry are four different numbers. A model that's "better" by Wikipedia perplexity can be worse by code perplexity. Always cite the corpus.</p>
+    </div>
+    <div>
+      <h4>It ignores calibration beyond the truth.</h4>
+      <p>Perplexity only looks at the probability of the token that <em>actually appeared</em>. A model could be giving 99% to "mat" and 1% to "banana," or 99% to "mat" and 1% to "floor" — same perplexity, very different reasonability.</p>
+    </div>
+  </div>
+
+  <div class="ornament">· · ·</div>
+
+  <h3>Putting it all together</h3>
+
+  <p>Perplexity is — at last — the answer to the question we started with: <em>how surprised is your model?</em> It compresses, into one number, the average size of the "guess pool" the model was hesitating between, over every token of every sentence you scored it on.</p>
+
+  <p>Lower is better. A perplexity of 1 means perfect prediction. A perplexity of <span class="mono">|V|</span> means total ignorance. Everything in between is a measurement of how much of the structure of language your model has internalized.</p>
+
+  <div class="pull-quote">A model's perplexity is the size of the room it is still in the dark about.</div>
+
+  <p>Now read the formula one last time. Every symbol should feel inevitable.</p>
+
+  <div class="formula" style="background:var(--ink);color:var(--paper);font-size:1.5rem">
+    <span style="color:var(--accent-soft)">PPL</span>  =  <span style="color:var(--accent-soft)">exp</span>(− <span class="frac"><span class="top">1</span><span class="bot">N</span></span> Σ log P(x<span class="sub">i</span> | x<span class="sub">&lt;i</span>))
+  </div>
+
+  <p style="text-align:center;font-style:italic;color:var(--ink-soft);margin-top:3rem">— end —</p>
+</section>
+
+</main>
+
+<footer>
+  <p class="small-caps" style="margin-bottom:1rem">A Vizuara visual essay</p>
+  <p style="font-family:'Fraunces',serif;font-size:1.1rem;font-style:italic;margin-bottom:0.5rem">The Anatomy of Perplexity</p>
+  <p style="font-size:0.85rem;color:var(--accent-soft);margin-top:1.5rem">Built as an interactive, first-principles tour. Scroll up to begin again.</p>
+</footer>
+
+<script>
+/* ============================================================
+   LAB 1 — Distribution shape & perplexity
+   ============================================================ */
+(function(){
+  const svg = document.getElementById('lab1-svg');
+  const slider = document.getElementById('lab1-slider');
+  const tempEl = document.getElementById('lab1-temp');
+  const pplEl  = document.getElementById('lab1-ppl');
+  const ceEl   = document.getElementById('lab1-ce');
+  const bitsEl = document.getElementById('lab1-bits');
+
+  // Base logits (peaked at index 0)
+  const baseLogits = [3.0, 1.5, 0.5, -0.2, -1.0];
+  const labels = ['mat','floor','chair','couch','roof'];
+
+  function softmax(logits, T){
+    const adj = logits.map(z => z / T);
+    const m = Math.max(...adj);
+    const exps = adj.map(z => Math.exp(z - m));
+    const s = exps.reduce((a,b)=>a+b, 0);
+    return exps.map(e => e/s);
+  }
+
+  function render(){
+    const T = parseFloat(slider.value);
+    tempEl.textContent = T.toFixed(2);
+    const probs = softmax(baseLogits, T);
+
+    // Compute entropy (nats) — for a uniform sample expectation, entropy = -Σ p log p
+    const H = -probs.reduce((a,p)=> a + (p > 0 ? p*Math.log(p) : 0), 0);
+    const PPL = Math.exp(H);
+    const Hbits = H / Math.log(2);
+
+    pplEl.textContent = PPL.toFixed(2);
+    ceEl.textContent  = H.toFixed(3);
+    bitsEl.textContent= Hbits.toFixed(3);
+
+    // Render bars
+    const W = 500, Hh = 240;
+    const padL = 60, padR = 20, padT = 30, padB = 50;
+    const barW = (W - padL - padR) / probs.length;
+
+    let s = `<text x="${padL}" y="20" font-family="Inter Tight" font-size="11" fill="#6b6359" letter-spacing="0.15em">PROBABILITY OVER 5-TOKEN VOCABULARY</text>`;
+
+    // grid lines
+    for(let g=0; g<=4; g++){
+      const y = padT + (Hh-padT-padB) * g/4;
+      s += `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#1a1815" stroke-width="0.4" opacity="0.15"/>`;
+      s += `<text x="${padL-6}" y="${y+3}" text-anchor="end" font-family="JetBrains Mono" font-size="9" fill="#6b6359">${(1 - g/4).toFixed(2)}</text>`;
+    }
+
+    probs.forEach((p, i) => {
+      const x = padL + i*barW + barW*0.18;
+      const w = barW*0.64;
+      const h = (Hh - padT - padB) * p;
+      const y = (Hh - padB) - h;
+      s += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#c8351b" rx="2"/>`;
+      s += `<text x="${x + w/2}" y="${Hh-padB+15}" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="#1a1815">${labels[i]}</text>`;
+      s += `<text x="${x + w/2}" y="${Hh-padB+30}" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="#6b6359">${p.toFixed(3)}</text>`;
+    });
+
+    svg.innerHTML = s;
+  }
+
+  slider.addEventListener('input', render);
+  render();
+})();
+
+/* ============================================================
+   LAB 2 — Surprise from a single probability
+   ============================================================ */
+(function(){
+  const svg = document.getElementById('lab2-svg');
+  const slider = document.getElementById('lab2-slider');
+  const pEl = document.getElementById('lab2-p');
+  const bitsEl = document.getElementById('lab2-bits');
+  const pplEl  = document.getElementById('lab2-ppl');
+
+  function render(){
+    const p = parseFloat(slider.value);
+    pEl.textContent = p.toFixed(3);
+    const surprise_bits = -Math.log2(p);
+    const ppl = Math.pow(2, surprise_bits); // = 1/p
+    bitsEl.textContent = surprise_bits.toFixed(2);
+    pplEl.textContent  = ppl.toFixed(2);
+
+    // Plot the curve y = -log2(x)
+    const W = 500, Hh = 220;
+    const padL = 50, padR = 20, padT = 25, padB = 40;
+    const xToPx = x => padL + (W - padL - padR) * x;
+    // surprise capped at 10 bits visually
+    const yToPx = bits => (Hh - padB) - (Hh - padT - padB) * (Math.min(bits, 10) / 10);
+
+    let s = `<text x="${padL}" y="15" font-family="Inter Tight" font-size="11" fill="#6b6359" letter-spacing="0.15em">SURPRISE = −log₂ P</text>`;
+
+    // axes
+    s += `<line x1="${padL}" y1="${Hh-padB}" x2="${W-padR}" y2="${Hh-padB}" stroke="#1a1815" stroke-width="1"/>`;
+    s += `<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${Hh-padB}" stroke="#1a1815" stroke-width="1"/>`;
+
+    // x labels
+    [0, 0.25, 0.5, 0.75, 1].forEach(v => {
+      s += `<text x="${xToPx(v)}" y="${Hh-padB+14}" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="#6b6359">${v}</text>`;
+    });
+    // y labels
+    [0,2,4,6,8,10].forEach(v=>{
+      s += `<text x="${padL-6}" y="${yToPx(v)+3}" text-anchor="end" font-family="JetBrains Mono" font-size="10" fill="#6b6359">${v}</text>`;
+    });
+    s += `<text x="${padL-30}" y="${(padT+Hh-padB)/2}" text-anchor="middle" font-family="Inter Tight" font-size="10" fill="#6b6359" transform="rotate(-90 ${padL-30} ${(padT+Hh-padB)/2})">bits</text>`;
+
+    // Curve path - sample
+    let path = '';
+    for(let xi = 0; xi <= 200; xi++){
+      const x = 0.001 + (xi/200) * 0.999;
+      const px = xToPx(x);
+      const py = yToPx(-Math.log2(x));
+      path += (xi === 0 ? 'M' : 'L') + px.toFixed(1) + ',' + py.toFixed(1) + ' ';
+    }
+    s += `<path d="${path}" fill="none" stroke="#c8351b" stroke-width="2"/>`;
+
+    // Marker
+    const mx = xToPx(p);
+    const my = yToPx(surprise_bits);
+    s += `<line x1="${mx}" y1="${Hh-padB}" x2="${mx}" y2="${my}" stroke="#1a1815" stroke-width="0.8" stroke-dasharray="3,3"/>`;
+    s += `<line x1="${padL}" y1="${my}" x2="${mx}" y2="${my}" stroke="#1a1815" stroke-width="0.8" stroke-dasharray="3,3"/>`;
+    s += `<circle cx="${mx}" cy="${my}" r="6" fill="#1a1815"/>`;
+    s += `<circle cx="${mx}" cy="${my}" r="3" fill="#f4ecd8"/>`;
+
+    svg.innerHTML = s;
+  }
+  slider.addEventListener('input', render);
+  render();
+})();
+
+/* ============================================================
+   LAB 3 — Sequence-level perplexity
+   ============================================================ */
+(function(){
+  const svg = document.getElementById('lab3-svg');
+  const buttons = document.querySelectorAll('[data-model]');
+  const tokens = ['the','cat','sat','on','the','soft','wool','mat'];
+
+  // probabilities the actual token receives, per model
+  const profiles = {
+    ideal:    [1,1,1,1,1,1,1,1].map(_ => 0.999),
+    strong:   [0.42, 0.18, 0.34, 0.55, 0.71, 0.21, 0.16, 0.48],
+    weak:     [0.12, 0.06, 0.09, 0.22, 0.30, 0.04, 0.03, 0.14],
+    terrible: [0.08, 0.02, 0.05, 0.10, 0.15, 0.01, 0.005, 0.04],
+    random:   tokens.map(_ => 1/50000)
+  };
+
+  let current = 'ideal';
+
+  function render(){
+    const probs = profiles[current];
+    const N = probs.length;
+    const logs = probs.map(p => Math.log(p));
+    const avgLog = logs.reduce((a,b)=>a+b,0) / N;
+    const ce = -avgLog;
+    const ppl = Math.exp(ce);
+
+    document.getElementById('lab3-avglog').textContent = avgLog.toFixed(3);
+    document.getElementById('lab3-ce').textContent     = ce.toFixed(3);
+    document.getElementById('lab3-ppl').textContent    = ppl < 1000 ? ppl.toFixed(2) : ppl.toExponential(2);
+
+    // Render
+    const W = 760, Hh = 320;
+    const padL = 40, padR = 40, padT = 50, padB = 80;
+    const slotW = (W - padL - padR) / N;
+
+    let s = `<text x="${padL}" y="22" font-family="Inter Tight" font-size="11" fill="#6b6359" letter-spacing="0.15em">PER-TOKEN PROBABILITY ASSIGNED TO THE TRUE NEXT TOKEN</text>`;
+
+    // baseline
+    s += `<line x1="${padL}" y1="${Hh-padB}" x2="${W-padR}" y2="${Hh-padB}" stroke="#1a1815" stroke-width="1"/>`;
+
+    // grid 0, 0.5, 1
+    [0, 0.25, 0.5, 0.75, 1].forEach(v=>{
+      const y = (Hh-padB) - (Hh-padT-padB)*v;
+      s += `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#1a1815" stroke-width="0.4" opacity="0.12"/>`;
+      s += `<text x="${padL-6}" y="${y+3}" text-anchor="end" font-family="JetBrains Mono" font-size="9" fill="#6b6359">${v.toFixed(2)}</text>`;
+    });
+
+    probs.forEach((p,i)=>{
+      const cx = padL + slotW*(i+0.5);
+      const barW = slotW * 0.55;
+      const x = cx - barW/2;
+      const h = Math.max(2, (Hh-padT-padB) * p);
+      const y = (Hh-padB) - h;
+
+      // Color: more orange = more confident
+      const intensity = Math.min(1, p*1.5 + 0.2);
+      s += `<rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="3" fill="#c8351b" opacity="${0.4 + 0.6*p}"/>`;
+      // probability label
+      s += `<text x="${cx}" y="${y-6}" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="#1a1815">${p < 0.001 ? p.toExponential(1) : p.toFixed(2)}</text>`;
+      // token chip below
+      s += `<rect x="${cx-25}" y="${Hh-padB+10}" width="50" height="22" rx="3" fill="#1a1815"/>`;
+      s += `<text x="${cx}" y="${Hh-padB+25}" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="#f4ecd8">${tokens[i]}</text>`;
+      // surprise label
+      const bits = -Math.log2(p);
+      s += `<text x="${cx}" y="${Hh-padB+50}" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#6b6359">${bits.toFixed(1)} bits</text>`;
+    });
+
+    // Geometric mean line
+    const gm = Math.exp(avgLog);
+    const gmY = (Hh-padB) - (Hh-padT-padB) * gm;
+    s += `<line x1="${padL}" y1="${gmY}" x2="${W-padR}" y2="${gmY}" stroke="#b8862f" stroke-width="1.5" stroke-dasharray="6,4"/>`;
+    s += `<text x="${W-padR-6}" y="${gmY-6}" text-anchor="end" font-family="Inter Tight" font-size="11" fill="#b8862f" font-weight="700">geometric mean = ${gm.toFixed(3)}</text>`;
+
+    svg.innerHTML = s;
+  }
+
+  buttons.forEach(b=>{
+    b.addEventListener('click', ()=>{
+      buttons.forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      current = b.dataset.model;
+      render();
+    });
+  });
+
+  render();
+})();
+</script>
+
+</body>
+</html>

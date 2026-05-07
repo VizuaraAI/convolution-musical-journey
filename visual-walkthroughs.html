@@ -429,6 +429,33 @@
       box-shadow: 0 -18px 0 rgba(47, 118, 95, 0.14), 0 -36px 0 rgba(146, 116, 47, 0.16);
     }
 
+    .thumb.perplexity:before {
+      content: "PPL";
+      width: 72px;
+      height: 72px;
+      left: 18px;
+      top: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background: rgba(200, 53, 27, 0.12);
+      color: var(--red);
+      font-family: var(--mono);
+      font-size: 18px;
+      font-weight: 780;
+    }
+
+    .thumb.perplexity:after {
+      width: 58%;
+      height: 14px;
+      right: 18px;
+      top: 32px;
+      background: rgba(49, 93, 141, 0.14);
+      box-shadow:
+        0 24px 0 rgba(47, 118, 95, 0.14),
+        0 48px 0 rgba(146, 116, 47, 0.16);
+    }
+
     .tag-row {
       display: flex;
       gap: 6px;
@@ -531,6 +558,7 @@
         <span>Vizuara Visual Walkthroughs</span>
       </div>
       <nav class="nav" aria-label="Page sections">
+        <a href="#foundations">Foundations</a>
         <a href="#basics">Basics</a>
         <a href="#kv-cache">KV cache</a>
         <a href="#kv-eviction">Eviction</a>
@@ -558,10 +586,29 @@
             then cache eviction, then modern inference ideas, then attention as the heart of speeding inference.
           </p>
           <div class="metric-grid">
-            <div class="metric"><strong>14</strong>visual pages</div>
-            <div class="metric"><strong>5</strong>learning tracks</div>
+            <div class="metric"><strong>15</strong>visual pages</div>
+            <div class="metric"><strong>6</strong>learning tracks</div>
           </div>
         </aside>
+      </section>
+
+      <section id="foundations" class="section">
+        <div class="section-head">
+          <div>
+            <div class="section-label">Track 0</div>
+            <h2>Foundations</h2>
+          </div>
+          <div class="cluster-note">The mathematical ideas that make model behavior measurable before the systems work begins.</div>
+        </div>
+        <div class="cards">
+          <a class="card" href="https://vizuaraai.github.io/convolution-musical-journey/perplexity-anatomy.html" target="_blank" rel="noreferrer">
+            <div class="thumb perplexity"></div>
+            <div class="tag-row"><span class="tag">LLMs</span><span class="tag">loss</span></div>
+            <h3>The Anatomy of Perplexity</h3>
+            <p>A first-principles visual guide to perplexity loss, token probabilities, cross-entropy, and what the score means for language models.</p>
+            <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
+          </a>
+        </div>
       </section>
 
       <section id="basics" class="section">
