@@ -456,6 +456,34 @@
         0 48px 0 rgba(146, 116, 47, 0.16);
     }
 
+    .thumb.workshop:before {
+      content: "Q·K·V";
+      width: 96px;
+      height: 38px;
+      left: 18px;
+      top: 22px;
+      display: grid;
+      place-items: center;
+      border-radius: 6px;
+      background: rgba(154, 74, 60, 0.12);
+      color: var(--red);
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 780;
+      letter-spacing: 1px;
+    }
+
+    .thumb.workshop:after {
+      width: 70%;
+      height: 12px;
+      left: 16%;
+      bottom: 24px;
+      background: rgba(47, 118, 95, 0.18);
+      box-shadow:
+        0 -22px 0 rgba(146, 116, 47, 0.16),
+        0 -44px 0 rgba(49, 93, 141, 0.14);
+    }
+
     .tag-row {
       display: flex;
       gap: 6px;
@@ -564,6 +592,7 @@
         <a href="#kv-eviction">Eviction</a>
         <a href="#modern">Modern inference</a>
         <a href="#attention">Attention ♥</a>
+        <a href="#workshop">Book companion</a>
       </nav>
     </header>
 
@@ -586,8 +615,8 @@
             then cache eviction, then modern inference ideas, then attention as the heart of speeding inference.
           </p>
           <div class="metric-grid">
-            <div class="metric"><strong>15</strong>visual pages</div>
-            <div class="metric"><strong>6</strong>learning tracks</div>
+            <div class="metric"><strong>16</strong>visual pages</div>
+            <div class="metric"><strong>7</strong>learning tracks</div>
           </div>
         </aside>
       </section>
@@ -774,6 +803,25 @@
             <div class="tag-row"><span class="tag">attention</span><span class="tag">optimization</span></div>
             <h3>Summary of Attention Mechanism Optimizations</h3>
             <p>A comparative visual map of attention variants and inference optimization strategies.</p>
+            <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
+          </a>
+        </div>
+      </section>
+
+      <section id="workshop" class="section">
+        <div class="section-head">
+          <div>
+            <div class="section-label">Track 6</div>
+            <h2>Across heads, across tokens, and the schedule</h2>
+          </div>
+          <div class="cluster-note">A visual companion to Chapters 8, 9, and 10 of the Inference Engineering book. The thread that ties head compression, token compression, and FlashAttention into one map.</div>
+        </div>
+        <div class="cards">
+          <a class="card" href="https://vizuaraai.github.io/convolution-musical-journey/attention-variants-retraining.html" target="_blank" rel="noreferrer">
+            <div class="thumb workshop"></div>
+            <div class="tag-row"><span class="tag">attention</span><span class="tag">retraining</span></div>
+            <h3>Which Attention Variants Need Retraining?</h3>
+            <p>FlashAttention is a systems rearrangement. MQA, GQA, and MLA compress across heads. Sliding window, sparse, and linear attention compress across tokens. A clean sort plus a 160M-parameter, 10B-token reproduction recipe.</p>
             <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
           </a>
         </div>

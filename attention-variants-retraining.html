@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Which Attention Variants Need Retraining? — A Visual Guide</title>
+<meta name="description" content="A practical visual map across Chapters 8, 9, and 10 of Inference Engineering: head compression, token compression, and FlashAttention. Which variants are pure systems optimizations, which change the model, and what model size and dataset you need to reproduce them." />
+<link rel="icon" type="image/png" href="vizlogo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=JetBrains+Mono:wght@400;500;700&family=Inter+Tight:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:        #f4ecd8;
+    --paper-deep:   #ebe1c7;
+    --ink:          #1a1815;
+    --ink-soft:     #3d3833;
+    --ink-faint:    #6b6359;
+    --rule:         #2a2622;
+    --accent:       #c8351b;
+    --accent-soft:  #e08a76;
+    --gold:         #b8862f;
+    --teal:         #2f5e5a;
+    --blue:         #2e4a7b;
+    --green:        #4a6b3a;
+    --hot:          #c8351b;
+    --cool:         #2e4a7b;
+    --margin:       max(2rem, calc(50vw - 38rem));
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Fraunces', 'Times New Roman', serif;
+    font-feature-settings: "ss01" on, "ss02" on, "onum" on;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.55;
+    font-size: 18px;
+    overflow-x: hidden;
+    position: relative;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(120,90,40,0.04) 0%, transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(60,40,20,0.035) 0%, transparent 40%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.15 0 0 0 0 0.12 0 0 0 0 0.08 0 0 0 0.18 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.35;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+    z-index: 1;
+  }
+  main { position: relative; z-index: 2; }
+
+  h1, h2, h3, h4 {
+    font-family: 'Fraunces', serif;
+    font-variation-settings: "opsz" 144;
+    color: var(--ink);
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    font-weight: 500;
+  }
+  h2 { font-size: clamp(2.2rem, 5vw, 3.6rem); margin-bottom: 1.5rem; font-weight: 400; }
+  h3 { font-size: clamp(1.5rem, 3vw, 2.1rem); margin: 2.5rem 0 1rem; font-weight: 500; }
+  h4 { font-size: 1.25rem; margin: 1.5rem 0 0.6rem; font-weight: 600; font-variation-settings: "opsz" 14; }
+
+  p { font-size: 1.125rem; margin-bottom: 1.25rem; max-width: 65ch; }
+  p.lede {
+    font-size: 1.45rem;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    font-style: italic;
+    font-weight: 300;
+    max-width: 60ch;
+  }
+  .small-caps {
+    font-family: 'Inter Tight', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ink-faint);
+  }
+  .drop::first-letter {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 4.5rem;
+    float: left;
+    line-height: 0.85;
+    margin: 0.4rem 0.5rem 0 0;
+    color: var(--accent);
+  }
+
+  code, .mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9em;
+    background: rgba(40,30,20,0.06);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    color: var(--ink);
+  }
+
+  section {
+    padding: 6rem var(--margin);
+    position: relative;
+    border-bottom: 1px solid rgba(40,30,20,0.08);
+  }
+  section:last-child { border-bottom: none; }
+
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    margin-bottom: 1rem;
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--accent);
+    border-radius: 2px;
+  }
+
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4rem var(--margin) 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 0.75rem;
+    margin-bottom: 3rem;
+  }
+  .hero-meta .vol {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 1rem;
+    color: var(--ink-soft);
+  }
+  .hero h1 {
+    font-size: clamp(3rem, 9.5vw, 8rem);
+    font-weight: 300;
+    line-height: 0.92;
+    margin: 1rem 0 2rem;
+    font-variation-settings: "opsz" 144, "wght" 300;
+  }
+  .hero h1 em {
+    font-style: italic;
+    color: var(--accent);
+    font-variation-settings: "opsz" 144, "wght" 400;
+  }
+  .hero-sub {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    margin-top: 3rem;
+    border-top: 1px solid rgba(40,30,20,0.2);
+    padding-top: 1.5rem;
+  }
+  .hero-sub p { font-size: 1rem; color: var(--ink-soft); }
+
+  .hero-formula {
+    margin: 2rem 0;
+    padding: 2rem;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'JetBrains Mono', monospace;
+    text-align: center;
+    border-radius: 2px;
+    position: relative;
+  }
+  .hero-formula .label {
+    position: absolute;
+    top: -0.7rem; left: 1rem;
+    background: var(--paper);
+    color: var(--ink);
+    padding: 0 0.5rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .hero-formula .eq {
+    font-size: 1.4rem;
+    letter-spacing: 0.05em;
+    line-height: 1.5;
+  }
+  .hero-formula .eq .var { color: var(--accent-soft); }
+  .hero-formula .eq .same { color: #9bd1a8; }
+
+  .toc {
+    background: var(--paper-deep);
+    padding: 4rem var(--margin);
+    border-top: 1px solid rgba(40,30,20,0.15);
+    border-bottom: 1px solid rgba(40,30,20,0.15);
+  }
+  .toc h2 {
+    font-size: 1.2rem;
+    font-family: 'Inter Tight', sans-serif;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 2rem;
+    font-weight: 600;
+  }
+  .toc-list { list-style: none; }
+  .toc-list li {
+    border-top: 1px solid rgba(40,30,20,0.15);
+    padding: 1rem 0;
+    display: flex;
+    align-items: baseline;
+    gap: 1.5rem;
+  }
+  .toc-list li:last-child { border-bottom: 1px solid rgba(40,30,20,0.15); }
+  .toc-list .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--accent);
+    width: 3rem;
+    flex-shrink: 0;
+  }
+  .toc-list a {
+    color: var(--ink);
+    text-decoration: none;
+    font-family: 'Fraunces', serif;
+    font-size: 1.4rem;
+    flex-grow: 1;
+    transition: color 0.2s;
+  }
+  .toc-list a:hover { color: var(--accent); font-style: italic; }
+  .toc-list .pg {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+  }
+
+  figure {
+    margin: 3rem auto;
+    padding: 0;
+    text-align: center;
+    max-width: 100%;
+  }
+  figure svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+    background: var(--paper);
+  }
+  figcaption {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+    margin-top: 1rem;
+    line-height: 1.4;
+    max-width: 50ch;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+  }
+  figcaption .fig-label {
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.72rem;
+    margin-right: 0.5rem;
+  }
+
+  .interactive {
+    background: var(--paper-deep);
+    border: 1px solid rgba(40,30,20,0.15);
+    padding: 2rem;
+    border-radius: 4px;
+    margin: 3rem 0;
+    position: relative;
+  }
+  .interactive::before {
+    content: 'Try it ↓';
+    position: absolute;
+    top: -0.6rem; left: 1.2rem;
+    background: var(--accent);
+    color: var(--paper);
+    padding: 0.15rem 0.7rem;
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-weight: 700;
+    border-radius: 2px;
+  }
+
+  button {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: all 0.15s;
+  }
+  button:hover { background: var(--accent); }
+  button.ghost {
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--ink);
+  }
+  button.ghost:hover { background: var(--ink); color: var(--paper); }
+  button.ghost.active {
+    background: var(--accent);
+    color: var(--paper);
+    border-color: var(--accent);
+  }
+
+  .pull-quote {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: clamp(1.6rem, 3.8vw, 2.6rem);
+    line-height: 1.25;
+    color: var(--ink);
+    margin: 4rem auto;
+    padding: 2.5rem 0;
+    max-width: 50ch;
+    text-align: center;
+    border-top: 1px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+    position: relative;
+  }
+  .pull-quote::before {
+    content: '"';
+    position: absolute;
+    top: -1.5rem; left: 50%;
+    transform: translateX(-50%);
+    background: var(--paper);
+    padding: 0 1rem;
+    font-size: 4rem;
+    color: var(--accent);
+    line-height: 1;
+    font-style: normal;
+  }
+
+  .marginalia {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+    line-height: 1.4;
+    border-left: 2px solid var(--accent);
+    padding-left: 1rem;
+    margin: 1.5rem 0;
+    font-style: italic;
+  }
+
+  .formula {
+    background: var(--paper-deep);
+    border: 1px solid rgba(40,30,20,0.15);
+    padding: 1.5rem 2rem;
+    margin: 2rem 0;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1rem;
+    border-radius: 3px;
+    overflow-x: auto;
+  }
+  .formula em { color: var(--accent); font-style: normal; font-weight: 700; }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0;
+    margin: 2.5rem 0;
+    border-top: 1px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+  }
+  .stat {
+    padding: 1.5rem;
+    border-right: 1px solid rgba(40,30,20,0.15);
+    text-align: center;
+  }
+  .stat:last-child { border-right: none; }
+  .stat .num {
+    font-family: 'Fraunces', serif;
+    font-variation-settings: "opsz" 144, "wght" 400;
+    font-size: 2.6rem;
+    color: var(--accent);
+    line-height: 1;
+    display: block;
+  }
+  .stat .lbl {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-faint);
+    margin-top: 0.5rem;
+    display: block;
+  }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    margin: 2rem 0;
+  }
+  @media (max-width: 768px) {
+    .two-col { grid-template-columns: 1fr; gap: 1.5rem; }
+    .hero-sub { grid-template-columns: 1fr; }
+    .stat-grid { grid-template-columns: 1fr 1fr; }
+    .stat { border-right: 1px solid rgba(40,30,20,0.15); border-bottom: 1px solid rgba(40,30,20,0.15); }
+  }
+
+  /* Decision table */
+  .verdict-table {
+    margin: 3rem 0;
+    border: 1px solid var(--ink);
+    border-radius: 3px;
+    overflow: hidden;
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.95rem;
+  }
+  .verdict-table .row {
+    display: grid;
+    grid-template-columns: 1.5fr 1.2fr 1.4fr 2fr;
+    border-bottom: 1px solid rgba(40,30,20,0.12);
+  }
+  .verdict-table .row:last-child { border-bottom: none; }
+  .verdict-table .row.head {
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'Inter Tight', sans-serif;
+    font-weight: 600;
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .verdict-table .cell {
+    padding: 1rem 1.2rem;
+    border-right: 1px solid rgba(40,30,20,0.1);
+    line-height: 1.4;
+  }
+  .verdict-table .cell:last-child { border-right: none; }
+  .verdict-table .row .cell strong {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 500;
+    font-size: 1.1rem;
+    color: var(--ink);
+  }
+  .verdict-table .verdict-pill {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .v-none  { background: rgba(74,107,58,0.18); color: #3a5028; border: 1px solid #4a6b3a; }
+  .v-light { background: rgba(184,134,47,0.18); color: #8a6418; border: 1px solid #b8862f; }
+  .v-heavy { background: rgba(200,53,27,0.15); color: #a02410; border: 1px solid #c8351b; }
+  @media (max-width: 768px) {
+    .verdict-table .row { grid-template-columns: 1fr; }
+    .verdict-table .cell { border-right: none; border-bottom: 1px solid rgba(40,30,20,0.06); }
+  }
+
+  /* Recipe card */
+  .recipe {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 2.5rem;
+    margin: 3rem 0;
+    border-radius: 3px;
+    position: relative;
+  }
+  .recipe::before {
+    content: 'Reproduction recipe';
+    position: absolute;
+    top: -0.7rem; left: 1.5rem;
+    background: var(--paper);
+    color: var(--ink);
+    padding: 0.2rem 0.7rem;
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  .recipe h4 {
+    color: var(--accent-soft);
+    font-family: 'Inter Tight', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.75rem;
+    margin: 1.6rem 0 0.4rem;
+  }
+  .recipe h4:first-child { margin-top: 0; }
+  .recipe p { color: var(--paper); margin-bottom: 0.6rem; max-width: none; font-size: 1rem; }
+  .recipe code, .recipe .mono { background: rgba(244,236,216,0.12); color: var(--accent-soft); }
+  .recipe ul { margin: 0.4rem 0 0.8rem 1.2rem; }
+  .recipe li { font-size: 1rem; line-height: 1.55; margin-bottom: 0.3rem; }
+
+  footer {
+    padding: 4rem var(--margin) 3rem;
+    background: var(--ink);
+    color: var(--paper);
+    text-align: center;
+  }
+  footer p { color: var(--paper); margin: 0 auto 0.5rem; max-width: none; }
+  footer .small-caps { color: var(--accent-soft); }
+
+  .svg-text {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 13px;
+    fill: var(--ink);
+  }
+  .svg-mono { font-family: 'JetBrains Mono', monospace; }
+  .svg-serif { font-family: 'Fraunces', serif; font-style: italic; }
+
+  .hl { background: linear-gradient(180deg, transparent 60%, rgba(200,53,27,0.25) 60%); padding: 0 0.1em; }
+  .hl-gold { background: linear-gradient(180deg, transparent 60%, rgba(184,134,47,0.3) 60%); padding: 0 0.1em; }
+  .hl-green { background: linear-gradient(180deg, transparent 60%, rgba(74,107,58,0.3) 60%); padding: 0 0.1em; }
+
+  .ornament {
+    text-align: center;
+    margin: 3rem 0;
+    color: var(--ink-faint);
+    font-size: 1.5rem;
+    letter-spacing: 1rem;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .anim { animation: fadeUp 0.8s ease-out backwards; }
+</style>
+</head>
+<body>
+<main>
+
+<!-- ===================================================================== -->
+<!-- HERO                                                                  -->
+<!-- ===================================================================== -->
+<section class="hero">
+  <div class="hero-meta">
+    <span class="small-caps" style="display:flex;align-items:center;gap:0.6rem"><img src="vizlogo.png" alt="Vizuara" style="width:26px;height:26px;border-radius:5px;border:1px solid rgba(40,30,20,0.25);background:#fff"> Vizuara · Inference Engineering</span>
+    <span class="vol">Vol. IV · Visual companion</span>
+    <span class="small-caps">Chs. 8 · 9 · 10</span>
+  </div>
+
+  <p class="small-caps anim" style="animation-delay:.05s">A practical map across the attention chapters</p>
+  <h1 class="anim" style="animation-delay:.15s">
+    Which attention<br>
+    variants need<br>
+    <em>retraining?</em>
+  </h1>
+  <p class="lede anim" style="animation-delay:.35s">
+    Not every "attention speedup" is the same kind of object. Some rearrange the GPU schedule and leave the math untouched. Others change the architecture itself — fewer K/V heads, a windowed mask, no softmax — and the model has to be (re)trained to use them. This essay sorts the entire family and tells you exactly what to spin up to reproduce each variant yourself.
+  </p>
+
+  <div class="hero-formula anim" style="animation-delay:.55s">
+    <span class="label">The single test</span>
+    <div class="eq">
+      attention(Q,K,V) &nbsp;<span class="same">≡</span>&nbsp; attention'(Q,K,V) &nbsp;?
+      <br>
+      <span style="font-size:0.9rem;color:#bda88f">if yes → systems trick (no retrain). &nbsp; if no → architecture change (retrain).</span>
+    </div>
+  </div>
+
+  <div class="hero-sub anim" style="animation-delay:.75s">
+    <p>This walkthrough sits across three chapters of the book. <strong>Ch 8</strong> compresses the cache <em>across heads</em> (MHA → MQA → GQA → MLA). <strong>Ch 9</strong> compresses it <em>across tokens</em> (sliding window, linear attention, SSMs, Mamba). <strong>Ch 10</strong> is FlashAttention — a systems-level rearrangement of the same math. The training cost of adopting each one is wildly different, and that difference is what this page draws.</p>
+    <p style="text-align:right">Scroll to begin.<br><span style="font-size:1.5rem">↓</span></p>
+  </div>
+</section>
+
+<!-- ===================================================================== -->
+<!-- TABLE OF CONTENTS                                                     -->
+<!-- ===================================================================== -->
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol class="toc-list">
+    <li><span class="num">I</span><a href="#s1">The student's question, refined</a><span class="pg">p. 01</span></li>
+    <li><span class="num">II</span><a href="#s2">The one axis that splits the zoo</a><span class="pg">p. 02</span></li>
+    <li><span class="num">III</span><a href="#s3">FlashAttention — same math, smarter schedule</a><span class="pg">p. 03</span></li>
+    <li><span class="num">IV</span><a href="#s4">MQA &amp; GQA — fewer K/V projections</a><span class="pg">p. 04</span></li>
+    <li><span class="num">V</span><a href="#s5">Sliding window &amp; sparse — fewer keys per query</a><span class="pg">p. 05</span></li>
+    <li><span class="num">VI</span><a href="#s6">Linear attention — softmax replaced</a><span class="pg">p. 06</span></li>
+    <li><span class="num">VII</span><a href="#s7">The verdict table</a><span class="pg">p. 07</span></li>
+    <li><span class="num">VIII</span><a href="#s8">A reproducible reproduction recipe</a><span class="pg">p. 08</span></li>
+    <li><span class="num">IX</span><a href="#s9">Pick a variant — see the cost</a><span class="pg">p. 09</span></li>
+  </ol>
+</nav>
+
+<!-- ===================================================================== -->
+<!-- SECTION I                                                             -->
+<!-- ===================================================================== -->
+<section id="s1">
+  <span class="section-num">§ I</span>
+  <h2>Two kinds of object, one shared name.</h2>
+  <p class="lede">It's tempting to read Chapters 8, 9, and 10 of the book as a single shelf of "attention variants." The terminology hides a clean line that runs straight through the family.</p>
+
+  <p class="drop">Every "faster attention" technique you have read about is one of two very different kinds of object. The first kind keeps the operator's input-output relation identical and just computes it differently. The second kind <em>defines a new operator</em> — different parameter count, different mask, different softmax. The first costs nothing to adopt at inference. The second costs, at minimum, a fine-tune — and often a full pretraining run.</p>
+
+  <p>Calling them all "attention variants" hides this distinction. The job of this essay is to make it surgical, and to tell you what each side of the line costs to reproduce.</p>
+
+  <div class="pull-quote">A faster route to the same destination is free. A faster route to a different destination demands you re-teach the model where it's going.</div>
+</section>
+
+<!-- ===================================================================== -->
+<!-- SECTION II                                                            -->
+<!-- ===================================================================== -->
+<section id="s2">
+  <span class="section-num">§ II</span>
+  <h2>The one axis that splits the zoo.</h2>
+  <p class="lede">Pin every attention variant to a single axis: <em>does it produce the same output as standard multi-head attention, given the same trained weights?</em></p>
+
+  <figure>
+    <svg viewBox="0 0 820 360" xmlns="http://www.w3.org/2000/svg">
+      <!-- horizontal axis -->
+      <line x1="60" y1="200" x2="780" y2="200" stroke="#1a1815" stroke-width="1.5"/>
+      <polygon points="780,200 770,195 770,205" fill="#1a1815"/>
+      <text class="svg-text" x="60" y="225" font-size="11" letter-spacing="0.15em" fill="#6b6359">SAME OUTPUT AS STANDARD MHA</text>
+      <text class="svg-text" x="780" y="225" font-size="11" letter-spacing="0.15em" fill="#6b6359" text-anchor="end">DIFFERENT OPERATOR ENTIRELY</text>
+
+      <!-- left bucket -->
+      <g transform="translate(80,60)">
+        <rect x="0" y="0" width="240" height="110" rx="3" fill="#ebe1c7" stroke="#4a6b3a" stroke-width="2"/>
+        <text class="svg-text" x="120" y="22" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#4a6b3a" font-weight="700">SYSTEMS-LEVEL</text>
+        <text class="svg-text svg-serif" x="120" y="48" text-anchor="middle" font-size="16" fill="#1a1815" font-style="italic">no retraining required</text>
+        <text class="svg-text svg-mono" x="120" y="75" text-anchor="middle" font-size="13" fill="#1a1815">FlashAttention 1 / 2 / 3</text>
+        <text class="svg-text svg-mono" x="120" y="93" text-anchor="middle" font-size="13" fill="#1a1815">PagedAttention</text>
+      </g>
+
+      <!-- middle bucket -->
+      <g transform="translate(335,60)">
+        <rect x="0" y="0" width="160" height="110" rx="3" fill="#ebe1c7" stroke="#b8862f" stroke-width="2"/>
+        <text class="svg-text" x="80" y="22" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#b8862f" font-weight="700">UPTRAINING</text>
+        <text class="svg-text svg-serif" x="80" y="48" text-anchor="middle" font-size="16" fill="#1a1815" font-style="italic">~5% of pretraining</text>
+        <text class="svg-text svg-mono" x="80" y="75" text-anchor="middle" font-size="13" fill="#1a1815">GQA</text>
+        <text class="svg-text svg-mono" x="80" y="93" text-anchor="middle" font-size="13" fill="#1a1815">MQA (some cases)</text>
+      </g>
+
+      <!-- right bucket -->
+      <g transform="translate(510,60)">
+        <rect x="0" y="0" width="270" height="110" rx="3" fill="#ebe1c7" stroke="#c8351b" stroke-width="2"/>
+        <text class="svg-text" x="135" y="22" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#c8351b" font-weight="700">FULL RETRAIN OR HEAVY FT</text>
+        <text class="svg-text svg-serif" x="135" y="48" text-anchor="middle" font-size="16" fill="#1a1815" font-style="italic">new operator</text>
+        <text class="svg-text svg-mono" x="135" y="75" text-anchor="middle" font-size="13" fill="#1a1815">Sliding window · Sparse</text>
+        <text class="svg-text svg-mono" x="135" y="93" text-anchor="middle" font-size="13" fill="#1a1815">Linear (Performer, RetNet…)</text>
+      </g>
+
+      <!-- below axis: question -->
+      <g transform="translate(0,260)">
+        <text class="svg-text svg-serif" x="200" y="0" text-anchor="middle" font-size="14" fill="#1a1815" font-style="italic">"Same matmul output bit for bit?"</text>
+        <text class="svg-text svg-serif" x="415" y="0" text-anchor="middle" font-size="14" fill="#1a1815" font-style="italic">"Same architecture, fewer K/V?"</text>
+        <text class="svg-text svg-serif" x="650" y="0" text-anchor="middle" font-size="14" fill="#1a1815" font-style="italic">"New mask or new softmax?"</text>
+
+        <text class="svg-text" x="200" y="30" text-anchor="middle" font-size="12" fill="#6b6359">drop in, no fine-tune</text>
+        <text class="svg-text" x="415" y="30" text-anchor="middle" font-size="12" fill="#6b6359">light continued pretraining</text>
+        <text class="svg-text" x="650" y="30" text-anchor="middle" font-size="12" fill="#6b6359">train from scratch</text>
+      </g>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 2.1</span>The axis the student is reaching for. Most "attention variants" sit far from each other on this line. Knowing where each one sits tells you exactly what training infrastructure you need.</figcaption>
+  </figure>
+
+  <p>Three buckets, then:</p>
+  <p><strong>① Systems-level (Ch 10).</strong> Same output to within numerical precision. You can take a checkpoint trained with vanilla attention and run inference with FlashAttention or PagedAttention. Loss does not move. Accuracy does not move. Tokens out are the same.</p>
+  <p><strong>② Uptraining (Ch 8 — across heads).</strong> The architecture changes — fewer K/V heads, or a latent compression — but the model still does softmax attention over the full sequence. You can <hl class="hl-gold">recover the lost behaviour cheaply</hl> by continuing pretraining for a small fraction of the original token budget. Ainslie et al. (2023) reported ~5% for GQA.</p>
+  <p><strong>③ Full retrain (Ch 9 — across tokens).</strong> The mask, the receptive field, or the softmax itself changes. The model has to learn how to use the new operator from scratch. There is no checkpoint-laundering trick that lets you skip this in general.</p>
+
+  <p class="marginalia">"Retraining" in this essay means continued pretraining with the new operator. Task-level fine-tuning is too short and downstream to fix an operator change.</p>
+</section>
+
+<!-- ===================================================================== -->
+<!-- SECTION III                                                           -->
+<!-- ===================================================================== -->
+<section id="s3">
+  <span class="section-num">§ III</span>
+  <h2>FlashAttention — same math, smarter schedule.</h2>
+  <p class="lede">This is Chapter 10 in one line. FlashAttention is the canonical systems-level optimization: the output is bit-equal (modulo float order-of-operations) to standard attention. It reorders <em>where</em> the computation happens, not <em>what</em> is computed.</p>
+
+  <p>Standard attention computes a full <span class="mono">N × N</span> score matrix <span class="mono">S = QKᵀ/√d</span>, applies softmax row-wise, then multiplies by <span class="mono">V</span>. The score matrix is a memory hog — for a 32K context it is a billion floats, and it lives on slow HBM. FlashAttention <em>never materializes it</em>. Instead it tiles Q, K, V into blocks that fit in fast SRAM and computes the softmax incrementally using a streaming algorithm.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 380" xmlns="http://www.w3.org/2000/svg">
+      <!-- Standard attention -->
+      <g transform="translate(40,40)">
+        <text class="svg-text" x="160" y="-5" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#6b6359">STANDARD ATTENTION</text>
+        <!-- N x N score matrix -->
+        <rect x="40" y="20" width="240" height="180" fill="#c8351b" opacity="0.18" stroke="#c8351b" stroke-width="1.2"/>
+        <text class="svg-text svg-mono" x="160" y="115" text-anchor="middle" font-size="14" fill="#1a1815">S = QKᵀ ∈ ℝ^(N×N)</text>
+        <text class="svg-text" x="160" y="140" text-anchor="middle" font-size="11" fill="#6b6359">stored in HBM</text>
+        <text class="svg-text svg-serif" x="160" y="165" text-anchor="middle" font-size="13" fill="#c8351b" font-style="italic">O(N²) memory</text>
+        <text class="svg-text" x="160" y="225" text-anchor="middle" font-size="12" fill="#1a1815">→ softmax → multiply V</text>
+      </g>
+
+      <!-- Arrow -->
+      <g transform="translate(345,140)">
+        <text class="svg-text svg-serif" x="40" y="-5" text-anchor="middle" font-size="13" fill="#1a1815" font-style="italic">same output</text>
+        <text class="svg-text svg-mono" x="40" y="10" text-anchor="middle" font-size="11" fill="#4a6b3a">≡</text>
+        <line x1="0" y1="20" x2="80" y2="20" stroke="#1a1815" stroke-width="1.5"/>
+        <polygon points="80,20 73,16 73,24" fill="#1a1815"/>
+      </g>
+
+      <!-- FlashAttention -->
+      <g transform="translate(450,40)">
+        <text class="svg-text" x="160" y="-5" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#6b6359">FLASHATTENTION</text>
+        <!-- Tiled blocks -->
+        <g>
+          <!-- 4x4 grid of small tiles -->
+          <g>
+            <rect x="40"  y="20"  width="55" height="42" fill="#4a6b3a" opacity="0.45" stroke="#4a6b3a"/>
+            <rect x="100" y="20"  width="55" height="42" fill="#4a6b3a" opacity="0.18" stroke="#4a6b3a"/>
+            <rect x="160" y="20"  width="55" height="42" fill="#4a6b3a" opacity="0.18" stroke="#4a6b3a"/>
+            <rect x="220" y="20"  width="55" height="42" fill="#4a6b3a" opacity="0.18" stroke="#4a6b3a"/>
+
+            <rect x="40"  y="65"  width="55" height="42" fill="#4a6b3a" opacity="0.18" stroke="#4a6b3a"/>
+            <rect x="100" y="65"  width="55" height="42" fill="#4a6b3a" opacity="0.45" stroke="#4a6b3a"/>
+            <rect x="160" y="65"  width="55" height="42" fill="#4a6b3a" opacity="0.18" stroke="#4a6b3a"/>
+            <rect x="220" y="65"  width="55" height="42" fill="#4a6b3a" opacity="0.18" stroke="#4a6b3a"/>
+
+            <rect x="40"  y="110" width="55" height="42" fill="#4a6b3a" opacity="0.18" stroke="#4a6b3a"/>
+            <rect x="100" y="110" width="55" height="42" fill="#4a6b3a" opacity="0.18" stroke="#4a6b3a"/>
+            <rect x="160" y="110" width="55" height="42" fill="#4a6b3a" opacity="0.45" stroke="#4a6b3a"/>
+            <rect x="220" y="110" width="55" height="42" fill="#4a6b3a" opacity="0.18" stroke="#4a6b3a"/>
+
+            <rect x="40"  y="155" width="55" height="42" fill="#4a6b3a" opacity="0.18" stroke="#4a6b3a"/>
+            <rect x="100" y="155" width="55" height="42" fill="#4a6b3a" opacity="0.18" stroke="#4a6b3a"/>
+            <rect x="160" y="155" width="55" height="42" fill="#4a6b3a" opacity="0.18" stroke="#4a6b3a"/>
+            <rect x="220" y="155" width="55" height="42" fill="#4a6b3a" opacity="0.45" stroke="#4a6b3a"/>
+          </g>
+          <text class="svg-text svg-mono" x="160" y="225" text-anchor="middle" font-size="13" fill="#1a1815">tile · stream · accumulate</text>
+          <text class="svg-text" x="160" y="245" text-anchor="middle" font-size="11" fill="#6b6359">in SRAM, never written to HBM</text>
+          <text class="svg-text svg-serif" x="160" y="270" text-anchor="middle" font-size="13" fill="#4a6b3a" font-style="italic">O(N) memory</text>
+        </g>
+      </g>
+
+      <!-- Footer formula -->
+      <g transform="translate(0,330)">
+        <text class="svg-text svg-mono" x="410" y="0" text-anchor="middle" font-size="14" fill="#1a1815">y_i = Σ_j softmax(s_ij) · v_j  &nbsp;&nbsp; — identical, computed block by block</text>
+      </g>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 3.1</span>FlashAttention reshuffles the computation graph but produces the same numbers. A pretrained model knows nothing has changed — its weights still mean exactly what they meant.</figcaption>
+  </figure>
+
+  <p>Because the operator is the same, you do not need a single new gradient step. Every Llama, Mistral, Qwen, GPT checkpoint trained with eager attention works with FlashAttention at inference time. PyTorch's <span class="mono">scaled_dot_product_attention</span> already swaps in FlashAttention 2 when the shapes allow it. You change a runtime flag, not a weight.</p>
+
+  <p>FA1 / FA2 / FA3 differ in <em>how cleverly</em> the schedule overlaps memory movement and matmul on different GPUs (A100 vs H100), but the math contract is the same.</p>
+
+  <p class="marginalia">A subtle point: floating-point addition is non-associative. FA outputs are not literally bit-equal to a naive implementation; they're numerically equivalent within rounding. This never matters for downstream task accuracy.</p>
+</section>
+
+<!-- ===================================================================== -->
+<!-- SECTION IV                                                            -->
+<!-- ===================================================================== -->
+<section id="s4">
+  <span class="section-num">§ IV</span>
+  <h2>Compressing across heads — MQA, GQA, MLA.</h2>
+  <p class="lede">This is Chapter 8 of the book in three architectures. Every variant in this section keeps softmax attention over the full sequence, but reduces the K/V footprint. The math is now genuinely different from MHA — but the change is small enough to be cheap to undo with continued pretraining.</p>
+
+  <p class="drop">In MHA with H heads, the per-token KV cache is <span class="mono">4·H·D·L</span> bytes. For Llama-3-70B at H = 64, D = 128, L = 80 that is 2.6 MB per token, or 84 GB at 32K context — completely impractical. Almost every modern open model attacks the H factor first, because H is the only term you can shrink architecturally without changing the operator's structure.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 320" xmlns="http://www.w3.org/2000/svg">
+      <!-- MHA -->
+      <g transform="translate(30,40)">
+        <text class="svg-text" x="105" y="-5" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#6b6359">MHA · 8 heads</text>
+        <!-- Q heads -->
+        <g transform="translate(0,15)">
+          <text class="svg-text svg-mono" x="105" y="12" text-anchor="middle" font-size="11" fill="#6b6359">Q heads (8)</text>
+          <g>
+            <rect x="0"   y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="26"  y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="52"  y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="78"  y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="104" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="130" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="156" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="182" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+          </g>
+        </g>
+        <!-- K -->
+        <g transform="translate(0,75)">
+          <text class="svg-text svg-mono" x="105" y="12" text-anchor="middle" font-size="11" fill="#6b6359">K heads (8)</text>
+          <g>
+            <rect x="0"   y="20" width="22" height="36" fill="#c8351b" opacity="0.6"/>
+            <rect x="26"  y="20" width="22" height="36" fill="#c8351b" opacity="0.6"/>
+            <rect x="52"  y="20" width="22" height="36" fill="#c8351b" opacity="0.6"/>
+            <rect x="78"  y="20" width="22" height="36" fill="#c8351b" opacity="0.6"/>
+            <rect x="104" y="20" width="22" height="36" fill="#c8351b" opacity="0.6"/>
+            <rect x="130" y="20" width="22" height="36" fill="#c8351b" opacity="0.6"/>
+            <rect x="156" y="20" width="22" height="36" fill="#c8351b" opacity="0.6"/>
+            <rect x="182" y="20" width="22" height="36" fill="#c8351b" opacity="0.6"/>
+          </g>
+        </g>
+        <!-- V -->
+        <g transform="translate(0,135)">
+          <text class="svg-text svg-mono" x="105" y="12" text-anchor="middle" font-size="11" fill="#6b6359">V heads (8)</text>
+          <g>
+            <rect x="0"   y="20" width="22" height="36" fill="#b8862f" opacity="0.7"/>
+            <rect x="26"  y="20" width="22" height="36" fill="#b8862f" opacity="0.7"/>
+            <rect x="52"  y="20" width="22" height="36" fill="#b8862f" opacity="0.7"/>
+            <rect x="78"  y="20" width="22" height="36" fill="#b8862f" opacity="0.7"/>
+            <rect x="104" y="20" width="22" height="36" fill="#b8862f" opacity="0.7"/>
+            <rect x="130" y="20" width="22" height="36" fill="#b8862f" opacity="0.7"/>
+            <rect x="156" y="20" width="22" height="36" fill="#b8862f" opacity="0.7"/>
+            <rect x="182" y="20" width="22" height="36" fill="#b8862f" opacity="0.7"/>
+          </g>
+        </g>
+        <text class="svg-text svg-serif" x="105" y="225" text-anchor="middle" font-size="13" fill="#c8351b" font-style="italic">KV cache = 8 + 8 = 16 slabs</text>
+      </g>
+
+      <!-- GQA -->
+      <g transform="translate(290,40)">
+        <text class="svg-text" x="105" y="-5" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#6b6359">GQA · 8Q / 2KV</text>
+        <g transform="translate(0,15)">
+          <text class="svg-text svg-mono" x="105" y="12" text-anchor="middle" font-size="11" fill="#6b6359">Q heads (8)</text>
+          <g>
+            <rect x="0" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="26" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="52" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="78" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="104" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="130" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="156" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="182" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+          </g>
+        </g>
+        <g transform="translate(0,75)">
+          <text class="svg-text svg-mono" x="105" y="12" text-anchor="middle" font-size="11" fill="#6b6359">K heads (2)</text>
+          <g>
+            <rect x="40"  y="20" width="48" height="36" fill="#c8351b" opacity="0.6" stroke="#c8351b" stroke-width="1.2"/>
+            <rect x="120" y="20" width="48" height="36" fill="#c8351b" opacity="0.6" stroke="#c8351b" stroke-width="1.2"/>
+            <!-- group lines -->
+            <line x1="11" y1="0" x2="40" y2="20" stroke="#6b6359" stroke-width="0.6" stroke-dasharray="2,2"/>
+            <line x1="63" y1="0" x2="64" y2="20" stroke="#6b6359" stroke-width="0.6" stroke-dasharray="2,2"/>
+            <line x1="115" y1="0" x2="120" y2="20" stroke="#6b6359" stroke-width="0.6" stroke-dasharray="2,2"/>
+            <line x1="167" y1="0" x2="144" y2="20" stroke="#6b6359" stroke-width="0.6" stroke-dasharray="2,2"/>
+          </g>
+        </g>
+        <g transform="translate(0,135)">
+          <text class="svg-text svg-mono" x="105" y="12" text-anchor="middle" font-size="11" fill="#6b6359">V heads (2)</text>
+          <g>
+            <rect x="40"  y="20" width="48" height="36" fill="#b8862f" opacity="0.7" stroke="#b8862f" stroke-width="1.2"/>
+            <rect x="120" y="20" width="48" height="36" fill="#b8862f" opacity="0.7" stroke="#b8862f" stroke-width="1.2"/>
+          </g>
+        </g>
+        <text class="svg-text svg-serif" x="105" y="225" text-anchor="middle" font-size="13" fill="#b8862f" font-style="italic">KV cache = 2 + 2 = 4 slabs · 4× smaller</text>
+      </g>
+
+      <!-- MQA -->
+      <g transform="translate(550,40)">
+        <text class="svg-text" x="105" y="-5" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#6b6359">MQA · 8Q / 1KV</text>
+        <g transform="translate(0,15)">
+          <text class="svg-text svg-mono" x="105" y="12" text-anchor="middle" font-size="11" fill="#6b6359">Q heads (8)</text>
+          <g>
+            <rect x="0" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="26" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="52" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="78" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="104" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="130" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="156" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="182" y="20" width="22" height="36" fill="#2e4a7b" opacity="0.7"/>
+          </g>
+        </g>
+        <g transform="translate(0,75)">
+          <text class="svg-text svg-mono" x="105" y="12" text-anchor="middle" font-size="11" fill="#6b6359">K head (1)</text>
+          <rect x="80" y="20" width="44" height="36" fill="#c8351b" opacity="0.6" stroke="#c8351b" stroke-width="1.2"/>
+        </g>
+        <g transform="translate(0,135)">
+          <text class="svg-text svg-mono" x="105" y="12" text-anchor="middle" font-size="11" fill="#6b6359">V head (1)</text>
+          <rect x="80" y="20" width="44" height="36" fill="#b8862f" opacity="0.7" stroke="#b8862f" stroke-width="1.2"/>
+        </g>
+        <text class="svg-text svg-serif" x="105" y="225" text-anchor="middle" font-size="13" fill="#4a6b3a" font-style="italic">KV cache = 1 + 1 = 2 slabs · 8× smaller</text>
+      </g>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 4.1</span>MQA collapses K and V to a single head shared across all queries; GQA keeps a few. The architecture genuinely changes — the parameter count drops, and the model must learn to route information differently.</figcaption>
+  </figure>
+
+  <p>Two consequences. First: the parameter count drops, so a model trained with full MHA has no equivalent set of weights to "lift" into MQA. Second: the inductive bias changes — heads that previously specialized in different K subspaces now share. Naive weight averaging from MHA → GQA gets you a head start, but the model is degraded until it is given more training signal.</p>
+
+  <p>The good news is that this gap closes fast. The GQA paper (Ainslie et al. 2023) found that <span class="hl-gold">~5% of original pretraining compute</span> recovered nearly all of the MHA quality, with the inference advantages of GQA fully retained. That's the cell where "uptraining" lives: a real architectural change, but the cost of learning the new operator is only a sliver of the cost of learning the language in the first place.</p>
+
+  <div class="formula">
+    cost(MHA → GQA) &nbsp; ≈ &nbsp; 0.05 · cost(pretraining)
+  </div>
+
+  <p>Llama-3 (all sizes, G = 8), Qwen-2/3 (G = 4), Mistral, and Command-R all ship GQA. They were either pretrained with GQA from scratch or uptrained from an MHA cousin.</p>
+
+  <h3>MLA — head compression done properly.</h3>
+  <p>The most sophisticated head-compression in production is DeepSeek-V3's <strong>Multi-head Latent Attention</strong>. Instead of dropping K/V heads, MLA down-projects each token to a small latent vector <span class="mono">c_KV ∈ ℝ^R</span> (typically <span class="mono">R = 512</span>) and caches only the latent. At attention time, an absorption trick merges the up-projection into <span class="mono">W_Q</span> so K and V are never reconstructed in the kernel. Per-head diversity is preserved; the cache shrinks by ~64× relative to MHA at no measurable quality cost.</p>
+
+  <div class="formula">
+    cache_MLA &nbsp;=&nbsp; <em>2 · R · L</em> &nbsp;bytes per token &nbsp;&nbsp;(vs <em>4 · H · D · L</em> for MHA)
+  </div>
+
+  <p>MLA is still architectural — the model has the down/up-projections baked into its weights — so you cannot lift an MHA checkpoint into MLA at runtime. But like GQA, the operator is still softmax attention over the full sequence, and the conversion is recoverable with continued pretraining. DeepSeek pretrained from scratch with MLA; for an existing checkpoint, the GQA-style uptraining recipe is the correct mental model.</p>
+</section>
+
+<!-- ===================================================================== -->
+<!-- SECTION V                                                             -->
+<!-- ===================================================================== -->
+<section id="s5">
+  <span class="section-num">§ V</span>
+  <h2>Compressing across tokens — sliding window &amp; sparse.</h2>
+  <p class="lede">This is the first half of Chapter 9. Where head compression shrunk the H factor, token compression attacks the N factor — the cache no longer grows linearly with sequence length, because there are positions the model can no longer see at all.</p>
+
+  <p>Standard attention is dense: every query attends to every preceding key. <strong>Sliding-window attention</strong> restricts each query to the last <span class="mono">W</span> keys, and the per-token cache becomes <span class="mono">4·W·H·D·L</span> — constant in N. <strong>Sparse attention</strong> (block-local + a few global tokens) similarly drops the dependence on N. Either way, the function the model is computing is no longer the same function: information about tokens outside the mask is gone.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 360" xmlns="http://www.w3.org/2000/svg">
+      <!-- Three masks side by side -->
+      <!-- Common header -->
+      <text class="svg-text" x="410" y="22" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#6b6359">CAUSAL MASK · ROWS = QUERIES, COLS = KEYS</text>
+
+      <!-- DENSE -->
+      <g transform="translate(50,55)">
+        <text class="svg-text svg-mono" x="100" y="-6" text-anchor="middle" font-size="12" fill="#1a1815">Dense causal (MHA)</text>
+        <!-- 12x12 lower triangle -->
+        <g>
+          <!-- background -->
+          <rect x="0" y="0" width="200" height="200" fill="#ebe1c7" stroke="#3d3833" stroke-width="1"/>
+          <!-- triangle fill -->
+          <g>
+            <path d="M0,0 L0,200 L200,200 Z" fill="#c8351b" opacity="0.55"/>
+          </g>
+        </g>
+        <text class="svg-text svg-serif" x="100" y="225" text-anchor="middle" font-size="13" fill="#1a1815" font-style="italic">every query sees every past key</text>
+        <text class="svg-text" x="100" y="245" text-anchor="middle" font-size="11" fill="#6b6359">N² connections</text>
+      </g>
+
+      <!-- SLIDING WINDOW -->
+      <g transform="translate(310,55)">
+        <text class="svg-text svg-mono" x="100" y="-6" text-anchor="middle" font-size="12" fill="#1a1815">Sliding window (W = 4)</text>
+        <rect x="0" y="0" width="200" height="200" fill="#ebe1c7" stroke="#3d3833" stroke-width="1"/>
+        <!-- band along diagonal: window of width 4 cells -->
+        <g>
+          <!-- generate diagonal band -->
+          <!-- 12x12 grid; cell ~16.6px -->
+          <!-- We approximate band -->
+          <path d="
+            M0,0   L0,16.7  L16.7,16.7  L16.7,0  Z
+            M0,16.7  L0,33.4  L33.4,33.4 L33.4,16.7 Z
+            M0,33.4  L0,50.1  L50.1,50.1 L50.1,33.4 Z
+            M0,50.1  L0,66.8  L66.8,66.8 L66.8,50.1 Z
+            M16.7,66.8 L16.7,83.5 L83.5,83.5 L83.5,66.8 Z
+            M33.4,83.5 L33.4,100.2 L100.2,100.2 L100.2,83.5 Z
+            M50.1,100.2 L50.1,116.9 L116.9,116.9 L116.9,100.2 Z
+            M66.8,116.9 L66.8,133.6 L133.6,133.6 L133.6,116.9 Z
+            M83.5,133.6 L83.5,150.3 L150.3,150.3 L150.3,133.6 Z
+            M100.2,150.3 L100.2,167.0 L167.0,167.0 L167.0,150.3 Z
+            M116.9,167.0 L116.9,183.7 L183.7,183.7 L183.7,167.0 Z
+            M133.6,183.7 L133.6,200.4 L200.4,200.4 L200.4,183.7 Z
+          " fill="#c8351b" opacity="0.55"/>
+        </g>
+        <text class="svg-text svg-serif" x="100" y="225" text-anchor="middle" font-size="13" fill="#1a1815" font-style="italic">each query sees only the last W keys</text>
+        <text class="svg-text" x="100" y="245" text-anchor="middle" font-size="11" fill="#6b6359">N · W connections</text>
+      </g>
+
+      <!-- SPARSE (block + global) -->
+      <g transform="translate(570,55)">
+        <text class="svg-text svg-mono" x="100" y="-6" text-anchor="middle" font-size="12" fill="#1a1815">Sparse (block + global)</text>
+        <rect x="0" y="0" width="200" height="200" fill="#ebe1c7" stroke="#3d3833" stroke-width="1"/>
+        <!-- block diagonal blocks of ~50x50 -->
+        <g>
+          <rect x="0"   y="0"   width="50" height="50" fill="#c8351b" opacity="0.55"/>
+          <rect x="50"  y="50"  width="50" height="50" fill="#c8351b" opacity="0.55"/>
+          <rect x="100" y="100" width="50" height="50" fill="#c8351b" opacity="0.55"/>
+          <rect x="150" y="150" width="50" height="50" fill="#c8351b" opacity="0.55"/>
+        </g>
+        <!-- global tokens: first 2 columns visible to all rows below diagonal -->
+        <g>
+          <rect x="0" y="0" width="14" height="200" fill="#b8862f" opacity="0.5"/>
+        </g>
+        <!-- triangular mask cover -->
+        <path d="M0,0 L200,0 L200,200 Z" fill="#f4ecd8"/>
+        <text class="svg-text svg-serif" x="100" y="225" text-anchor="middle" font-size="13" fill="#1a1815" font-style="italic">local blocks + a few global tokens</text>
+        <text class="svg-text" x="100" y="245" text-anchor="middle" font-size="11" fill="#6b6359">~N · √N connections</text>
+      </g>
+
+      <!-- bottom -->
+      <text class="svg-text svg-serif" x="410" y="335" text-anchor="middle" font-size="14" fill="#c8351b" font-style="italic">a different mask is a different operator — the model must be trained to use it</text>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 5.1</span>The mask is the operator. Restricting which keys a query may attend to is not a numerical trick — it changes what the layer can compute, and the model must be re-trained or heavily fine-tuned to make use of the new geometry.</figcaption>
+  </figure>
+
+  <p>Sliding-window attention has a partial escape route. Because each layer attends to its own window, deep stacks build up a larger effective receptive field — roughly <span class="mono">W × L</span>. Mistral-7B (W = 4K, L = 32) reaches an effective receptive field of ~128K tokens through layer stacking, and the KV cache becomes a <em>circular buffer</em> of fixed size W. But Mistral was pretrained with the windowed mask from scratch. You cannot take a dense Llama checkpoint, switch on a window, and expect anything good — direct attention is strictly stronger than indirect-through-layers attention, and the model has to learn how to route information through the relay.</p>
+
+  <p>Sparse attention (Longformer, BigBird, DeepSeek's NSA) is similar. The model has to learn that certain tokens are "global summary" tokens and that block-local attention is enough for the rest. That is a learned skill, not a free schedule swap. Even Gemma-2/3's hybrid pattern (every fifth layer is full attention) was trained that way from the start.</p>
+
+  <p class="marginalia">A nuance: short fine-tunes on a frozen backbone with a small windowed extension <em>can</em> work for some downstream tasks. But the underlying language modelling capability degrades unless you continue pretraining with the new mask.</p>
+</section>
+
+<!-- ===================================================================== -->
+<!-- SECTION VI                                                            -->
+<!-- ===================================================================== -->
+<section id="s6">
+  <span class="section-num">§ VI</span>
+  <h2>Linear attention, SSMs, and Mamba — softmax replaced.</h2>
+  <p class="lede">The second half of Chapter 9. Sliding window kept softmax but capped the receptive field at W. This family takes the more radical step: drop the softmax entirely so the entire past collapses into a fixed-size running state.</p>
+
+  <p>Standard softmax attention computes <span class="mono">softmax(QKᵀ)V</span> — the row-wise softmax forces the N×N score matrix to materialize. <strong>Linear attention</strong> replaces this with <span class="mono">φ(Q) · (φ(K)ᵀ V)</span> for a kernel feature map <span class="mono">φ</span>. The inner product is now D×D instead of N×N, and the entire past is summarized by a constant-size running state <span class="mono">S = Σ φ(K_t)ᵀ V_t</span>. The cache no longer grows with N at all.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 280" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(40,30)">
+        <text class="svg-text svg-mono" x="180" y="0" text-anchor="middle" font-size="13" fill="#6b6359">SOFTMAX ATTENTION</text>
+        <text class="svg-text svg-mono" x="180" y="38" text-anchor="middle" font-size="18" fill="#1a1815">y = softmax(QKᵀ / √d) · V</text>
+        <rect x="40" y="60" width="280" height="40" fill="#c8351b" opacity="0.18" stroke="#c8351b"/>
+        <text class="svg-text" x="180" y="85" text-anchor="middle" font-size="13" fill="#1a1815">QKᵀ ∈ ℝ^(N×N)  →  cost ∝ N²</text>
+      </g>
+
+      <g transform="translate(440,30)">
+        <text class="svg-text svg-mono" x="180" y="0" text-anchor="middle" font-size="13" fill="#6b6359">LINEAR ATTENTION</text>
+        <text class="svg-text svg-mono" x="180" y="38" text-anchor="middle" font-size="18" fill="#1a1815">y = φ(Q) · ( φ(K)ᵀ V )</text>
+        <rect x="40" y="60" width="280" height="40" fill="#4a6b3a" opacity="0.22" stroke="#4a6b3a"/>
+        <text class="svg-text" x="180" y="85" text-anchor="middle" font-size="13" fill="#1a1815">φ(K)ᵀV ∈ ℝ^(d×d)  →  cost ∝ N</text>
+      </g>
+
+      <g transform="translate(0,170)">
+        <text class="svg-text svg-serif" x="410" y="0" text-anchor="middle" font-size="14" fill="#1a1815" font-style="italic">The softmax is gone. Without it, the attention weights are no longer probabilities,</text>
+        <text class="svg-text svg-serif" x="410" y="22" text-anchor="middle" font-size="14" fill="#1a1815" font-style="italic">and the model's whole notion of "where to look" must be re-learned.</text>
+      </g>
+
+      <g transform="translate(0,225)">
+        <text class="svg-text svg-mono" x="410" y="0" text-anchor="middle" font-size="13" fill="#c8351b">Performer · Linformer · RetNet · RWKV · Mamba (a related family)</text>
+      </g>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 6.1</span>Linear attention is a structurally different operator. The matmul order is rearranged so that the size-N axis never collides with itself, but the price is that softmax — the only thing that gave attention its "soft retrieval" character — is gone.</figcaption>
+  </figure>
+
+  <p>Because softmax is what gives attention its sharp, query-dependent retrieval behaviour, removing it is not a free swap. Models trained from scratch with linear attention can match dense softmax attention on many benchmarks but typically lose ground on tasks that require precise long-range lookup (the proverbial "needle in a haystack"). RetNet, Mamba, RWKV, and similar architectures are essentially <em>different model families</em>, not patches to existing ones.</p>
+
+  <p>One escape route: <em>linearization</em>. Recent work (e.g., Mamba-in-Llama, attention distillation) shows you can take a softmax-attention checkpoint, swap in linear attention layers, and fine-tune to recover most of the original quality. But "fine-tune" here means tens of billions of tokens for a 7B model — well beyond what any task fine-tune costs.</p>
+</section>
+
+<!-- ===================================================================== -->
+<!-- SECTION VII                                                           -->
+<!-- ===================================================================== -->
+<section id="s7">
+  <span class="section-num">§ VII</span>
+  <h2>The verdict table.</h2>
+  <p class="lede">Now the answer to the student. Read this row by row; the first three columns are the verdict, the fourth column is what to do about it.</p>
+
+  <div class="verdict-table">
+    <div class="row head">
+      <div class="cell">Variant</div>
+      <div class="cell">Same math?</div>
+      <div class="cell">Cost to adopt</div>
+      <div class="cell">Reproducible by…</div>
+    </div>
+
+    <div class="row">
+      <div class="cell"><strong>FlashAttention 1 / 2 / 3</strong><br><span class="mono" style="font-size:0.8rem">PagedAttention</span></div>
+      <div class="cell">Yes (within FP rounding)</div>
+      <div class="cell"><span class="verdict-pill v-none">No retraining</span></div>
+      <div class="cell">Swap kernel at inference. <span class="mono">torch.nn.functional.scaled_dot_product_attention</span> already does it.</div>
+    </div>
+
+    <div class="row">
+      <div class="cell"><strong>MQA</strong><br><span class="mono" style="font-size:0.8rem">1 K/V head</span></div>
+      <div class="cell">No (fewer parameters)</div>
+      <div class="cell"><span class="verdict-pill v-light">Uptraining</span></div>
+      <div class="cell">Initialize from MHA by mean-pooling K/V across heads, then continue pretraining ≈5% of original tokens.</div>
+    </div>
+
+    <div class="row">
+      <div class="cell"><strong>GQA</strong><br><span class="mono" style="font-size:0.8rem">few K/V groups</span></div>
+      <div class="cell">No (fewer parameters)</div>
+      <div class="cell"><span class="verdict-pill v-light">Uptraining</span></div>
+      <div class="cell">Same recipe as MQA. ~5% works well; this is what Llama-3 (G=8) and Qwen-2/3 (G=4) ship.</div>
+    </div>
+
+    <div class="row">
+      <div class="cell"><strong>MLA</strong><br><span class="mono" style="font-size:0.8rem">latent rank R</span></div>
+      <div class="cell">No (latent compression)</div>
+      <div class="cell"><span class="verdict-pill v-light">Uptraining (or pretrain)</span></div>
+      <div class="cell">Down/up-projections are part of the weights. DeepSeek pretrained from scratch; for an existing model, use GQA-style continued pretraining.</div>
+    </div>
+
+    <div class="row">
+      <div class="cell"><strong>Sliding window</strong><br><span class="mono" style="font-size:0.8rem">e.g. Mistral W=4K</span></div>
+      <div class="cell">No (different mask)</div>
+      <div class="cell"><span class="verdict-pill v-heavy">Pretrain with it</span></div>
+      <div class="cell">Train from scratch with the windowed mask, or do heavy continued pretraining (≥10–20% of original tokens) on a dense checkpoint.</div>
+    </div>
+
+    <div class="row">
+      <div class="cell"><strong>Sparse / block-sparse</strong><br><span class="mono" style="font-size:0.8rem">Longformer, BigBird, NSA</span></div>
+      <div class="cell">No (different mask)</div>
+      <div class="cell"><span class="verdict-pill v-heavy">Pretrain with it</span></div>
+      <div class="cell">Treated as a new architecture. Dense → sparse conversion is research-grade; from-scratch is the safe path.</div>
+    </div>
+
+    <div class="row">
+      <div class="cell"><strong>Linear attention</strong><br><span class="mono" style="font-size:0.8rem">Performer, Linformer, RetNet, Mamba</span></div>
+      <div class="cell">No (no softmax)</div>
+      <div class="cell"><span class="verdict-pill v-heavy">New family</span></div>
+      <div class="cell">Pretrain a fresh model; or "linearize" a dense one with tens of billions of tokens of distillation.</div>
+    </div>
+  </div>
+
+  <div class="pull-quote">FlashAttention you adopt at runtime. GQA you adopt over a long weekend. Sliding window, sparse, and linear attention you adopt over a pretraining run.</div>
+</section>
+
+<!-- ===================================================================== -->
+<!-- SECTION VIII — Recipe                                                 -->
+<!-- ===================================================================== -->
+<section id="s8">
+  <span class="section-num">§ VIII</span>
+  <h2>A reproducible reproduction recipe.</h2>
+  <p class="lede">Knowing the verdict table is one thing. Running the comparison yourself — head-to-head, same data, same conditions — is what turns the table into a calibration in your head. So: what model size and dataset are large enough to give a real signal, but small enough to fit on a sane budget?</p>
+
+  <p>The honest answer: there is a sweet spot around <span class="hl">125M to 410M parameters, trained on 5–20 billion tokens of FineWeb-Edu or SlimPajama</span>. Below this the numbers are too noisy to distinguish architectural choices from seed variance. Above this the reproducibility budget collapses.</p>
+
+  <div class="stat-grid">
+    <div class="stat"><span class="num">160M</span><span class="lbl">Params · model size</span></div>
+    <div class="stat"><span class="num">10B</span><span class="lbl">Tokens · per ablation</span></div>
+    <div class="stat"><span class="num">2K</span><span class="lbl">Context length</span></div>
+    <div class="stat"><span class="num">~6h</span><span class="lbl">On a single H100</span></div>
+    <div class="stat"><span class="num">~$15</span><span class="lbl">Per ablation, cloud</span></div>
+  </div>
+
+  <p>This sizing is roughly Pythia-160M's footprint. It is large enough to show meaningful perplexity gaps between architectures and small enough to run a clean grid in a day. Pythia, GPT-Neo-125M, TinyLlama-1.1B, and SmolLM-135M are all reasonable starting points; <span class="mono">nanoGPT</span> is the simplest scaffold to modify.</p>
+
+  <div class="recipe">
+    <h4>Model</h4>
+    <ul>
+      <li>Decoder-only Transformer, 12 layers, 12 heads, <span class="mono">d_model = 768</span> → ≈160M params.</li>
+      <li>RoPE positional encoding (so window/sparse variants behave the way modern papers test them).</li>
+      <li>Standard init: GPT-2-style, no exotic tricks.</li>
+    </ul>
+
+    <h4>Data</h4>
+    <ul>
+      <li><span class="mono">FineWeb-Edu</span> (10B-token subset) — clean, well-curated web text.</li>
+      <li>Or <span class="mono">SlimPajama-627B</span> sampled to 10B if you want a more diverse mix.</li>
+      <li>Use a single shared tokenizer (e.g. Llama-2 32K BPE) so perplexity is comparable.</li>
+    </ul>
+
+    <h4>Training budget per variant</h4>
+    <ul>
+      <li>10B tokens · context 2048 · batch 0.5M tokens · ≈20K steps.</li>
+      <li>AdamW, cosine schedule, peak LR 6e-4, warmup 1%, weight decay 0.1.</li>
+      <li>Single H100 (or 8× A10G) → ~6 hours per run. Three seeds per variant for noise control.</li>
+    </ul>
+
+    <h4>Variants to compare</h4>
+    <ul>
+      <li><span class="mono">baseline</span> — dense MHA + FlashAttention (controls for kernel speed).</li>
+      <li><span class="mono">gqa-2</span>, <span class="mono">gqa-4</span>, <span class="mono">mqa</span> — vary the K/V group count (Ch 8).</li>
+      <li><span class="mono">mla-128</span> — latent rank 128, the cheapest serious MLA test (Ch 8).</li>
+      <li><span class="mono">swa-256</span>, <span class="mono">swa-1024</span> — sliding window with two widths (Ch 9).</li>
+      <li><span class="mono">block-sparse</span> — block-local + small global token set (Ch 9).</li>
+      <li><span class="mono">linear-elu</span> — linear attention with an ELU+1 feature map (Ch 9).</li>
+    </ul>
+
+    <h4>Evaluation</h4>
+    <ul>
+      <li>Validation perplexity on a held-out FineWeb-Edu shard (the headline number).</li>
+      <li>HellaSwag, ARC-easy, LAMBADA at this scale — they're noisy but track real capability.</li>
+      <li>Decode throughput at <span class="mono">N = 1, 4, 32</span> batch and 4K, 16K context to expose the systems gap.</li>
+      <li>KV-cache memory per token — the actual reason MQA/GQA exist.</li>
+    </ul>
+
+    <h4>What good looks like</h4>
+    <ul>
+      <li>FlashAttention swap: identical loss curve, real wall-clock speedup.</li>
+      <li>GQA-4 vs MHA: ≤0.05 perplexity gap, 2–4× smaller KV cache.</li>
+      <li>SWA-1024: small perplexity hit at this scale, big throughput win at long context.</li>
+      <li>Linear attention: visible perplexity gap; exists to be a baseline you can beat.</li>
+    </ul>
+  </div>
+
+  <p>If you have to pick a single configuration: <strong>160M params, 10B tokens of FineWeb-Edu, three seeds, one H100, six hours per ablation.</strong> That gives a believable grid in under a week and is exactly the regime where most modern attention papers do their controlled ablations before scaling up. The published claims about GQA, sliding window, MLA, and linear attention were all initially validated at roughly this scale.</p>
+</section>
+
+<!-- ===================================================================== -->
+<!-- SECTION IX — Interactive                                              -->
+<!-- ===================================================================== -->
+<section id="s9">
+  <span class="section-num">§ IX</span>
+  <h2>Pick a variant — see the cost.</h2>
+  <p class="lede">A small interactive to make the verdict table physical. Pick a variant and the panel updates to tell you, in the simplest terms, what it actually takes to put that variant into a running model.</p>
+
+  <div class="interactive">
+    <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1.5rem">
+      <button class="ghost active" data-variant="flash">FlashAttention</button>
+      <button class="ghost" data-variant="gqa">GQA</button>
+      <button class="ghost" data-variant="mqa">MQA</button>
+      <button class="ghost" data-variant="mla">MLA</button>
+      <button class="ghost" data-variant="swa">Sliding window</button>
+      <button class="ghost" data-variant="sparse">Block-sparse</button>
+      <button class="ghost" data-variant="linear">Linear attention</button>
+    </div>
+
+    <div id="variant-card" style="background:var(--paper);border:1px solid rgba(40,30,20,0.15);padding:1.5rem;border-radius:3px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start">
+        <div>
+          <div class="small-caps" style="margin-bottom:0.4rem">Same math as MHA?</div>
+          <div id="vc-same" style="font-family:'Fraunces',serif;font-style:italic;font-size:1.6rem;color:#1a1815">Yes — bit-equal up to FP rounding.</div>
+
+          <div class="small-caps" style="margin-bottom:0.4rem;margin-top:1.2rem">What changes</div>
+          <p id="vc-change" style="margin:0;color:var(--ink-soft)">The schedule on the GPU. The kernel never materializes the N×N score matrix — it tiles Q, K, V into SRAM-resident blocks and streams the softmax.</p>
+
+          <div class="small-caps" style="margin-bottom:0.4rem;margin-top:1.2rem">What you do</div>
+          <p id="vc-action" style="margin:0;color:var(--ink-soft)">Nothing to weights. Use <span class="mono">torch.nn.functional.scaled_dot_product_attention</span> or the <span class="mono">flash-attn</span> package, then run inference as before.</p>
+        </div>
+
+        <div style="border-left:1px solid rgba(40,30,20,0.15);padding-left:1.5rem">
+          <div class="small-caps" style="margin-bottom:0.4rem">Verdict</div>
+          <div id="vc-verdict" class="verdict-pill v-none" style="font-size:0.85rem">No retraining</div>
+
+          <div class="small-caps" style="margin-bottom:0.4rem;margin-top:1.2rem">Reproducibility recipe</div>
+          <table style="width:100%;border-collapse:collapse;font-family:'Inter Tight',sans-serif;font-size:0.92rem">
+            <tr><td style="padding:0.4rem 0;color:var(--ink-faint);width:50%">Model size</td><td id="vc-size" style="padding:0.4rem 0">any pretrained</td></tr>
+            <tr style="border-top:1px solid rgba(40,30,20,0.08)"><td style="padding:0.4rem 0;color:var(--ink-faint)">Data needed</td><td id="vc-data" style="padding:0.4rem 0">none — pure runtime swap</td></tr>
+            <tr style="border-top:1px solid rgba(40,30,20,0.08)"><td style="padding:0.4rem 0;color:var(--ink-faint)">Tokens to (re)train</td><td id="vc-tokens" style="padding:0.4rem 0;font-family:'JetBrains Mono',monospace;color:var(--accent)">0</td></tr>
+            <tr style="border-top:1px solid rgba(40,30,20,0.08)"><td style="padding:0.4rem 0;color:var(--ink-faint)">Hardware</td><td id="vc-hw" style="padding:0.4rem 0">1× H100, runtime only</td></tr>
+            <tr style="border-top:1px solid rgba(40,30,20,0.08)"><td style="padding:0.4rem 0;color:var(--ink-faint)">Wall clock</td><td id="vc-time" style="padding:0.4rem 0">minutes</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p>The point of the interactive is the leap when you click from <em>FlashAttention</em> to <em>Linear attention</em>: you go from a runtime flag to a pretraining run. Two operations that get put in the same sentence in survey papers, but are not the same kind of object at all.</p>
+</section>
+
+<!-- ===================================================================== -->
+<!-- SECTION X — Closing                                                   -->
+<!-- ===================================================================== -->
+<section>
+  <span class="section-num">§ X</span>
+  <h2>Closing.</h2>
+  <p class="lede">Sharpen the line that runs through Chapters 8, 9, and 10 and you have the durable rule.</p>
+
+  <p>FlashAttention (Ch 10) is the textbook case of a systems optimization: the math is identical, the schedule is smarter, no retraining required. Compressing across heads (Ch 8) — MQA, GQA, MLA — is an architecture change but a forgiving one; uptraining on a sliver of the original token budget is enough. Compressing across tokens (Ch 9) — sliding window, sparse, linear, SSMs, Mamba — are operator-level changes that ask the model to learn how to compute attention in a new way, and you owe them a pretraining run.</p>
+
+  <p>The reproduction recipe — 160M params, 10B FineWeb-Edu tokens, one H100 — is small enough that the entire grid fits in a week of cloud spend. Most of the published claims in the attention literature were validated at exactly this scale before being scaled up. There is no good reason for any of these architectural decisions to feel mysterious.</p>
+
+  <div class="ornament">· · ·</div>
+
+  <p style="text-align:center;font-style:italic;color:var(--ink-faint)">Pick a variant. Train it. Watch the loss curve. The picture this essay drew will become a calibration in your head — and you'll never again confuse a kernel rewrite with a pretraining decision.</p>
+</section>
+
+<footer>
+  <p class="small-caps">Vizuara · Inference Engineering</p>
+  <p style="margin-top:1rem;font-size:1rem;font-style:italic">A visual companion to Chapters 8, 9, and 10.</p>
+  <p style="margin-top:2rem;font-size:0.85rem;color:#bda88f">
+    <a href="visual-walkthroughs.html" style="color:#e08a76;text-decoration:none">← back to the library</a>
+  </p>
+</footer>
+
+</main>
+
+<script>
+(function(){
+  const data = {
+    flash: {
+      same: "Yes — bit-equal up to FP rounding.",
+      change: "The schedule on the GPU. The kernel never materializes the N×N score matrix — it tiles Q, K, V into SRAM-resident blocks and streams the softmax.",
+      action: "Nothing to weights. Use <span class='mono'>torch.nn.functional.scaled_dot_product_attention</span> or the <span class='mono'>flash-attn</span> package, then run inference as before.",
+      verdict: "No retraining",
+      verdictClass: "v-none",
+      size: "any pretrained",
+      dataNeeded: "none — pure runtime swap",
+      tokens: "0",
+      hw: "1× H100, runtime only",
+      time: "minutes"
+    },
+    gqa: {
+      same: "No — fewer K/V projections, fewer parameters.",
+      change: "Heads are grouped; multiple Q heads share one K and one V head. Architecture and parameter count both shift.",
+      action: "Initialize K/V by mean-pooling across heads from an MHA checkpoint, then continue pretraining on the original data.",
+      verdict: "Light uptraining",
+      verdictClass: "v-light",
+      size: "160M for ablations · 7B+ for production",
+      dataNeeded: "FineWeb-Edu / SlimPajama",
+      tokens: "≈ 5% of original pretraining",
+      hw: "1× H100 for 160M, multi-node for 7B+",
+      time: "~6 h at 160M scale"
+    },
+    mqa: {
+      same: "No — only one shared K and V head.",
+      change: "All Q heads attend through a single K/V projection. Cache shrinks 8× for an 8-head model. Quality is sensitive at small scales.",
+      action: "Same recipe as GQA, but uptraining tends to need more tokens since the bias change is larger.",
+      verdict: "Uptraining (heavier)",
+      verdictClass: "v-light",
+      size: "160M for ablations · best at ≥1B",
+      dataNeeded: "FineWeb-Edu / SlimPajama",
+      tokens: "5–10% of original pretraining",
+      hw: "1× H100 for 160M",
+      time: "~6 h at 160M scale"
+    },
+    mla: {
+      same: "No — K and V are stored as a low-rank latent c_KV.",
+      change: "Each token is down-projected to a small latent vector (rank R ≈ 512) before caching. The absorption trick merges the up-projection into W_Q so K is never reconstructed at decode time.",
+      action: "Pretrain from scratch with the down/up-projections in place (DeepSeek-V3 path). For an existing checkpoint, GQA-style continued pretraining is the right mental model.",
+      verdict: "Uptraining (or pretrain)",
+      verdictClass: "v-light",
+      size: "160M for ablations · production at ≥7B",
+      dataNeeded: "FineWeb-Edu / SlimPajama",
+      tokens: "≈ 5–10% (uptrain) or full pretrain",
+      hw: "1× H100 for 160M",
+      time: "~7 h at 160M scale"
+    },
+    swa: {
+      same: "No — each query sees only the last W keys.",
+      change: "The attention mask becomes a diagonal band. Receptive field grows through layer stacking, but every layer is windowed.",
+      action: "Pretrain with the windowed mask from scratch. Heavy continued pretraining works for short windows on a dense checkpoint, but quality is fragile.",
+      verdict: "Pretrain with it",
+      verdictClass: "v-heavy",
+      size: "160M baseline · 7B for real claims",
+      dataNeeded: "FineWeb-Edu / SlimPajama, ≥4K context",
+      tokens: "10B+ for 160M · full pretrain for 7B",
+      hw: "1× H100 (160M) · multi-GPU (7B)",
+      time: "~10 h at 160M scale"
+    },
+    sparse: {
+      same: "No — fixed sparse pattern (block-local + global tokens).",
+      change: "Most queries see a small block of nearby keys plus a few global summary tokens. Information has to route through the global tokens.",
+      action: "Treat as a new architecture. Pretrain from scratch. Conversion from dense is research-grade and not turn-key.",
+      verdict: "Pretrain with it",
+      verdictClass: "v-heavy",
+      size: "160M baseline · 7B+ for production",
+      dataNeeded: "Long-context corpus (≥8K)",
+      tokens: "10B+ for 160M · full pretrain for 7B",
+      hw: "1× H100 (160M) · multi-GPU (7B)",
+      time: "~12 h at 160M scale"
+    },
+    linear: {
+      same: "No — softmax is replaced by a kernel feature map.",
+      change: "Attention becomes φ(Q)·(φ(K)ᵀV), an O(N) operator. The probability-weighted retrieval behaviour is gone; the model has to learn a different routing.",
+      action: "Pretrain a fresh model, or distill a softmax-attention model into a linear-attention one (tens of billions of tokens).",
+      verdict: "New model family",
+      verdictClass: "v-heavy",
+      size: "160M baseline · 1.3B+ for credibility",
+      dataNeeded: "FineWeb-Edu / SlimPajama, long context helpful",
+      tokens: "≥10B for 160M · 100B+ for 1.3B",
+      hw: "1× H100 (160M) · multi-GPU (1.3B+)",
+      time: "~10 h at 160M scale"
+    }
+  };
+
+  const buttons = document.querySelectorAll('[data-variant]');
+  const fields = {
+    same: document.getElementById('vc-same'),
+    change: document.getElementById('vc-change'),
+    action: document.getElementById('vc-action'),
+    verdict: document.getElementById('vc-verdict'),
+    size: document.getElementById('vc-size'),
+    dataNeeded: document.getElementById('vc-data'),
+    tokens: document.getElementById('vc-tokens'),
+    hw: document.getElementById('vc-hw'),
+    time: document.getElementById('vc-time')
+  };
+
+  function render(key){
+    const d = data[key];
+    fields.same.textContent = d.same;
+    fields.change.innerHTML = d.change;
+    fields.action.innerHTML = d.action;
+    fields.verdict.textContent = d.verdict;
+    fields.verdict.className = 'verdict-pill ' + d.verdictClass;
+    fields.size.textContent = d.size;
+    fields.dataNeeded.textContent = d.dataNeeded;
+    fields.tokens.textContent = d.tokens;
+    fields.hw.textContent = d.hw;
+    fields.time.textContent = d.time;
+  }
+
+  buttons.forEach(b => {
+    b.addEventListener('click', () => {
+      buttons.forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      render(b.dataset.variant);
+    });
+  });
+
+  render('flash');
+})();
+</script>
+
+</body>
+</html>
