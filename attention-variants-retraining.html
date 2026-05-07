@@ -595,15 +595,16 @@
 <nav class="toc">
   <h2>Contents</h2>
   <ol class="toc-list">
-    <li><span class="num">I</span><a href="#s1">The student's question, refined</a><span class="pg">p. 01</span></li>
-    <li><span class="num">II</span><a href="#s2">The one axis that splits the zoo</a><span class="pg">p. 02</span></li>
+    <li><span class="num">I</span><a href="#s1">Two kinds of object, one shared name</a><span class="pg">p. 01</span></li>
+    <li><span class="num">II</span><a href="#s2">One axis, three buckets</a><span class="pg">p. 02</span></li>
     <li><span class="num">III</span><a href="#s3">FlashAttention — same math, smarter schedule</a><span class="pg">p. 03</span></li>
-    <li><span class="num">IV</span><a href="#s4">MQA &amp; GQA — fewer K/V projections</a><span class="pg">p. 04</span></li>
-    <li><span class="num">V</span><a href="#s5">Sliding window &amp; sparse — fewer keys per query</a><span class="pg">p. 05</span></li>
-    <li><span class="num">VI</span><a href="#s6">Linear attention — softmax replaced</a><span class="pg">p. 06</span></li>
-    <li><span class="num">VII</span><a href="#s7">The verdict table</a><span class="pg">p. 07</span></li>
-    <li><span class="num">VIII</span><a href="#s8">A reproducible reproduction recipe</a><span class="pg">p. 08</span></li>
-    <li><span class="num">IX</span><a href="#s9">Pick a variant — see the cost</a><span class="pg">p. 09</span></li>
+    <li><span class="num">IV</span><a href="#s4">Compressing across heads — MQA, GQA, MLA</a><span class="pg">p. 04</span></li>
+    <li><span class="num">V</span><a href="#s5">Compressing across tokens — sliding window and sparse</a><span class="pg">p. 05</span></li>
+    <li><span class="num">VI</span><a href="#s6">Linear attention, SSMs, and Mamba</a><span class="pg">p. 06</span></li>
+    <li><span class="num">VII</span><a href="#s7">The table</a><span class="pg">p. 07</span></li>
+    <li><span class="num">VIII</span><a href="#s8">Running the comparison yourself</a><span class="pg">p. 08</span></li>
+    <li><span class="num">IX</span><a href="#s9">Pick a variant, see the cost</a><span class="pg">p. 09</span></li>
+    <li><span class="num">X</span><a href="#s10">Closing</a><span class="pg">p. 10</span></li>
   </ol>
 </nav>
 
@@ -627,7 +628,7 @@
 <!-- ===================================================================== -->
 <section id="s2">
   <span class="section-num">§ II</span>
-  <h2>The one axis that splits the zoo.</h2>
+  <h2>One axis, three buckets.</h2>
   <p class="lede">Pin every attention variant to a single axis: <em>does it produce the same output as standard multi-head attention, given the same trained weights?</em></p>
 
   <figure>
@@ -919,7 +920,7 @@
 <!-- ===================================================================== -->
 <section id="s5">
   <span class="section-num">§ V</span>
-  <h2>Compressing across tokens — sliding window &amp; sparse.</h2>
+  <h2>Compressing across tokens — sliding window and sparse.</h2>
   <p class="lede">This is the first half of Chapter 9. Where head compression shrunk the H factor, token compression attacks the N factor — the cache no longer grows linearly with sequence length, because there are positions the model can no longer see at all.</p>
 
   <p>Standard attention is dense: every query attends to every preceding key. <strong>Sliding-window attention</strong> restricts each query to the last <span class="mono">W</span> keys, and the per-token cache becomes <span class="mono">4·W·H·D·L</span> — constant in N. <strong>Sparse attention</strong> (block-local + a few global tokens) similarly drops the dependence on N. Either way, the function the model is computing is no longer the same function: information about tokens outside the mask is gone.</p>
@@ -1013,7 +1014,7 @@
 <!-- ===================================================================== -->
 <section id="s6">
   <span class="section-num">§ VI</span>
-  <h2>Linear attention, SSMs, and Mamba — softmax replaced.</h2>
+  <h2>Linear attention, SSMs, and Mamba.</h2>
   <p class="lede">The second half of Chapter 9. Sliding window kept softmax but capped the receptive field at W. This family takes the more radical step: drop the softmax entirely so the entire past collapses into a fixed-size running state.</p>
 
   <p>Standard softmax attention computes <span class="mono">softmax(QKᵀ)V</span> — the row-wise softmax forces the N×N score matrix to materialize. <strong>Linear attention</strong> replaces this with <span class="mono">φ(Q) · (φ(K)ᵀ V)</span> for a kernel feature map <span class="mono">φ</span>. The inner product is now D×D instead of N×N, and the entire past is summarized by a constant-size running state <span class="mono">S = Σ φ(K_t)ᵀ V_t</span>. The cache no longer grows with N at all.</p>
@@ -1056,7 +1057,7 @@
 <!-- ===================================================================== -->
 <section id="s7">
   <span class="section-num">§ VII</span>
-  <h2>The verdict table.</h2>
+  <h2>The table.</h2>
   <p class="lede">Now the answer to the student. Read this row by row; the first three columns are the verdict, the fourth column is what to do about it.</p>
 
   <div class="verdict-table">
@@ -1125,7 +1126,7 @@
 <!-- ===================================================================== -->
 <section id="s8">
   <span class="section-num">§ VIII</span>
-  <h2>A reproducible reproduction recipe.</h2>
+  <h2>Running the comparison yourself.</h2>
   <p class="lede">Knowing the verdict table is one thing. Running the comparison yourself — head-to-head, same data, same conditions — is what turns the table into a calibration in your head. So: what model size and dataset are large enough to give a real signal, but small enough to fit on a sane budget?</p>
 
   <p>The honest answer: there is a sweet spot around <span class="hl">125M to 410M parameters, trained on 5–20 billion tokens of FineWeb-Edu or SlimPajama</span>. Below this the numbers are too noisy to distinguish architectural choices from seed variance. Above this the reproducibility budget collapses.</p>
@@ -1197,7 +1198,7 @@
 <!-- ===================================================================== -->
 <section id="s9">
   <span class="section-num">§ IX</span>
-  <h2>Pick a variant — see the cost.</h2>
+  <h2>Pick a variant, see the cost.</h2>
   <p class="lede">A small interactive to make the verdict table physical. Pick a variant and the panel updates to tell you, in the simplest terms, what it actually takes to put that variant into a running model.</p>
 
   <div class="interactive">
@@ -1247,7 +1248,7 @@
 <!-- ===================================================================== -->
 <!-- SECTION X — Closing                                                   -->
 <!-- ===================================================================== -->
-<section>
+<section id="s10">
   <span class="section-num">§ X</span>
   <h2>Closing.</h2>
   <p class="lede">Sharpen the line that runs through Chapters 8, 9, and 10 and you have the durable rule.</p>
