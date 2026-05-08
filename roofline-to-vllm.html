@@ -591,120 +591,103 @@
   <p>The cache is the obvious fix. After computing each new token's K and V, store them. At step <span class="mono">t</span>, only one <em>new</em> token's K and V are computed; the rest are read from cache. Per-step work drops from <span class="mono">O(N)</span> to <span class="mono">O(1)</span>. Total work over the sequence drops from <span class="mono">O(N²)</span> to <span class="mono">O(N)</span>.</p>
 
   <figure>
-    <svg viewBox="0 0 820 360" xmlns="http://www.w3.org/2000/svg">
-      <!-- Two timelines -->
-
-      <!-- NAIVE -->
+    <svg viewBox="0 0 820 480" xmlns="http://www.w3.org/2000/svg">
+      <!-- ===== NAIVE TIMELINE ===== -->
       <g transform="translate(40,30)">
         <text class="svg-text" x="0" y="0" font-size="11" letter-spacing="0.15em" fill="#6b6359">NAIVE — RECOMPUTE EVERYTHING EVERY STEP</text>
-        <!-- 6 columns of growing rectangles -->
-        <g transform="translate(0,20)">
-          <!-- Step 1 -->
-          <g transform="translate(0,0)">
-            <rect x="0" y="60" width="40" height="20" fill="#c8351b" opacity="0.7"/>
-            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=1</text>
-          </g>
-          <!-- Step 2 -->
-          <g transform="translate(60,0)">
-            <rect x="0" y="40" width="40" height="40" fill="#c8351b" opacity="0.7"/>
-            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=2</text>
-          </g>
-          <!-- Step 3 -->
-          <g transform="translate(120,0)">
-            <rect x="0" y="20" width="40" height="60" fill="#c8351b" opacity="0.7"/>
-            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=3</text>
-          </g>
-          <!-- Step 4 -->
-          <g transform="translate(180,0)">
-            <rect x="0" y="0" width="40" height="80" fill="#c8351b" opacity="0.7"/>
-            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=4</text>
-          </g>
-          <!-- Step 5 -->
-          <g transform="translate(240,0)">
-            <rect x="0" y="-20" width="40" height="100" fill="#c8351b" opacity="0.7"/>
-            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=5</text>
-          </g>
-          <!-- Step 6 -->
-          <g transform="translate(300,0)">
-            <rect x="0" y="-40" width="40" height="120" fill="#c8351b" opacity="0.7"/>
-            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=6</text>
-          </g>
-        </g>
-        <text class="svg-text svg-serif" x="170" y="160" text-anchor="middle" font-size="13" fill="#c8351b" font-style="italic">work per step grows linearly</text>
-        <text class="svg-text" x="170" y="180" text-anchor="middle" font-size="11" fill="#6b6359">total: O(N²)</text>
+        <text class="svg-text svg-serif" x="0" y="20" font-size="13" fill="#c8351b" font-style="italic">work per step grows linearly · total: O(N²)</text>
 
-        <!-- A clock -->
-        <g transform="translate(380,55)">
-          <circle cx="0" cy="0" r="32" fill="none" stroke="#1a1815" stroke-width="2"/>
-          <line x1="0" y1="0" x2="0" y2="-22" stroke="#c8351b" stroke-width="2.5"/>
-          <line x1="0" y1="0" x2="20" y2="6" stroke="#c8351b" stroke-width="2.5"/>
+        <!-- bars baseline at y=170; bars grow upward -->
+        <g>
+          <line x1="0" y1="170" x2="380" y2="170" stroke="#1a1815" stroke-width="0.8"/>
+
+          <rect x="0"   y="150" width="40" height="20"  fill="#c8351b" opacity="0.7"/>
+          <text class="svg-mono svg-text" x="20"  y="190" text-anchor="middle" font-size="10" fill="#1a1815">t=1</text>
+
+          <rect x="60"  y="130" width="40" height="40"  fill="#c8351b" opacity="0.7"/>
+          <text class="svg-mono svg-text" x="80"  y="190" text-anchor="middle" font-size="10" fill="#1a1815">t=2</text>
+
+          <rect x="120" y="110" width="40" height="60"  fill="#c8351b" opacity="0.7"/>
+          <text class="svg-mono svg-text" x="140" y="190" text-anchor="middle" font-size="10" fill="#1a1815">t=3</text>
+
+          <rect x="180" y="90"  width="40" height="80"  fill="#c8351b" opacity="0.7"/>
+          <text class="svg-mono svg-text" x="200" y="190" text-anchor="middle" font-size="10" fill="#1a1815">t=4</text>
+
+          <rect x="240" y="70"  width="40" height="100" fill="#c8351b" opacity="0.7"/>
+          <text class="svg-mono svg-text" x="260" y="190" text-anchor="middle" font-size="10" fill="#1a1815">t=5</text>
+
+          <rect x="300" y="50"  width="40" height="120" fill="#c8351b" opacity="0.7"/>
+          <text class="svg-mono svg-text" x="320" y="190" text-anchor="middle" font-size="10" fill="#1a1815">t=6</text>
+        </g>
+
+        <!-- clock at right -->
+        <g transform="translate(440,110)">
+          <circle cx="0" cy="0" r="34" fill="none" stroke="#1a1815" stroke-width="2"/>
+          <line x1="0" y1="0" x2="0" y2="-24" stroke="#c8351b" stroke-width="2.5"/>
+          <line x1="0" y1="0" x2="22" y2="6" stroke="#c8351b" stroke-width="2.5"/>
           <circle cx="0" cy="0" r="2.5" fill="#1a1815"/>
-          <text class="svg-mono svg-text" x="0" y="55" text-anchor="middle" font-size="11" fill="#c8351b" font-weight="700">~32× slower</text>
+          <text class="svg-mono svg-text" x="0" y="60" text-anchor="middle" font-size="11" fill="#c8351b" font-weight="700">~32× slower</text>
         </g>
       </g>
 
-      <!-- WITH KV CACHE -->
-      <g transform="translate(40,210)">
+      <!-- ===== WITH KV CACHE TIMELINE ===== -->
+      <g transform="translate(40,260)">
         <text class="svg-text" x="0" y="0" font-size="11" letter-spacing="0.15em" fill="#6b6359">WITH KV CACHE — REUSE PAST K, V</text>
-        <g transform="translate(0,20)">
-          <!-- All steps same height -->
-          <g transform="translate(0,0)">
-            <rect x="0" y="60" width="40" height="20" fill="#4a6b3a" opacity="0.75"/>
-            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=1</text>
-          </g>
-          <g transform="translate(60,0)">
-            <rect x="0" y="60" width="40" height="20" fill="#4a6b3a" opacity="0.75"/>
-            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=2</text>
-          </g>
-          <g transform="translate(120,0)">
-            <rect x="0" y="60" width="40" height="20" fill="#4a6b3a" opacity="0.75"/>
-            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=3</text>
-          </g>
-          <g transform="translate(180,0)">
-            <rect x="0" y="60" width="40" height="20" fill="#4a6b3a" opacity="0.75"/>
-            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=4</text>
-          </g>
-          <g transform="translate(240,0)">
-            <rect x="0" y="60" width="40" height="20" fill="#4a6b3a" opacity="0.75"/>
-            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=5</text>
-          </g>
-          <g transform="translate(300,0)">
-            <rect x="0" y="60" width="40" height="20" fill="#4a6b3a" opacity="0.75"/>
-            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=6</text>
-          </g>
-        </g>
-        <text class="svg-text svg-serif" x="170" y="120" text-anchor="middle" font-size="13" fill="#4a6b3a" font-style="italic">flat: each step is constant work</text>
-        <text class="svg-text" x="170" y="140" text-anchor="middle" font-size="11" fill="#6b6359">total: O(N)</text>
+        <text class="svg-text svg-serif" x="0" y="20" font-size="13" fill="#4a6b3a" font-style="italic">flat: each step is constant work · total: O(N)</text>
 
-        <!-- A faster clock -->
-        <g transform="translate(380,55)">
-          <circle cx="0" cy="0" r="32" fill="none" stroke="#1a1815" stroke-width="2"/>
-          <line x1="0" y1="0" x2="0" y2="-22" stroke="#4a6b3a" stroke-width="2.5"/>
-          <line x1="0" y1="0" x2="-12" y2="-12" stroke="#4a6b3a" stroke-width="2.5"/>
+        <g>
+          <line x1="0" y1="170" x2="380" y2="170" stroke="#1a1815" stroke-width="0.8"/>
+
+          <rect x="0"   y="150" width="40" height="20" fill="#4a6b3a" opacity="0.78"/>
+          <text class="svg-mono svg-text" x="20"  y="190" text-anchor="middle" font-size="10" fill="#1a1815">t=1</text>
+
+          <rect x="60"  y="150" width="40" height="20" fill="#4a6b3a" opacity="0.78"/>
+          <text class="svg-mono svg-text" x="80"  y="190" text-anchor="middle" font-size="10" fill="#1a1815">t=2</text>
+
+          <rect x="120" y="150" width="40" height="20" fill="#4a6b3a" opacity="0.78"/>
+          <text class="svg-mono svg-text" x="140" y="190" text-anchor="middle" font-size="10" fill="#1a1815">t=3</text>
+
+          <rect x="180" y="150" width="40" height="20" fill="#4a6b3a" opacity="0.78"/>
+          <text class="svg-mono svg-text" x="200" y="190" text-anchor="middle" font-size="10" fill="#1a1815">t=4</text>
+
+          <rect x="240" y="150" width="40" height="20" fill="#4a6b3a" opacity="0.78"/>
+          <text class="svg-mono svg-text" x="260" y="190" text-anchor="middle" font-size="10" fill="#1a1815">t=5</text>
+
+          <rect x="300" y="150" width="40" height="20" fill="#4a6b3a" opacity="0.78"/>
+          <text class="svg-mono svg-text" x="320" y="190" text-anchor="middle" font-size="10" fill="#1a1815">t=6</text>
+        </g>
+
+        <g transform="translate(440,110)">
+          <circle cx="0" cy="0" r="34" fill="none" stroke="#1a1815" stroke-width="2"/>
+          <line x1="0" y1="0" x2="0" y2="-24" stroke="#4a6b3a" stroke-width="2.5"/>
+          <line x1="0" y1="0" x2="-13" y2="-13" stroke="#4a6b3a" stroke-width="2.5"/>
           <circle cx="0" cy="0" r="2.5" fill="#1a1815"/>
-          <text class="svg-mono svg-text" x="0" y="55" text-anchor="middle" font-size="11" fill="#4a6b3a" font-weight="700">baseline = 1×</text>
+          <text class="svg-mono svg-text" x="0" y="60" text-anchor="middle" font-size="11" fill="#4a6b3a" font-weight="700">baseline = 1×</text>
         </g>
       </g>
 
-      <!-- Side panel: total flops -->
-      <g transform="translate(530,30)">
-        <rect x="0" y="0" width="240" height="280" fill="#ebe1c7" stroke="#3d3833" stroke-width="1"/>
-        <text class="svg-text" x="120" y="22" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#6b6359">FLOPS PER STEP</text>
+      <!-- ===== SIDE PANEL: FLOPS ===== -->
+      <g transform="translate(560,30)">
+        <rect x="0" y="0" width="220" height="430" fill="#ebe1c7" stroke="#3d3833" stroke-width="1"/>
+        <text class="svg-text" x="110" y="26" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#6b6359">FLOPS PER STEP</text>
 
-        <text class="svg-text svg-mono" x="20" y="60" font-size="13" fill="#c8351b">naive:</text>
-        <text class="svg-text svg-mono" x="20" y="80" font-size="13" fill="#1a1815">  ≈ 2·N·d²·L</text>
+        <text class="svg-text svg-mono" x="20" y="74"  font-size="13" fill="#c8351b">naive:</text>
+        <text class="svg-text svg-mono" x="20" y="96"  font-size="13" fill="#1a1815">  ≈ 2·N·d²·L</text>
 
-        <text class="svg-text svg-mono" x="20" y="125" font-size="13" fill="#4a6b3a">cached:</text>
-        <text class="svg-text svg-mono" x="20" y="145" font-size="13" fill="#1a1815">  ≈ 2·d²·L</text>
+        <line x1="20" y1="120" x2="200" y2="120" stroke="#3d3833" stroke-width="0.6" opacity="0.4"/>
 
-        <text class="svg-text svg-serif" x="20" y="180" font-size="13" fill="#1a1815" font-style="italic">at N = 1000:</text>
+        <text class="svg-text svg-mono" x="20" y="148" font-size="13" fill="#4a6b3a">cached:</text>
+        <text class="svg-text svg-mono" x="20" y="170" font-size="13" fill="#1a1815">  ≈ 2·d²·L</text>
 
-        <text class="svg-text svg-mono" x="20" y="205" font-size="14" fill="#c8351b">  1000× FLOPs</text>
-        <text class="svg-text svg-mono" x="20" y="227" font-size="14" fill="#4a6b3a">      ↓</text>
-        <text class="svg-text svg-mono" x="20" y="248" font-size="14" fill="#4a6b3a">    1× FLOPs</text>
+        <line x1="20" y1="200" x2="200" y2="200" stroke="#3d3833" stroke-width="0.6" opacity="0.4"/>
+
+        <text class="svg-text svg-serif" x="20" y="240" font-size="13" fill="#1a1815" font-style="italic">at N = 1000:</text>
+        <text class="svg-text svg-mono"  x="20" y="280" font-size="14" fill="#c8351b">  1000× FLOPs</text>
+        <text class="svg-text svg-mono"  x="20" y="310" font-size="14" fill="#1a1815">      ↓</text>
+        <text class="svg-text svg-mono"  x="20" y="340" font-size="14" fill="#4a6b3a">    1× FLOPs</text>
       </g>
     </svg>
-    <figcaption><span class="fig-label">Fig. 2.1</span>The KV cache turns a quadratic per-sequence cost into a linear one. The clock on the right was your 32-second wait; the clock on the left runs in step-time. This is the single biggest free lunch in inference.</figcaption>
+    <figcaption><span class="fig-label">Fig. 2.1</span>The KV cache turns a quadratic per-sequence cost into a linear one. The clock for the naive case takes 32 ticks to draw; the clock for the cached case ticks once. This is the single biggest free lunch in inference.</figcaption>
   </figure>
 
   <div class="formula">
@@ -898,8 +881,8 @@
             <rect x="178" y="0" width="22" height="24" fill="#b8862f" opacity="0.7"/>
           </g>
         </g>
-        <text class="svg-text svg-mono" x="100" y="180" text-anchor="middle" font-size="11" fill="#1a1815">cache: 4·H·D·L</text>
-        <text class="svg-text svg-serif" x="100" y="200" text-anchor="middle" font-size="12" fill="#c8351b" font-style="italic">baseline, full memory</text>
+        <text class="svg-text svg-mono" x="100" y="200" text-anchor="middle" font-size="11" fill="#1a1815">cache: 4·H·D·L</text>
+        <text class="svg-text svg-serif" x="100" y="220" text-anchor="middle" font-size="12" fill="#c8351b" font-style="italic">baseline, full memory</text>
       </g>
 
       <!-- GQA -->
@@ -926,8 +909,8 @@
             <rect x="142" y="0" width="46" height="24" fill="#b8862f" opacity="0.7" stroke="#b8862f" stroke-width="1.2"/>
           </g>
         </g>
-        <text class="svg-text svg-mono" x="100" y="180" text-anchor="middle" font-size="11" fill="#1a1815">cache: 4·G·D·L</text>
-        <text class="svg-text svg-serif" x="100" y="200" text-anchor="middle" font-size="12" fill="#b8862f" font-style="italic">4× smaller · Llama-3</text>
+        <text class="svg-text svg-mono" x="100" y="200" text-anchor="middle" font-size="11" fill="#1a1815">cache: 4·G·D·L</text>
+        <text class="svg-text svg-serif" x="100" y="220" text-anchor="middle" font-size="12" fill="#b8862f" font-style="italic">4× smaller · Llama-3</text>
       </g>
 
       <!-- MQA -->
@@ -952,39 +935,38 @@
             <rect x="78" y="0" width="44" height="24" fill="#b8862f" opacity="0.7" stroke="#b8862f" stroke-width="1.2"/>
           </g>
         </g>
-        <text class="svg-text svg-mono" x="100" y="180" text-anchor="middle" font-size="11" fill="#1a1815">cache: 4·D·L</text>
-        <text class="svg-text svg-serif" x="100" y="200" text-anchor="middle" font-size="12" fill="#4a6b3a" font-style="italic">8× smaller · quality drops</text>
+        <text class="svg-text svg-mono" x="100" y="200" text-anchor="middle" font-size="11" fill="#1a1815">cache: 4·D·L</text>
+        <text class="svg-text svg-serif" x="100" y="220" text-anchor="middle" font-size="12" fill="#4a6b3a" font-style="italic">8× smaller · quality drops</text>
       </g>
 
       <!-- MLA -->
       <g transform="translate(680,50)">
         <text class="svg-text svg-mono" x="100" y="0" text-anchor="middle" font-size="12" fill="#1a1815">MLA · R=512</text>
         <text class="svg-text" x="100" y="22" text-anchor="middle" font-size="9" fill="#6b6359">Q (8) · latent c_KV</text>
+        <!-- Q row -->
         <g transform="translate(0,32)">
-          <!-- Q row -->
-          <g>
-            <rect x="0" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
-            <rect x="24" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
-            <rect x="48" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
-            <rect x="72" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
-            <rect x="106" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
-            <rect x="130" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
-            <rect x="154" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
-            <rect x="178" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
-          </g>
-          <!-- Latent slab spanning width -->
-          <g transform="translate(0,44)">
-            <rect x="20" y="0" width="160" height="20" fill="#72569a" opacity="0.65" stroke="#72569a" stroke-width="1.2"/>
-            <text class="svg-mono svg-text" x="100" y="14" text-anchor="middle" font-size="10" fill="#fff">c_KV ∈ ℝ^R</text>
-          </g>
-          <!-- arrows from latent to virtual K/V -->
-          <g transform="translate(0,72)">
-            <text class="svg-mono svg-text" x="100" y="0" text-anchor="middle" font-size="10" fill="#6b6359">↓ up-projects to virtual K, V</text>
-            <text class="svg-mono svg-text" x="100" y="18" text-anchor="middle" font-size="10" fill="#6b6359">absorbed into W_Q · never materialized</text>
-          </g>
+          <rect x="0"   y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+          <rect x="24"  y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+          <rect x="48"  y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+          <rect x="72"  y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+          <rect x="106" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+          <rect x="130" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+          <rect x="154" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+          <rect x="178" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
         </g>
-        <text class="svg-text svg-mono" x="100" y="180" text-anchor="middle" font-size="11" fill="#1a1815">cache: 2·R·L</text>
-        <text class="svg-text svg-serif" x="100" y="200" text-anchor="middle" font-size="12" fill="#72569a" font-style="italic">~64× smaller · no quality loss</text>
+        <!-- arrow connecting Q row to latent slab -->
+        <line x1="100" y1="62" x2="100" y2="78" stroke="#1a1815" stroke-width="1"/>
+        <polygon points="100,80 96,72 104,72" fill="#1a1815"/>
+        <!-- Latent slab -->
+        <rect x="20" y="84" width="160" height="22" fill="#72569a" opacity="0.65" stroke="#72569a" stroke-width="1.2"/>
+        <text class="svg-mono svg-text" x="100" y="100" text-anchor="middle" font-size="11" fill="#fff">c_KV ∈ ℝ^R</text>
+        <!-- explanation lines -->
+        <text class="svg-mono svg-text" x="100" y="128" text-anchor="middle" font-size="10" fill="#6b6359">up-projects to virtual K, V</text>
+        <text class="svg-mono svg-text" x="100" y="144" text-anchor="middle" font-size="10" fill="#6b6359">absorbed into W_Q</text>
+        <text class="svg-mono svg-text" x="100" y="160" text-anchor="middle" font-size="10" fill="#6b6359">never materialized</text>
+
+        <text class="svg-text svg-mono"  x="100" y="200" text-anchor="middle" font-size="11" fill="#1a1815">cache: 2·R·L</text>
+        <text class="svg-text svg-serif" x="100" y="220" text-anchor="middle" font-size="12" fill="#72569a" font-style="italic">~64× smaller · no quality loss</text>
       </g>
 
       <!-- bottom commentary -->
@@ -1042,11 +1024,10 @@
       </g>
 
       <!-- Circular buffer ring -->
-      <g transform="translate(380,140)">
-        <text class="svg-text svg-mono" x="0" y="-100" text-anchor="middle" font-size="11" fill="#1a1815">cache as circular buffer</text>
+      <g transform="translate(380,160)">
+        <text class="svg-text svg-mono" x="0" y="-130" text-anchor="middle" font-size="11" fill="#1a1815">cache as a circular buffer</text>
         <!-- 8 slots arranged in a circle -->
         <g>
-          <!-- compute 8 positions -->
           <g transform="translate(0,-80)">
             <rect x="-15" y="-12" width="30" height="24" fill="#c8351b" opacity="0.65"/>
             <text class="svg-mono svg-text" x="0" y="3" text-anchor="middle" font-size="9" fill="#fff">t-7</text>
@@ -1080,10 +1061,11 @@
             <text class="svg-mono svg-text" x="0" y="3" text-anchor="middle" font-size="9" fill="#fff">new</text>
           </g>
         </g>
-        <!-- write pointer -->
-        <path d="M -57 -78 L -38 -98" stroke="#1a1815" stroke-width="1.5"/>
-        <polygon points="-38,-98 -45,-93 -45,-105" fill="#1a1815"/>
-        <text class="svg-text svg-mono" x="-30" y="-105" font-size="10" fill="#1a1815">overwrite oldest</text>
+        <!-- annotation: arrow from "new" rightward into the ring direction (overwrites slot that was oldest) -->
+        <path d="M -40 -57 L -8 -78" stroke="#1a1815" stroke-width="1.5"/>
+        <polygon points="-8,-78 -16,-79 -12,-71" fill="#1a1815"/>
+        <text class="svg-text svg-mono" x="-95" y="-50" font-size="10" fill="#1a1815">new token</text>
+        <text class="svg-text svg-mono" x="-95" y="-36" font-size="10" fill="#1a1815">overwrites oldest</text>
       </g>
 
       <!-- Receptive field via stacking -->
