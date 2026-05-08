@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>From the Roofline to vLLM — A Visual Story</title>
+<meta name="description" content="The full arc of inference engineering on a single page: prefill and decode on the roofline, the KV cache and its memory cost, compressing across heads (MHA, MQA, GQA, MLA) and across tokens (sliding window, linear attention, Mamba), and FlashAttention as the kernel underneath all of them — leading into the vLLM engine." />
+<link rel="icon" type="image/png" href="vizlogo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=JetBrains+Mono:wght@400;500;700&family=Inter+Tight:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:        #f4ecd8;
+    --paper-deep:   #ebe1c7;
+    --ink:          #1a1815;
+    --ink-soft:     #3d3833;
+    --ink-faint:    #6b6359;
+    --rule:         #2a2622;
+    --accent:       #c8351b;
+    --accent-soft:  #e08a76;
+    --gold:         #b8862f;
+    --teal:         #2f5e5a;
+    --blue:         #2e4a7b;
+    --green:        #4a6b3a;
+    --hot:          #c8351b;
+    --cool:         #2e4a7b;
+    --margin:       max(2rem, calc(50vw - 38rem));
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Fraunces', 'Times New Roman', serif;
+    font-feature-settings: "ss01" on, "ss02" on, "onum" on;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.55;
+    font-size: 18px;
+    overflow-x: hidden;
+    position: relative;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(120,90,40,0.04) 0%, transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(60,40,20,0.035) 0%, transparent 40%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.15 0 0 0 0 0.12 0 0 0 0 0.08 0 0 0 0.18 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.35;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+    z-index: 1;
+  }
+  main { position: relative; z-index: 2; }
+
+  h1, h2, h3, h4 {
+    font-family: 'Fraunces', serif;
+    font-variation-settings: "opsz" 144;
+    color: var(--ink);
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    font-weight: 500;
+  }
+  h2 { font-size: clamp(2.2rem, 5vw, 3.6rem); margin-bottom: 1.5rem; font-weight: 400; }
+  h3 { font-size: clamp(1.5rem, 3vw, 2.1rem); margin: 2.5rem 0 1rem; font-weight: 500; }
+  h4 { font-size: 1.25rem; margin: 1.5rem 0 0.6rem; font-weight: 600; font-variation-settings: "opsz" 14; }
+
+  p { font-size: 1.125rem; margin-bottom: 1.25rem; max-width: 65ch; }
+  p.lede {
+    font-size: 1.45rem;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    font-style: italic;
+    font-weight: 300;
+    max-width: 60ch;
+  }
+  .small-caps {
+    font-family: 'Inter Tight', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ink-faint);
+  }
+  .drop::first-letter {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 4.5rem;
+    float: left;
+    line-height: 0.85;
+    margin: 0.4rem 0.5rem 0 0;
+    color: var(--accent);
+  }
+
+  code, .mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9em;
+    background: rgba(40,30,20,0.06);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    color: var(--ink);
+  }
+
+  section {
+    padding: 6rem var(--margin);
+    position: relative;
+    border-bottom: 1px solid rgba(40,30,20,0.08);
+  }
+  section:last-child { border-bottom: none; }
+
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    margin-bottom: 1rem;
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--accent);
+    border-radius: 2px;
+  }
+
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4rem var(--margin) 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 0.75rem;
+    margin-bottom: 3rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .hero-meta .vol {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 1rem;
+    color: var(--ink-soft);
+  }
+  .hero h1 {
+    font-size: clamp(3rem, 9.5vw, 8rem);
+    font-weight: 300;
+    line-height: 0.92;
+    margin: 1rem 0 2rem;
+    font-variation-settings: "opsz" 144, "wght" 300;
+  }
+  .hero h1 em {
+    font-style: italic;
+    color: var(--accent);
+    font-variation-settings: "opsz" 144, "wght" 400;
+  }
+  .hero-sub {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    margin-top: 3rem;
+    border-top: 1px solid rgba(40,30,20,0.2);
+    padding-top: 1.5rem;
+  }
+  .hero-sub p { font-size: 1rem; color: var(--ink-soft); }
+
+  .hero-formula {
+    margin: 2rem 0;
+    padding: 2rem;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'JetBrains Mono', monospace;
+    text-align: center;
+    border-radius: 2px;
+    position: relative;
+  }
+  .hero-formula .label {
+    position: absolute;
+    top: -0.7rem; left: 1rem;
+    background: var(--paper);
+    color: var(--ink);
+    padding: 0 0.5rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .hero-formula .eq {
+    font-size: 1.4rem;
+    letter-spacing: 0.05em;
+    line-height: 1.5;
+  }
+  .hero-formula .eq .var { color: var(--accent-soft); }
+  .hero-formula .eq .same { color: #9bd1a8; }
+
+  .toc {
+    background: var(--paper-deep);
+    padding: 4rem var(--margin);
+    border-top: 1px solid rgba(40,30,20,0.15);
+    border-bottom: 1px solid rgba(40,30,20,0.15);
+  }
+  .toc h2 {
+    font-size: 1.2rem;
+    font-family: 'Inter Tight', sans-serif;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 2rem;
+    font-weight: 600;
+  }
+  .toc-list { list-style: none; }
+  .toc-list li {
+    border-top: 1px solid rgba(40,30,20,0.15);
+    padding: 1rem 0;
+    display: flex;
+    align-items: baseline;
+    gap: 1.5rem;
+  }
+  .toc-list li:last-child { border-bottom: 1px solid rgba(40,30,20,0.15); }
+  .toc-list .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--accent);
+    width: 3rem;
+    flex-shrink: 0;
+  }
+  .toc-list a {
+    color: var(--ink);
+    text-decoration: none;
+    font-family: 'Fraunces', serif;
+    font-size: 1.4rem;
+    flex-grow: 1;
+    transition: color 0.2s;
+  }
+  .toc-list a:hover { color: var(--accent); font-style: italic; }
+  .toc-list .pg {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+  }
+
+  figure {
+    margin: 3rem auto;
+    padding: 0;
+    text-align: center;
+    max-width: 100%;
+  }
+  figure svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+    background: var(--paper);
+  }
+  figcaption {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+    margin-top: 1rem;
+    line-height: 1.4;
+    max-width: 56ch;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+  }
+  figcaption .fig-label {
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.72rem;
+    margin-right: 0.5rem;
+  }
+
+  .pull-quote {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: clamp(1.6rem, 3.8vw, 2.6rem);
+    line-height: 1.25;
+    color: var(--ink);
+    margin: 4rem auto;
+    padding: 2.5rem 0;
+    max-width: 50ch;
+    text-align: center;
+    border-top: 1px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+    position: relative;
+  }
+  .pull-quote::before {
+    content: '"';
+    position: absolute;
+    top: -1.5rem; left: 50%;
+    transform: translateX(-50%);
+    background: var(--paper);
+    padding: 0 1rem;
+    font-size: 4rem;
+    color: var(--accent);
+    line-height: 1;
+    font-style: normal;
+  }
+
+  .marginalia {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+    line-height: 1.4;
+    border-left: 2px solid var(--accent);
+    padding-left: 1rem;
+    margin: 1.5rem 0;
+    font-style: italic;
+  }
+
+  .formula {
+    background: var(--paper-deep);
+    border: 1px solid rgba(40,30,20,0.15);
+    padding: 1.5rem 2rem;
+    margin: 2rem 0;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1rem;
+    border-radius: 3px;
+    overflow-x: auto;
+  }
+  .formula em { color: var(--accent); font-style: normal; font-weight: 700; }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0;
+    margin: 2.5rem 0;
+    border-top: 1px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+  }
+  .stat {
+    padding: 1.5rem;
+    border-right: 1px solid rgba(40,30,20,0.15);
+    text-align: center;
+  }
+  .stat:last-child { border-right: none; }
+  .stat .num {
+    font-family: 'Fraunces', serif;
+    font-variation-settings: "opsz" 144, "wght" 400;
+    font-size: 2.6rem;
+    color: var(--accent);
+    line-height: 1;
+    display: block;
+  }
+  .stat .lbl {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-faint);
+    margin-top: 0.5rem;
+    display: block;
+  }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    margin: 2rem 0;
+  }
+  @media (max-width: 768px) {
+    .two-col { grid-template-columns: 1fr; gap: 1.5rem; }
+    .hero-sub { grid-template-columns: 1fr; }
+    .stat-grid { grid-template-columns: 1fr 1fr; }
+    .stat { border-right: 1px solid rgba(40,30,20,0.15); border-bottom: 1px solid rgba(40,30,20,0.15); }
+  }
+
+  .ornament {
+    text-align: center;
+    margin: 3rem 0;
+    color: var(--ink-faint);
+    font-size: 1.5rem;
+    letter-spacing: 1rem;
+  }
+
+  .hl { background: linear-gradient(180deg, transparent 60%, rgba(200,53,27,0.25) 60%); padding: 0 0.1em; }
+  .hl-gold { background: linear-gradient(180deg, transparent 60%, rgba(184,134,47,0.3) 60%); padding: 0 0.1em; }
+  .hl-green { background: linear-gradient(180deg, transparent 60%, rgba(74,107,58,0.3) 60%); padding: 0 0.1em; }
+
+  /* Cliffhanger card for the vLLM teaser */
+  .teaser {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 3.5rem 2.5rem;
+    margin: 3rem 0;
+    border-radius: 3px;
+    position: relative;
+    text-align: center;
+  }
+  .teaser .small-caps { color: var(--accent-soft); }
+  .teaser h3 {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    color: var(--paper);
+    margin: 1rem auto 1.5rem;
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 300;
+    max-width: 24ch;
+  }
+  .teaser p { color: #d8c8a8; margin: 0 auto; max-width: 50ch; font-size: 1.05rem; }
+  .teaser ul {
+    list-style: none;
+    margin: 2rem auto 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.6rem;
+    max-width: 60ch;
+  }
+  .teaser li {
+    border: 1px solid rgba(244,236,216,0.3);
+    padding: 0.45rem 0.9rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--accent-soft);
+    border-radius: 999px;
+  }
+
+  footer {
+    padding: 4rem var(--margin) 3rem;
+    background: var(--ink);
+    color: var(--paper);
+    text-align: center;
+  }
+  footer p { color: var(--paper); margin: 0 auto 0.5rem; max-width: none; }
+  footer .small-caps { color: var(--accent-soft); }
+
+  .svg-text {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 13px;
+    fill: var(--ink);
+  }
+  .svg-mono { font-family: 'JetBrains Mono', monospace; }
+  .svg-serif { font-family: 'Fraunces', serif; font-style: italic; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .anim { animation: fadeUp 0.8s ease-out backwards; }
+</style>
+</head>
+<body>
+<main>
+
+<!-- ================== HERO ================== -->
+<section class="hero">
+  <div class="hero-meta">
+    <span class="small-caps" style="display:flex;align-items:center;gap:0.6rem"><img src="vizlogo.png" alt="Vizuara" style="width:26px;height:26px;border-radius:5px;border:1px solid rgba(40,30,20,0.25);background:#fff"> Vizuara · Inference Engineering</span>
+    <span class="vol">Vol. V · The arc on one page</span>
+    <span class="small-caps">Chs. 3 → 19</span>
+  </div>
+
+  <p class="small-caps anim" style="animation-delay:.05s">From the first inference, to the kernel, to the engine</p>
+  <h1 class="anim" style="animation-delay:.15s">
+    From the<br>
+    <em>roofline</em><br>
+    to <em>vLLM</em>.
+  </h1>
+  <p class="lede anim" style="animation-delay:.35s">
+    The whole arc of inference engineering, told as a single story. Why naive decode is slow. How the KV cache rescues it. Why the cache then becomes the new villain. How we shrink it across heads and across tokens. Where FlashAttention sits underneath all of it. And, finally, the engine that wraps the whole thing — vLLM.
+  </p>
+
+  <div class="hero-formula anim" style="animation-delay:.55s">
+    <span class="label">The shape of the journey</span>
+    <div class="eq">
+      naive&nbsp;<span class="var">→</span>&nbsp;KV cache&nbsp;<span class="var">→</span>&nbsp;compress (heads · tokens)&nbsp;<span class="var">→</span>&nbsp;FlashAttention&nbsp;<span class="var">→</span>&nbsp;<span class="same">vLLM</span>
+      <br>
+      <span style="font-size:0.9rem;color:#bda88f">each arrow is a chapter — each chapter lifts the dot on the roofline.</span>
+    </div>
+  </div>
+
+  <div class="hero-sub anim" style="animation-delay:.75s">
+    <p>Most inference textbooks talk about these techniques as a list. They are not a list. They are a sequence — each one fixes the problem the previous one created, and each one moves the dot on the roofline plot a little further toward where it should always have been.</p>
+    <p style="text-align:right">Scroll, watch the dot climb.<br><span style="font-size:1.5rem">↓</span></p>
+  </div>
+</section>
+
+<!-- ================== TOC ================== -->
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol class="toc-list">
+    <li><span class="num">I</span><a href="#s1">A roofline, and the first inference</a><span class="pg">p. 01</span></li>
+    <li><span class="num">II</span><a href="#s2">The KV cache, the rescuer</a><span class="pg">p. 02</span></li>
+    <li><span class="num">III</span><a href="#s3">The same hero, the new villain</a><span class="pg">p. 03</span></li>
+    <li><span class="num">IV</span><a href="#s4">Lifting the roofline by shrinking bytes</a><span class="pg">p. 04</span></li>
+    <li><span class="num">V</span><a href="#s5">Across heads — MHA, MQA, GQA, MLA</a><span class="pg">p. 05</span></li>
+    <li><span class="num">VI</span><a href="#s6">Across tokens — sliding window, linear, Mamba</a><span class="pg">p. 06</span></li>
+    <li><span class="num">VII</span><a href="#s7">The three axes</a><span class="pg">p. 07</span></li>
+    <li><span class="num">VIII</span><a href="#s8">In reality, models mix everything</a><span class="pg">p. 08</span></li>
+    <li><span class="num">IX</span><a href="#s9">FlashAttention — the layer beneath all of it</a><span class="pg">p. 09</span></li>
+    <li><span class="num">X</span><a href="#s10">Why N²·d²/M is the result that matters</a><span class="pg">p. 10</span></li>
+    <li><span class="num">XI</span><a href="#s11">Today's lecture — inside vLLM</a><span class="pg">p. 11</span></li>
+  </ol>
+</nav>
+
+<!-- ================== § I ROOFLINE ================== -->
+<section id="s1">
+  <span class="section-num">§ I</span>
+  <h2>A roofline, and the first inference.</h2>
+  <p class="lede">Every inference workload lives somewhere on a roofline plot. Where it lives is the single most important fact about it.</p>
+
+  <p class="drop">The roofline is a simple picture. The horizontal axis is <em>arithmetic intensity</em> — how many FLOPs the kernel performs per byte of memory it reads. The vertical axis is achieved performance, in FLOPs per second. The plot has two ceilings: a flat ceiling on the right (peak compute), and a sloped ceiling on the left (peak memory bandwidth). Where these meet is <em>the ridge</em>. To the left of it, the kernel is memory-bound. To the right, compute-bound.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 380" xmlns="http://www.w3.org/2000/svg">
+      <!-- Title -->
+      <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">THE ROOFLINE — H100 SXM, FP16</text>
+
+      <!-- Axes -->
+      <g transform="translate(60,40)">
+        <!-- y axis -->
+        <line x1="0" y1="0" x2="0" y2="280" stroke="#1a1815" stroke-width="1.2"/>
+        <!-- x axis -->
+        <line x1="0" y1="280" x2="700" y2="280" stroke="#1a1815" stroke-width="1.2"/>
+
+        <!-- y labels -->
+        <text class="svg-text" x="-10" y="20" text-anchor="end" font-size="11" fill="#1a1815">peak FLOPs</text>
+        <text class="svg-text svg-mono" x="-10" y="38" text-anchor="end" font-size="9" fill="#6b6359">~989 TFLOPs</text>
+        <text class="svg-text" x="-10" y="280" text-anchor="end" font-size="11" fill="#1a1815">0</text>
+
+        <!-- x labels -->
+        <text class="svg-text" x="350" y="312" text-anchor="middle" font-size="12" fill="#6b6359">arithmetic intensity (FLOPs / byte)</text>
+        <text class="svg-text svg-mono" x="0" y="296" text-anchor="middle" font-size="10" fill="#6b6359">0</text>
+        <text class="svg-text svg-mono" x="700" y="296" text-anchor="middle" font-size="10" fill="#6b6359">→</text>
+
+        <!-- ramp (memory ceiling) -->
+        <line x1="0" y1="280" x2="280" y2="20" stroke="#1a1815" stroke-width="2"/>
+        <text class="svg-text svg-serif" x="60" y="200" font-size="13" fill="#1a1815" font-style="italic" transform="rotate(-43 60 200)">peak HBM bandwidth ramp</text>
+
+        <!-- flat ceiling -->
+        <line x1="280" y1="20" x2="700" y2="20" stroke="#1a1815" stroke-width="2"/>
+        <text class="svg-text svg-serif" x="500" y="14" font-size="13" fill="#1a1815" font-style="italic">peak compute ceiling</text>
+
+        <!-- ridge marker -->
+        <circle cx="280" cy="20" r="5" fill="#1a1815"/>
+        <line x1="280" y1="20" x2="280" y2="280" stroke="#6b6359" stroke-width="0.6" stroke-dasharray="3,3"/>
+        <text class="svg-text svg-mono" x="280" y="296" text-anchor="middle" font-size="10" fill="#6b6359">ridge</text>
+
+        <!-- regions -->
+        <text class="svg-text" x="135" y="145" text-anchor="middle" font-size="11" letter-spacing="0.12em" fill="#c8351b" font-weight="700">MEMORY-BOUND</text>
+        <text class="svg-text" x="490" y="145" text-anchor="middle" font-size="11" letter-spacing="0.12em" fill="#4a6b3a" font-weight="700">COMPUTE-BOUND</text>
+
+        <!-- Decode dot -->
+        <g>
+          <circle cx="60" cy="225" r="8" fill="#c8351b"/>
+          <text class="svg-text svg-serif" x="74" y="222" font-size="14" fill="#c8351b" font-style="italic">decode</text>
+          <text class="svg-text" x="74" y="240" font-size="11" fill="#6b6359">~1 token, deeply memory-bound</text>
+        </g>
+
+        <!-- Prefill dot -->
+        <g>
+          <circle cx="400" cy="20" r="8" fill="#4a6b3a"/>
+          <text class="svg-text svg-serif" x="395" y="44" font-size="14" fill="#4a6b3a" font-style="italic">prefill</text>
+          <text class="svg-text" x="395" y="60" font-size="11" fill="#6b6359">whole prompt at once, near the ceiling</text>
+        </g>
+      </g>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 1.1</span>The single picture every inference engineer should be able to draw blindfolded. Prefill rides the compute ceiling; decode is stranded deep on the bandwidth ramp. Everything we will do in this story is an attempt to walk the decode dot to the right.</figcaption>
+  </figure>
+
+  <p>Why does decode sit so far left? Because it is autoregressive. Generating one new token requires reading the model's parameters once, multiplying them by a single token's worth of activation, and writing one new token out. Lots of bytes read, very few FLOPs done with them. <hl>Arithmetic intensity is tiny.</hl></p>
+
+  <p>Prefill is the opposite. The whole prompt is processed at once, so the same parameters get reused across many tokens. Many FLOPs per byte. The dot lives near the ridge.</p>
+
+  <p>This asymmetry is the entire reason inference is hard. Training looks like prefill: massive parallelism, the dot is near the ridge, the GPU is happy. Inference looks like decode: a thin trickle of work, the GPU is starving. Every chapter from here on is a way to make decode look more like prefill on the roofline.</p>
+
+  <p class="marginalia">Roofline is from Williams, Waterman &amp; Patterson (2009). It was originally about classical scientific kernels. It turns out to describe LLM inference more cleanly than almost any model we have invented since.</p>
+</section>
+
+<!-- ================== § II KV CACHE RESCUER ================== -->
+<section id="s2">
+  <span class="section-num">§ II</span>
+  <h2>The KV cache, the rescuer.</h2>
+  <p class="lede">Naive autoregressive decode does an enormous amount of duplicated work. The KV cache is the realization that you can stop doing it.</p>
+
+  <p>Without the cache, generating token <span class="mono">t</span> requires recomputing the keys and values for <em>all</em> previous tokens — every single one of <span class="mono">t-1, t-2, … 1</span> — even though those K and V vectors did not change since the last step. The total work over a sequence of length N is <span class="mono">O(N²)</span> matmuls. Most of it is redundant.</p>
+
+  <p>The cache is the obvious fix. After computing each new token's K and V, store them. At step <span class="mono">t</span>, only one <em>new</em> token's K and V are computed; the rest are read from cache. Per-step work drops from <span class="mono">O(N)</span> to <span class="mono">O(1)</span>. Total work over the sequence drops from <span class="mono">O(N²)</span> to <span class="mono">O(N)</span>.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 360" xmlns="http://www.w3.org/2000/svg">
+      <!-- Two timelines -->
+
+      <!-- NAIVE -->
+      <g transform="translate(40,30)">
+        <text class="svg-text" x="0" y="0" font-size="11" letter-spacing="0.15em" fill="#6b6359">NAIVE — RECOMPUTE EVERYTHING EVERY STEP</text>
+        <!-- 6 columns of growing rectangles -->
+        <g transform="translate(0,20)">
+          <!-- Step 1 -->
+          <g transform="translate(0,0)">
+            <rect x="0" y="60" width="40" height="20" fill="#c8351b" opacity="0.7"/>
+            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=1</text>
+          </g>
+          <!-- Step 2 -->
+          <g transform="translate(60,0)">
+            <rect x="0" y="40" width="40" height="40" fill="#c8351b" opacity="0.7"/>
+            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=2</text>
+          </g>
+          <!-- Step 3 -->
+          <g transform="translate(120,0)">
+            <rect x="0" y="20" width="40" height="60" fill="#c8351b" opacity="0.7"/>
+            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=3</text>
+          </g>
+          <!-- Step 4 -->
+          <g transform="translate(180,0)">
+            <rect x="0" y="0" width="40" height="80" fill="#c8351b" opacity="0.7"/>
+            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=4</text>
+          </g>
+          <!-- Step 5 -->
+          <g transform="translate(240,0)">
+            <rect x="0" y="-20" width="40" height="100" fill="#c8351b" opacity="0.7"/>
+            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=5</text>
+          </g>
+          <!-- Step 6 -->
+          <g transform="translate(300,0)">
+            <rect x="0" y="-40" width="40" height="120" fill="#c8351b" opacity="0.7"/>
+            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=6</text>
+          </g>
+        </g>
+        <text class="svg-text svg-serif" x="170" y="160" text-anchor="middle" font-size="13" fill="#c8351b" font-style="italic">work per step grows linearly</text>
+        <text class="svg-text" x="170" y="180" text-anchor="middle" font-size="11" fill="#6b6359">total: O(N²)</text>
+
+        <!-- A clock -->
+        <g transform="translate(380,55)">
+          <circle cx="0" cy="0" r="32" fill="none" stroke="#1a1815" stroke-width="2"/>
+          <line x1="0" y1="0" x2="0" y2="-22" stroke="#c8351b" stroke-width="2.5"/>
+          <line x1="0" y1="0" x2="20" y2="6" stroke="#c8351b" stroke-width="2.5"/>
+          <circle cx="0" cy="0" r="2.5" fill="#1a1815"/>
+          <text class="svg-mono svg-text" x="0" y="55" text-anchor="middle" font-size="11" fill="#c8351b" font-weight="700">~32× slower</text>
+        </g>
+      </g>
+
+      <!-- WITH KV CACHE -->
+      <g transform="translate(40,210)">
+        <text class="svg-text" x="0" y="0" font-size="11" letter-spacing="0.15em" fill="#6b6359">WITH KV CACHE — REUSE PAST K, V</text>
+        <g transform="translate(0,20)">
+          <!-- All steps same height -->
+          <g transform="translate(0,0)">
+            <rect x="0" y="60" width="40" height="20" fill="#4a6b3a" opacity="0.75"/>
+            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=1</text>
+          </g>
+          <g transform="translate(60,0)">
+            <rect x="0" y="60" width="40" height="20" fill="#4a6b3a" opacity="0.75"/>
+            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=2</text>
+          </g>
+          <g transform="translate(120,0)">
+            <rect x="0" y="60" width="40" height="20" fill="#4a6b3a" opacity="0.75"/>
+            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=3</text>
+          </g>
+          <g transform="translate(180,0)">
+            <rect x="0" y="60" width="40" height="20" fill="#4a6b3a" opacity="0.75"/>
+            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=4</text>
+          </g>
+          <g transform="translate(240,0)">
+            <rect x="0" y="60" width="40" height="20" fill="#4a6b3a" opacity="0.75"/>
+            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=5</text>
+          </g>
+          <g transform="translate(300,0)">
+            <rect x="0" y="60" width="40" height="20" fill="#4a6b3a" opacity="0.75"/>
+            <text class="svg-mono svg-text" x="20" y="98" text-anchor="middle" font-size="10" fill="#1a1815">t=6</text>
+          </g>
+        </g>
+        <text class="svg-text svg-serif" x="170" y="120" text-anchor="middle" font-size="13" fill="#4a6b3a" font-style="italic">flat: each step is constant work</text>
+        <text class="svg-text" x="170" y="140" text-anchor="middle" font-size="11" fill="#6b6359">total: O(N)</text>
+
+        <!-- A faster clock -->
+        <g transform="translate(380,55)">
+          <circle cx="0" cy="0" r="32" fill="none" stroke="#1a1815" stroke-width="2"/>
+          <line x1="0" y1="0" x2="0" y2="-22" stroke="#4a6b3a" stroke-width="2.5"/>
+          <line x1="0" y1="0" x2="-12" y2="-12" stroke="#4a6b3a" stroke-width="2.5"/>
+          <circle cx="0" cy="0" r="2.5" fill="#1a1815"/>
+          <text class="svg-mono svg-text" x="0" y="55" text-anchor="middle" font-size="11" fill="#4a6b3a" font-weight="700">baseline = 1×</text>
+        </g>
+      </g>
+
+      <!-- Side panel: total flops -->
+      <g transform="translate(530,30)">
+        <rect x="0" y="0" width="240" height="280" fill="#ebe1c7" stroke="#3d3833" stroke-width="1"/>
+        <text class="svg-text" x="120" y="22" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#6b6359">FLOPS PER STEP</text>
+
+        <text class="svg-text svg-mono" x="20" y="60" font-size="13" fill="#c8351b">naive:</text>
+        <text class="svg-text svg-mono" x="20" y="80" font-size="13" fill="#1a1815">  ≈ 2·N·d²·L</text>
+
+        <text class="svg-text svg-mono" x="20" y="125" font-size="13" fill="#4a6b3a">cached:</text>
+        <text class="svg-text svg-mono" x="20" y="145" font-size="13" fill="#1a1815">  ≈ 2·d²·L</text>
+
+        <text class="svg-text svg-serif" x="20" y="180" font-size="13" fill="#1a1815" font-style="italic">at N = 1000:</text>
+
+        <text class="svg-text svg-mono" x="20" y="205" font-size="14" fill="#c8351b">  1000× FLOPs</text>
+        <text class="svg-text svg-mono" x="20" y="227" font-size="14" fill="#4a6b3a">      ↓</text>
+        <text class="svg-text svg-mono" x="20" y="248" font-size="14" fill="#4a6b3a">    1× FLOPs</text>
+      </g>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 2.1</span>The KV cache turns a quadratic per-sequence cost into a linear one. The clock on the right was your 32-second wait; the clock on the left runs in step-time. This is the single biggest free lunch in inference.</figcaption>
+  </figure>
+
+  <div class="formula">
+    naive total &nbsp;∝&nbsp; <em>N²</em> · d² · L &nbsp;&nbsp;&nbsp;→&nbsp;&nbsp;&nbsp; cached total &nbsp;∝&nbsp; <em>N</em> · d² · L
+  </div>
+
+  <p>On the roofline, the cache moves the decode dot a meaningful step toward the ridge. We are doing fewer FLOPs per token, but we are also reading a lot fewer bytes — we do not re-read all the past tokens any more, just the small KV cache slab. Net result: arithmetic intensity climbs, the dot lifts.</p>
+
+  <div class="pull-quote">The KV cache is the first chapter where the GPU stops being starved. It is also where it becomes claustrophobic.</div>
+</section>
+
+<!-- ================== § III THE EVIL ================== -->
+<section id="s3">
+  <span class="section-num">§ III</span>
+  <h2>The same hero, the new villain.</h2>
+  <p class="lede">The KV cache fixes one problem and creates another. Speed is up, but memory now grows linearly with every token in every active session.</p>
+
+  <p>The per-token cache is exactly as the book derives it in Chapter 7:</p>
+
+  <div class="formula">
+    cache bytes per token &nbsp;=&nbsp; <em>4 · H · D · L</em>
+  </div>
+
+  <p>Two bytes for K, two for V (FP16), times <span class="mono">H</span> heads, <span class="mono">D</span> head dimension, <span class="mono">L</span> layers. Plug in Llama-3-70B-style numbers — H = 64, D = 128, L = 80 — and you get <span class="hl">~2.6 MB per token</span>. At a 32K-token context: <span class="hl">~84 GB per user</span>. An H100 has 80 GB total. <em>One user fills the GPU before any compute happens.</em></p>
+
+  <figure>
+    <svg viewBox="0 0 820 320" xmlns="http://www.w3.org/2000/svg">
+      <!-- Memory budget bar -->
+      <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">H100 SXM · 80 GB MEMORY BUDGET</text>
+
+      <!-- Total bar -->
+      <g transform="translate(40,40)">
+        <!-- background slab -->
+        <rect x="0" y="0" width="720" height="50" fill="#ebe1c7" stroke="#1a1815" stroke-width="1.2"/>
+
+        <!-- Weights ~140 GB? actually Llama-3-70B = 140GB FP16; let's use Llama-3 70B at FP8 = 70GB (Or assume model fits) -->
+        <!-- Show: weights 35%, KV cache for 1 user = 65% (showing 84GB doesn't fit; we'll cap visually) -->
+        <rect x="0" y="0" width="160" height="50" fill="#2e4a7b" opacity="0.75"/>
+        <text class="svg-text svg-mono" x="80" y="30" text-anchor="middle" font-size="13" fill="#fff">weights · 18 GB</text>
+
+        <rect x="160" y="0" width="20" height="50" fill="#4a6b3a" opacity="0.75"/>
+        <text class="svg-text svg-mono" x="170" y="30" text-anchor="middle" font-size="9" fill="#fff" transform="rotate(-90 170 30)">activations</text>
+
+        <!-- KV cache for 1 user, 32K -->
+        <rect x="180" y="0" width="540" height="50" fill="#c8351b" opacity="0.85"/>
+        <text class="svg-text svg-mono" x="450" y="30" text-anchor="middle" font-size="13" fill="#fff">KV cache · ~62 GB &nbsp;&nbsp;(one user @ 32K context)</text>
+      </g>
+
+      <text class="svg-text svg-serif" x="400" y="120" text-anchor="middle" font-size="14" fill="#1a1815" font-style="italic">a single 32K-context conversation has eaten the GPU.</text>
+
+      <!-- Cache growth curve -->
+      <g transform="translate(40,160)">
+        <text class="svg-text" x="0" y="0" font-size="11" letter-spacing="0.15em" fill="#6b6359">CACHE BYTES GROW LINEARLY WITH N</text>
+        <line x1="0" y1="120" x2="700" y2="120" stroke="#1a1815" stroke-width="1.2"/>
+        <line x1="0" y1="120" x2="0" y2="20" stroke="#1a1815" stroke-width="1.2"/>
+
+        <!-- diagonal line -->
+        <line x1="0" y1="120" x2="700" y2="30" stroke="#c8351b" stroke-width="2.5"/>
+
+        <!-- 80GB ceiling -->
+        <line x1="0" y1="50" x2="700" y2="50" stroke="#1a1815" stroke-width="1" stroke-dasharray="6,4"/>
+        <text class="svg-text svg-mono" x="700" y="44" text-anchor="end" font-size="11" fill="#1a1815">80 GB ceiling</text>
+
+        <!-- intersection -->
+        <circle cx="544" cy="50" r="5" fill="#1a1815"/>
+        <text class="svg-text svg-serif" x="540" y="74" text-anchor="middle" font-size="12" fill="#1a1815" font-style="italic">~30 K tokens</text>
+
+        <!-- axis labels -->
+        <text class="svg-text" x="350" y="142" text-anchor="middle" font-size="11" fill="#6b6359">sequence length N</text>
+        <text class="svg-text" x="-35" y="70" text-anchor="middle" font-size="11" fill="#6b6359" transform="rotate(-90 -35 70)">cache GB</text>
+
+        <!-- annotation -->
+        <text class="svg-text svg-serif" x="240" y="105" font-size="13" fill="#c8351b" font-style="italic">slope = 4·H·D·L bytes/token</text>
+      </g>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 3.1</span>The KV cache makes decode fast. It also grows without bound — every new token costs another fixed slab of HBM. On an H100, one 32K conversation crowds out everything else.</figcaption>
+  </figure>
+
+  <p>On the roofline, the cache also pulls the decode dot back to the left. Every step now reads more bytes — the entire cache, all of it, every time. Arithmetic intensity sinks. The compute is small, the bytes are huge, and the dot is once again deep on the bandwidth ramp.</p>
+
+  <p>Two bottlenecks now. <strong>Memory capacity</strong> (you literally run out of space) and <strong>memory bandwidth</strong> (the cache is read once per step, dominating the byte budget). Both are the same villain wearing two costumes. Both are the bytes-per-token formula above.</p>
+
+  <p class="marginalia">The cache formula has four factors. Three are fixed by the model architecture: H, D, L. The interesting one is N — and N grows every time someone sends a longer prompt. This is why long-context inference is hard.</p>
+</section>
+
+<!-- ================== § IV THE PLAN ================== -->
+<section id="s4">
+  <span class="section-num">§ IV</span>
+  <h2>Lifting the roofline by shrinking bytes.</h2>
+  <p class="lede">If the bytes are the problem, the bytes are the lever. Shrink them, and arithmetic intensity climbs by exactly the same factor.</p>
+
+  <p>The decode dot's horizontal position on the roofline is</p>
+
+  <div class="formula">
+    arithmetic intensity &nbsp;=&nbsp; FLOPs &nbsp;/&nbsp; <em>bytes read</em>
+  </div>
+
+  <p>FLOPs are mostly fixed by the model. The thing we can move is the denominator. Cut the bytes by 4× and the dot moves 4× to the right. Cut them by 64× and the dot can reach the ridge.</p>
+
+  <p>There are exactly two terms in the per-token cache formula <span class="mono">4·H·D·L</span> that we can attack architecturally. <strong>H</strong>, the number of K/V heads, and the implicit <strong>N</strong> factor that multiplies the per-token cost into a per-session cost. The book calls these two attacks <em>compressing across heads</em> (Chapter 8) and <em>compressing across tokens</em> (Chapter 9). Together they are the two scissors that cut the cache down to size.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 320" xmlns="http://www.w3.org/2000/svg">
+      <!-- two arrows and a target (the ridge) -->
+      <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">TWO LEVERS, ONE TARGET</text>
+
+      <!-- main roofline silhouette -->
+      <g transform="translate(60,60)">
+        <line x1="0" y1="0" x2="0" y2="220" stroke="#1a1815" stroke-width="1.2"/>
+        <line x1="0" y1="220" x2="700" y2="220" stroke="#1a1815" stroke-width="1.2"/>
+        <line x1="0" y1="220" x2="280" y2="20" stroke="#1a1815" stroke-width="2"/>
+        <line x1="280" y1="20" x2="700" y2="20" stroke="#1a1815" stroke-width="2"/>
+
+        <!-- dot start -->
+        <circle cx="40" cy="190" r="7" fill="#c8351b"/>
+        <text class="svg-text svg-serif" x="55" y="194" font-size="12" fill="#c8351b" font-style="italic">decode (today)</text>
+
+        <!-- arrow up the ramp -->
+        <path d="M 40 188 Q 130 140 200 65" stroke="#b8862f" stroke-width="2" stroke-dasharray="4,4" fill="none"/>
+        <polygon points="200,65 195,72 205,76" fill="#b8862f"/>
+
+        <!-- midway dot -->
+        <circle cx="170" cy="100" r="6" fill="#b8862f"/>
+        <text class="svg-text svg-serif" x="175" y="92" font-size="12" fill="#b8862f" font-style="italic">cache compressed</text>
+
+        <!-- target dot near ridge -->
+        <circle cx="270" cy="25" r="7" fill="#4a6b3a"/>
+        <text class="svg-text svg-serif" x="285" y="20" font-size="12" fill="#4a6b3a" font-style="italic">target: the ridge</text>
+      </g>
+
+      <!-- two side annotations -->
+      <g transform="translate(60,290)">
+        <text class="svg-text svg-mono" x="0" y="0" font-size="13" fill="#1a1815">↑ across heads (Ch 8): &nbsp; H → smaller</text>
+        <text class="svg-text svg-mono" x="380" y="0" font-size="13" fill="#1a1815">↑ across tokens (Ch 9): &nbsp; N → bounded</text>
+      </g>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 4.1</span>The plan in one picture. Each compression step is the same act: fewer bytes per decode step, and the dot lifts toward the ridge.</figcaption>
+  </figure>
+</section>
+
+<!-- ================== § V ACROSS HEADS ================== -->
+<section id="s5">
+  <span class="section-num">§ V</span>
+  <h2>Across heads — MHA, MQA, GQA, MLA.</h2>
+  <p class="lede">The first lever. Every variant in this section keeps softmax attention over the full sequence, but stores fewer K/V projections per token.</p>
+
+  <p>Reducing <span class="mono">H</span> in the cache formula is architectural. You either pretrain with the smaller-K/V design from scratch, or you uptrain an MHA checkpoint with a few percent of the original tokens. Inference-side, the win is direct: cache bytes drop by exactly the factor you compressed by.</p>
+
+  <figure>
+    <svg viewBox="0 0 880 380" xmlns="http://www.w3.org/2000/svg">
+      <!-- 4-panel: MHA, GQA, MQA, MLA -->
+      <text class="svg-text" x="440" y="22" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#6b6359">FOUR WAYS TO STORE K AND V</text>
+
+      <!-- MHA -->
+      <g transform="translate(20,50)">
+        <text class="svg-text svg-mono" x="100" y="0" text-anchor="middle" font-size="12" fill="#1a1815">MHA</text>
+        <!-- Q heads -->
+        <text class="svg-text" x="100" y="22" text-anchor="middle" font-size="9" fill="#6b6359">Q (8) · K (8) · V (8)</text>
+        <g transform="translate(0,32)">
+          <!-- Q row -->
+          <g>
+            <rect x="0" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="24" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="48" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="72" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="106" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="130" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="154" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="178" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+          </g>
+          <!-- K row -->
+          <g transform="translate(0,40)">
+            <rect x="0" y="0" width="22" height="24" fill="#c8351b" opacity="0.65"/>
+            <rect x="24" y="0" width="22" height="24" fill="#c8351b" opacity="0.65"/>
+            <rect x="48" y="0" width="22" height="24" fill="#c8351b" opacity="0.65"/>
+            <rect x="72" y="0" width="22" height="24" fill="#c8351b" opacity="0.65"/>
+            <rect x="106" y="0" width="22" height="24" fill="#c8351b" opacity="0.65"/>
+            <rect x="130" y="0" width="22" height="24" fill="#c8351b" opacity="0.65"/>
+            <rect x="154" y="0" width="22" height="24" fill="#c8351b" opacity="0.65"/>
+            <rect x="178" y="0" width="22" height="24" fill="#c8351b" opacity="0.65"/>
+          </g>
+          <!-- V row -->
+          <g transform="translate(0,72)">
+            <rect x="0" y="0" width="22" height="24" fill="#b8862f" opacity="0.7"/>
+            <rect x="24" y="0" width="22" height="24" fill="#b8862f" opacity="0.7"/>
+            <rect x="48" y="0" width="22" height="24" fill="#b8862f" opacity="0.7"/>
+            <rect x="72" y="0" width="22" height="24" fill="#b8862f" opacity="0.7"/>
+            <rect x="106" y="0" width="22" height="24" fill="#b8862f" opacity="0.7"/>
+            <rect x="130" y="0" width="22" height="24" fill="#b8862f" opacity="0.7"/>
+            <rect x="154" y="0" width="22" height="24" fill="#b8862f" opacity="0.7"/>
+            <rect x="178" y="0" width="22" height="24" fill="#b8862f" opacity="0.7"/>
+          </g>
+        </g>
+        <text class="svg-text svg-mono" x="100" y="180" text-anchor="middle" font-size="11" fill="#1a1815">cache: 4·H·D·L</text>
+        <text class="svg-text svg-serif" x="100" y="200" text-anchor="middle" font-size="12" fill="#c8351b" font-style="italic">baseline, full memory</text>
+      </g>
+
+      <!-- GQA -->
+      <g transform="translate(240,50)">
+        <text class="svg-text svg-mono" x="100" y="0" text-anchor="middle" font-size="12" fill="#1a1815">GQA · G=2</text>
+        <text class="svg-text" x="100" y="22" text-anchor="middle" font-size="9" fill="#6b6359">Q (8) · K (2) · V (2)</text>
+        <g transform="translate(0,32)">
+          <g>
+            <rect x="0" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="24" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="48" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="72" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="106" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="130" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="154" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="178" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+          </g>
+          <g transform="translate(0,40)">
+            <rect x="36" y="0" width="46" height="24" fill="#c8351b" opacity="0.65" stroke="#c8351b" stroke-width="1.2"/>
+            <rect x="142" y="0" width="46" height="24" fill="#c8351b" opacity="0.65" stroke="#c8351b" stroke-width="1.2"/>
+          </g>
+          <g transform="translate(0,72)">
+            <rect x="36" y="0" width="46" height="24" fill="#b8862f" opacity="0.7" stroke="#b8862f" stroke-width="1.2"/>
+            <rect x="142" y="0" width="46" height="24" fill="#b8862f" opacity="0.7" stroke="#b8862f" stroke-width="1.2"/>
+          </g>
+        </g>
+        <text class="svg-text svg-mono" x="100" y="180" text-anchor="middle" font-size="11" fill="#1a1815">cache: 4·G·D·L</text>
+        <text class="svg-text svg-serif" x="100" y="200" text-anchor="middle" font-size="12" fill="#b8862f" font-style="italic">4× smaller · Llama-3</text>
+      </g>
+
+      <!-- MQA -->
+      <g transform="translate(460,50)">
+        <text class="svg-text svg-mono" x="100" y="0" text-anchor="middle" font-size="12" fill="#1a1815">MQA</text>
+        <text class="svg-text" x="100" y="22" text-anchor="middle" font-size="9" fill="#6b6359">Q (8) · K (1) · V (1)</text>
+        <g transform="translate(0,32)">
+          <g>
+            <rect x="0" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="24" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="48" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="72" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="106" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="130" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="154" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="178" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+          </g>
+          <g transform="translate(0,40)">
+            <rect x="78" y="0" width="44" height="24" fill="#c8351b" opacity="0.65" stroke="#c8351b" stroke-width="1.2"/>
+          </g>
+          <g transform="translate(0,72)">
+            <rect x="78" y="0" width="44" height="24" fill="#b8862f" opacity="0.7" stroke="#b8862f" stroke-width="1.2"/>
+          </g>
+        </g>
+        <text class="svg-text svg-mono" x="100" y="180" text-anchor="middle" font-size="11" fill="#1a1815">cache: 4·D·L</text>
+        <text class="svg-text svg-serif" x="100" y="200" text-anchor="middle" font-size="12" fill="#4a6b3a" font-style="italic">8× smaller · quality drops</text>
+      </g>
+
+      <!-- MLA -->
+      <g transform="translate(680,50)">
+        <text class="svg-text svg-mono" x="100" y="0" text-anchor="middle" font-size="12" fill="#1a1815">MLA · R=512</text>
+        <text class="svg-text" x="100" y="22" text-anchor="middle" font-size="9" fill="#6b6359">Q (8) · latent c_KV</text>
+        <g transform="translate(0,32)">
+          <!-- Q row -->
+          <g>
+            <rect x="0" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="24" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="48" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="72" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="106" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="130" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="154" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+            <rect x="178" y="0" width="22" height="24" fill="#2e4a7b" opacity="0.7"/>
+          </g>
+          <!-- Latent slab spanning width -->
+          <g transform="translate(0,44)">
+            <rect x="20" y="0" width="160" height="20" fill="#72569a" opacity="0.65" stroke="#72569a" stroke-width="1.2"/>
+            <text class="svg-mono svg-text" x="100" y="14" text-anchor="middle" font-size="10" fill="#fff">c_KV ∈ ℝ^R</text>
+          </g>
+          <!-- arrows from latent to virtual K/V -->
+          <g transform="translate(0,72)">
+            <text class="svg-mono svg-text" x="100" y="0" text-anchor="middle" font-size="10" fill="#6b6359">↓ up-projects to virtual K, V</text>
+            <text class="svg-mono svg-text" x="100" y="18" text-anchor="middle" font-size="10" fill="#6b6359">absorbed into W_Q · never materialized</text>
+          </g>
+        </g>
+        <text class="svg-text svg-mono" x="100" y="180" text-anchor="middle" font-size="11" fill="#1a1815">cache: 2·R·L</text>
+        <text class="svg-text svg-serif" x="100" y="200" text-anchor="middle" font-size="12" fill="#72569a" font-style="italic">~64× smaller · no quality loss</text>
+      </g>
+
+      <!-- bottom commentary -->
+      <text class="svg-text svg-serif" x="440" y="350" text-anchor="middle" font-size="14" fill="#1a1815" font-style="italic">MLA is the Pareto winner: storage like MQA, quality like MHA.</text>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 5.1</span>The four ways the modern transformer stores K and V. MHA is the original. GQA is the pragmatic middle (Llama-3, Qwen, Mistral). MQA is the aggressive corner. MLA, introduced by DeepSeek-V2/V3, replaces stored K/V with a small latent vector that gets up-projected on demand — and the absorption trick means the up-projection is folded into <span class="mono">W_Q</span> at load time, so K is never even reconstructed during decode.</figcaption>
+  </figure>
+
+  <h3>The MLA absorption trick.</h3>
+  <p>MLA's elegance is in one algebraic identity. Instead of storing per-head K, the model stores a small latent <span class="mono">c_KV ∈ ℝ^R</span> per token. At decode, the score for query <span class="mono">q</span> against past keys becomes</p>
+
+  <div class="formula">
+    Q · Kᵀ &nbsp;=&nbsp; (x · W_Q) · (c_KV · W_UK)ᵀ &nbsp;=&nbsp; x · <em>(W_Q · W_UKᵀ)</em> · c_KVᵀ
+  </div>
+
+  <p>The bracketed product is a constant matrix that can be precomputed once at model load and absorbed into <span class="mono">W_Q</span>. After that, the kernel only ever multiplies <span class="mono">x</span> by a single fused weight matrix and dots into the cached latent. Full per-head K is never materialized at decode time. <strong>Cache stays small; per-head diversity stays full.</strong></p>
+
+  <p class="marginalia">DeepSeek-V3 ships R = 512 over L = 61 layers. Per-token cache: 2·512·61 ≈ 62 KB, versus ~4 MB for an equivalent MHA. ~64× compression, no measurable quality cost on standard evals.</p>
+</section>
+
+<!-- ================== § VI ACROSS TOKENS ================== -->
+<section id="s6">
+  <span class="section-num">§ VI</span>
+  <h2>Across tokens — sliding window, linear attention, Mamba.</h2>
+  <p class="lede">The second lever. Where head compression shrinks H, token compression bounds — or eliminates — the N factor that makes the cache grow with sequence length.</p>
+
+  <p>Three families, in order of how aggressively they compress:</p>
+
+  <h3>Sliding window — a circular buffer.</h3>
+  <p>Each token attends only to the last <span class="mono">W</span> keys. The cache becomes a circular buffer of fixed size W; older slots are overwritten as new tokens arrive. The cache no longer grows with N at all — it caps at <span class="mono">4·W·H·D·L</span> bytes and stays there forever.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 320" xmlns="http://www.w3.org/2000/svg">
+      <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">SLIDING WINDOW · CIRCULAR BUFFER OF SIZE W</text>
+
+      <!-- Mask -->
+      <g transform="translate(60,55)">
+        <text class="svg-text svg-mono" x="100" y="-10" text-anchor="middle" font-size="11" fill="#1a1815">attention mask</text>
+        <rect x="0" y="0" width="180" height="180" fill="#ebe1c7" stroke="#3d3833" stroke-width="1"/>
+        <!-- diagonal band -->
+        <path d="
+          M0,0 L0,15 L15,15 L15,0 Z
+          M0,15 L0,30 L30,30 L30,15 Z
+          M0,30 L0,45 L45,45 L45,30 Z
+          M0,45 L0,60 L60,60 L60,45 Z
+          M15,60 L15,75 L75,75 L75,60 Z
+          M30,75 L30,90 L90,90 L90,75 Z
+          M45,90 L45,105 L105,105 L105,90 Z
+          M60,105 L60,120 L120,120 L120,105 Z
+          M75,120 L75,135 L135,135 L135,120 Z
+          M90,135 L90,150 L150,150 L150,135 Z
+          M105,150 L105,165 L165,165 L165,150 Z
+          M120,165 L120,180 L180,180 L180,165 Z
+        " fill="#c8351b" opacity="0.55"/>
+      </g>
+
+      <!-- Circular buffer ring -->
+      <g transform="translate(380,140)">
+        <text class="svg-text svg-mono" x="0" y="-100" text-anchor="middle" font-size="11" fill="#1a1815">cache as circular buffer</text>
+        <!-- 8 slots arranged in a circle -->
+        <g>
+          <!-- compute 8 positions -->
+          <g transform="translate(0,-80)">
+            <rect x="-15" y="-12" width="30" height="24" fill="#c8351b" opacity="0.65"/>
+            <text class="svg-mono svg-text" x="0" y="3" text-anchor="middle" font-size="9" fill="#fff">t-7</text>
+          </g>
+          <g transform="translate(57,-57)">
+            <rect x="-15" y="-12" width="30" height="24" fill="#c8351b" opacity="0.65"/>
+            <text class="svg-mono svg-text" x="0" y="3" text-anchor="middle" font-size="9" fill="#fff">t-6</text>
+          </g>
+          <g transform="translate(80,0)">
+            <rect x="-15" y="-12" width="30" height="24" fill="#c8351b" opacity="0.65"/>
+            <text class="svg-mono svg-text" x="0" y="3" text-anchor="middle" font-size="9" fill="#fff">t-5</text>
+          </g>
+          <g transform="translate(57,57)">
+            <rect x="-15" y="-12" width="30" height="24" fill="#c8351b" opacity="0.65"/>
+            <text class="svg-mono svg-text" x="0" y="3" text-anchor="middle" font-size="9" fill="#fff">t-4</text>
+          </g>
+          <g transform="translate(0,80)">
+            <rect x="-15" y="-12" width="30" height="24" fill="#c8351b" opacity="0.65"/>
+            <text class="svg-mono svg-text" x="0" y="3" text-anchor="middle" font-size="9" fill="#fff">t-3</text>
+          </g>
+          <g transform="translate(-57,57)">
+            <rect x="-15" y="-12" width="30" height="24" fill="#c8351b" opacity="0.65"/>
+            <text class="svg-mono svg-text" x="0" y="3" text-anchor="middle" font-size="9" fill="#fff">t-2</text>
+          </g>
+          <g transform="translate(-80,0)">
+            <rect x="-15" y="-12" width="30" height="24" fill="#c8351b" opacity="0.65"/>
+            <text class="svg-mono svg-text" x="0" y="3" text-anchor="middle" font-size="9" fill="#fff">t-1</text>
+          </g>
+          <g transform="translate(-57,-57)">
+            <rect x="-15" y="-12" width="30" height="24" fill="#4a6b3a" opacity="0.85"/>
+            <text class="svg-mono svg-text" x="0" y="3" text-anchor="middle" font-size="9" fill="#fff">new</text>
+          </g>
+        </g>
+        <!-- write pointer -->
+        <path d="M -57 -78 L -38 -98" stroke="#1a1815" stroke-width="1.5"/>
+        <polygon points="-38,-98 -45,-93 -45,-105" fill="#1a1815"/>
+        <text class="svg-text svg-mono" x="-30" y="-105" font-size="10" fill="#1a1815">overwrite oldest</text>
+      </g>
+
+      <!-- Receptive field via stacking -->
+      <g transform="translate(560,55)">
+        <text class="svg-text svg-mono" x="100" y="-10" text-anchor="middle" font-size="11" fill="#1a1815">receptive field via stacking</text>
+        <!-- 3 layers, arrows fanning out -->
+        <g>
+          <rect x="0" y="0" width="200" height="32" fill="#2e4a7b" opacity="0.18" stroke="#2e4a7b"/>
+          <text class="svg-mono svg-text" x="100" y="20" text-anchor="middle" font-size="10" fill="#1a1815">layer 1 — sees W tokens</text>
+
+          <rect x="0" y="50" width="200" height="32" fill="#2e4a7b" opacity="0.32" stroke="#2e4a7b"/>
+          <text class="svg-mono svg-text" x="100" y="70" text-anchor="middle" font-size="10" fill="#1a1815">layer 2 — sees ~2W effectively</text>
+
+          <rect x="0" y="100" width="200" height="32" fill="#2e4a7b" opacity="0.5" stroke="#2e4a7b"/>
+          <text class="svg-mono svg-text" x="100" y="120" text-anchor="middle" font-size="10" fill="#fff">layer L — sees W·L tokens</text>
+        </g>
+        <text class="svg-text svg-serif" x="100" y="160" text-anchor="middle" font-size="13" fill="#4a6b3a" font-style="italic">Mistral: W=4K, L=32 → 128K effective</text>
+      </g>
+
+    </svg>
+    <figcaption><span class="fig-label">Fig. 6.1</span>Sliding window. Each query sees only the last W keys. The cache becomes a fixed-size ring. Receptive field is recovered through layer stacking — but only as a relay, attenuating with depth.</figcaption>
+  </figure>
+
+  <h3>Linear attention — a constant-size running state.</h3>
+  <p>Sliding window keeps softmax but throws away old tokens. <em>Linear attention</em> goes the other way — keep all tokens, but throw away the softmax. The trick is associativity:</p>
+
+  <div class="formula">
+    softmax(QKᵀ) V &nbsp;<em>(can't reorder)</em>&nbsp; &nbsp;→&nbsp; φ(Q) · ( <em>φ(K)ᵀ V</em> ) &nbsp;<em>(can)</em>
+  </div>
+
+  <p>With the softmax replaced by a kernel feature map φ, the inner product <span class="mono">φ(K)ᵀV</span> becomes a small <span class="mono">D × D</span> matrix that is independent of N. Past tokens are accumulated into this matrix incrementally:</p>
+
+  <div class="formula">
+    S<sub>t</sub> &nbsp;=&nbsp; S<sub>t−1</sub> &nbsp;+&nbsp; φ(K<sub>t</sub>)ᵀ V<sub>t</sub> &nbsp;&nbsp;&nbsp;<em>(D × D, no N)</em>
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 820 280" xmlns="http://www.w3.org/2000/svg">
+      <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">LINEAR ATTENTION · A FIXED D×D STATE FOR ALL OF HISTORY</text>
+
+      <!-- timeline of incoming tokens -->
+      <g transform="translate(40,60)">
+        <text class="svg-text svg-mono" x="0" y="-10" font-size="11" fill="#6b6359">incoming tokens</text>
+        <g font-family="JetBrains Mono">
+          <rect x="0" y="0" width="40" height="30" rx="3" fill="#2e4a7b" opacity="0.45"/>
+          <text class="svg-text svg-mono" x="20" y="20" text-anchor="middle" fill="#fff" font-size="11">x_1</text>
+
+          <rect x="50" y="0" width="40" height="30" rx="3" fill="#2e4a7b" opacity="0.55"/>
+          <text class="svg-text svg-mono" x="70" y="20" text-anchor="middle" fill="#fff" font-size="11">x_2</text>
+
+          <rect x="100" y="0" width="40" height="30" rx="3" fill="#2e4a7b" opacity="0.65"/>
+          <text class="svg-text svg-mono" x="120" y="20" text-anchor="middle" fill="#fff" font-size="11">x_3</text>
+
+          <rect x="150" y="0" width="40" height="30" rx="3" fill="#2e4a7b" opacity="0.75"/>
+          <text class="svg-text svg-mono" x="170" y="20" text-anchor="middle" fill="#fff" font-size="11">x_4</text>
+
+          <text class="svg-mono svg-text" x="200" y="20" font-size="14" fill="#1a1815">⋯</text>
+
+          <rect x="220" y="0" width="40" height="30" rx="3" fill="#2e4a7b" opacity="0.85"/>
+          <text class="svg-text svg-mono" x="240" y="20" text-anchor="middle" fill="#fff" font-size="11">x_t</text>
+        </g>
+      </g>
+
+      <!-- arrows down to state -->
+      <g transform="translate(40,110)">
+        <line x1="20" y1="0" x2="20" y2="20" stroke="#1a1815" stroke-width="1"/>
+        <line x1="70" y1="0" x2="70" y2="20" stroke="#1a1815" stroke-width="1"/>
+        <line x1="120" y1="0" x2="120" y2="20" stroke="#1a1815" stroke-width="1"/>
+        <line x1="170" y1="0" x2="170" y2="20" stroke="#1a1815" stroke-width="1"/>
+        <line x1="240" y1="0" x2="240" y2="20" stroke="#1a1815" stroke-width="1"/>
+      </g>
+
+      <!-- single state -->
+      <g transform="translate(40,140)">
+        <rect x="0" y="0" width="260" height="80" fill="#72569a" opacity="0.18" stroke="#72569a" stroke-width="1.5"/>
+        <text class="svg-text svg-mono" x="130" y="30" text-anchor="middle" font-size="13" fill="#1a1815">running state &nbsp; S ∈ ℝ^(D × D)</text>
+        <text class="svg-text" x="130" y="52" text-anchor="middle" font-size="11" fill="#6b6359">size never grows — every token is folded in</text>
+        <text class="svg-text svg-mono" x="130" y="70" text-anchor="middle" font-size="11" fill="#1a1815">S ← S + φ(K_t)ᵀ V_t</text>
+      </g>
+
+      <!-- comparison panel right -->
+      <g transform="translate(440,60)">
+        <rect x="0" y="0" width="340" height="160" fill="#ebe1c7" stroke="#3d3833" stroke-width="1"/>
+        <text class="svg-text" x="170" y="22" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#6b6359">CACHE COMPARISON · D = 128, L = 32</text>
+
+        <text class="svg-text svg-mono" x="20" y="55" font-size="13" fill="#c8351b">MHA, 100K ctx:</text>
+        <text class="svg-text svg-mono" x="20" y="73" font-size="13" fill="#1a1815">  ≈ 16 GB</text>
+
+        <text class="svg-text svg-mono" x="20" y="100" font-size="13" fill="#b8862f">SWA, W=4K:</text>
+        <text class="svg-text svg-mono" x="20" y="118" font-size="13" fill="#1a1815">  ≈ 256 MB</text>
+
+        <text class="svg-text svg-mono" x="20" y="145" font-size="13" fill="#72569a">Linear attention:</text>
+        <text class="svg-text svg-mono" x="200" y="145" font-size="13" fill="#1a1815">≈ 1 MB &nbsp;(any N)</text>
+      </g>
+
+      <!-- caveat -->
+      <text class="svg-text svg-serif" x="170" y="245" text-anchor="middle" font-size="13" fill="#c8351b" font-style="italic">but: different pasts can collide into the same S — the context bottleneck.</text>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 6.2</span>Linear attention is the most aggressive cache compression possible — a fixed D×D matrix for an entire conversation. The cost is the <em>context bottleneck</em>: the running state is a lossy summary, and different histories can map to the same state. Retrieval suffers.</figcaption>
+  </figure>
+
+  <h3>Mamba — selectivity to the rescue.</h3>
+  <p>The fix to the context bottleneck is the recognition that the model should be allowed to <em>choose</em> what to remember. In linear attention every input is folded into the state with the same weights. <strong>Mamba</strong>, the selective state-space model, makes the recurrence's parameters input-dependent: the matrices A, B, and the timestep Δ are functions of the current token. A token that the model has decided is important "passes through" with full strength; a token that is filler is suppressed.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 320" xmlns="http://www.w3.org/2000/svg">
+      <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">MAMBA · INPUT-DEPENDENT GATES</text>
+
+      <!-- token stream with selectivity -->
+      <g transform="translate(40,60)">
+        <text class="svg-text svg-mono" x="0" y="-10" font-size="11" fill="#6b6359">token stream</text>
+        <!-- 8 tokens with varying "let through" weights -->
+        <g>
+          <!-- pass strong -->
+          <g>
+            <rect x="0" y="0" width="50" height="34" rx="3" fill="#4a6b3a" opacity="0.85"/>
+            <text class="svg-text svg-mono" x="25" y="22" text-anchor="middle" fill="#fff" font-size="11">key</text>
+            <text class="svg-text" x="25" y="50" text-anchor="middle" font-size="10" fill="#4a6b3a" font-weight="700">PASS</text>
+          </g>
+          <g transform="translate(60,0)">
+            <rect x="0" y="6" width="50" height="22" rx="3" fill="#b8862f" opacity="0.5"/>
+            <text class="svg-text svg-mono" x="25" y="22" text-anchor="middle" fill="#fff" font-size="11">the</text>
+            <text class="svg-text" x="25" y="50" text-anchor="middle" font-size="10" fill="#b8862f" font-weight="700">DAMP</text>
+          </g>
+          <g transform="translate(120,0)">
+            <rect x="0" y="6" width="50" height="22" rx="3" fill="#b8862f" opacity="0.5"/>
+            <text class="svg-text svg-mono" x="25" y="22" text-anchor="middle" fill="#fff" font-size="11">a</text>
+            <text class="svg-text" x="25" y="50" text-anchor="middle" font-size="10" fill="#b8862f" font-weight="700">DAMP</text>
+          </g>
+          <g transform="translate(180,0)">
+            <rect x="0" y="0" width="50" height="34" rx="3" fill="#4a6b3a" opacity="0.85"/>
+            <text class="svg-text svg-mono" x="25" y="22" text-anchor="middle" fill="#fff" font-size="11">name</text>
+            <text class="svg-text" x="25" y="50" text-anchor="middle" font-size="10" fill="#4a6b3a" font-weight="700">PASS</text>
+          </g>
+          <g transform="translate(240,0)">
+            <rect x="0" y="10" width="50" height="14" rx="3" fill="#c8351b" opacity="0.4"/>
+            <text class="svg-text svg-mono" x="25" y="22" text-anchor="middle" fill="#fff" font-size="11">um</text>
+            <text class="svg-text" x="25" y="50" text-anchor="middle" font-size="10" fill="#c8351b" font-weight="700">SUPPRESS</text>
+          </g>
+          <g transform="translate(300,0)">
+            <rect x="0" y="0" width="50" height="34" rx="3" fill="#4a6b3a" opacity="0.85"/>
+            <text class="svg-text svg-mono" x="25" y="22" text-anchor="middle" fill="#fff" font-size="11">date</text>
+            <text class="svg-text" x="25" y="50" text-anchor="middle" font-size="10" fill="#4a6b3a" font-weight="700">PASS</text>
+          </g>
+          <g transform="translate(360,0)">
+            <rect x="0" y="6" width="50" height="22" rx="3" fill="#b8862f" opacity="0.5"/>
+            <text class="svg-text svg-mono" x="25" y="22" text-anchor="middle" fill="#fff" font-size="11">of</text>
+            <text class="svg-text" x="25" y="50" text-anchor="middle" font-size="10" fill="#b8862f" font-weight="700">DAMP</text>
+          </g>
+          <g transform="translate(420,0)">
+            <rect x="0" y="0" width="50" height="34" rx="3" fill="#4a6b3a" opacity="0.85"/>
+            <text class="svg-text svg-mono" x="25" y="22" text-anchor="middle" fill="#fff" font-size="11">birth</text>
+            <text class="svg-text" x="25" y="50" text-anchor="middle" font-size="10" fill="#4a6b3a" font-weight="700">PASS</text>
+          </g>
+        </g>
+      </g>
+
+      <!-- arrows down -->
+      <g transform="translate(40,140)">
+        <text class="svg-mono svg-text" x="240" y="0" text-anchor="middle" font-size="11" fill="#1a1815">B(x), C(x), Δ(x) chosen by the model from x itself</text>
+      </g>
+
+      <!-- recurrence equation -->
+      <g transform="translate(40,170)">
+        <rect x="0" y="0" width="500" height="100" fill="#72569a" opacity="0.12" stroke="#72569a" stroke-width="1.5"/>
+        <text class="svg-text svg-mono" x="250" y="28" text-anchor="middle" font-size="13" fill="#1a1815">selective SSM:</text>
+        <text class="svg-text svg-mono" x="250" y="55" text-anchor="middle" font-size="14" fill="#1a1815">h_t &nbsp;=&nbsp; A(x_t) · h_{t−1} &nbsp;+&nbsp; B(x_t) · x_t</text>
+        <text class="svg-text svg-mono" x="250" y="80" text-anchor="middle" font-size="14" fill="#1a1815">y_t &nbsp;=&nbsp; C(x_t) · h_t</text>
+      </g>
+
+      <!-- right side: takeaway -->
+      <g transform="translate(580,170)">
+        <text class="svg-text svg-serif" x="100" y="20" text-anchor="middle" font-size="13" fill="#1a1815" font-style="italic">linear attention's small,</text>
+        <text class="svg-text svg-serif" x="100" y="40" text-anchor="middle" font-size="13" fill="#1a1815" font-style="italic">constant-size cache —</text>
+        <text class="svg-text svg-serif" x="100" y="60" text-anchor="middle" font-size="13" fill="#4a6b3a" font-style="italic">but the model gets to choose</text>
+        <text class="svg-text svg-serif" x="100" y="80" text-anchor="middle" font-size="13" fill="#4a6b3a" font-style="italic">what enters the state.</text>
+      </g>
+
+    </svg>
+    <figcaption><span class="fig-label">Fig. 6.3</span>Mamba is linear attention with selectivity. The recurrence's matrices A, B, C are input-dependent — the model's gates open for important tokens and close for filler. The cache is still a constant-size hidden state, but it now contains <em>what the model wanted</em> rather than a uniform sum.</figcaption>
+  </figure>
+
+  <p class="marginalia">Mamba ships with a hardware-aware selective-scan kernel that is essential — without it, the input-dependent recurrence is too slow on a GPU. The kernel is the reason Mamba is competitive in practice.</p>
+</section>
+
+<!-- ================== § VII THREE AXES ================== -->
+<section id="s7">
+  <span class="section-num">§ VII</span>
+  <h2>The three axes.</h2>
+  <p class="lede">Quality, memory, and throughput are not on the same line. Every variant we have met is a point in a triangle, and the right choice depends on which corner you care about.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 460" xmlns="http://www.w3.org/2000/svg">
+      <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">THE TRADE-OFF TRIANGLE</text>
+
+      <!-- Triangle frame -->
+      <g transform="translate(80,60)">
+        <polygon points="320,0 0,360 640,360" fill="#ebe1c7" stroke="#1a1815" stroke-width="1.2" opacity="0.6"/>
+
+        <!-- Axis labels -->
+        <text class="svg-text" x="320" y="-15" text-anchor="middle" font-size="11" letter-spacing="0.12em" fill="#1a1815" font-weight="700">QUALITY</text>
+        <text class="svg-text" x="-30" y="380" font-size="11" letter-spacing="0.12em" fill="#1a1815" font-weight="700">MEMORY EFFICIENCY</text>
+        <text class="svg-text" x="660" y="380" text-anchor="end" font-size="11" letter-spacing="0.12em" fill="#1a1815" font-weight="700">THROUGHPUT</text>
+
+        <!-- Variant points -->
+        <!-- MHA: high quality, low memory eff, low throughput -> high up, but balanced -->
+        <g>
+          <circle cx="320" cy="20" r="9" fill="#c8351b"/>
+          <text class="svg-text svg-mono" x="320" y="0" text-anchor="middle" font-size="11" fill="#1a1815">MHA</text>
+          <text class="svg-text" x="320" y="42" text-anchor="middle" font-size="9" fill="#6b6359">all quality, no efficiency</text>
+        </g>
+
+        <!-- GQA: balanced -->
+        <g>
+          <circle cx="380" cy="120" r="9" fill="#b8862f"/>
+          <text class="svg-text svg-mono" x="395" y="118" font-size="11" fill="#1a1815">GQA</text>
+          <text class="svg-text" x="395" y="135" font-size="9" fill="#6b6359">the pragmatic middle</text>
+        </g>
+
+        <!-- MLA: top-left ish — high quality + memory eff -->
+        <g>
+          <circle cx="180" cy="80" r="11" fill="#72569a"/>
+          <text class="svg-text svg-mono" x="170" y="80" text-anchor="end" font-size="11" fill="#1a1815">MLA ★</text>
+          <text class="svg-text" x="170" y="96" text-anchor="end" font-size="9" fill="#6b6359">Pareto winner</text>
+        </g>
+
+        <!-- MQA: bottom-left -->
+        <g>
+          <circle cx="120" cy="220" r="9" fill="#4a6b3a"/>
+          <text class="svg-text svg-mono" x="120" y="240" text-anchor="middle" font-size="11" fill="#1a1815">MQA</text>
+          <text class="svg-text" x="120" y="255" text-anchor="middle" font-size="9" fill="#6b6359">cache wins, quality drops</text>
+        </g>
+
+        <!-- Sliding window: middle-right -->
+        <g>
+          <circle cx="460" cy="180" r="9" fill="#2e4a7b"/>
+          <text class="svg-text svg-mono" x="476" y="178" font-size="11" fill="#1a1815">Sliding window</text>
+          <text class="svg-text" x="476" y="194" font-size="9" fill="#6b6359">long context, retrieval cost</text>
+        </g>
+
+        <!-- Linear: far left -->
+        <g>
+          <circle cx="60" cy="280" r="9" fill="#2f5e5a"/>
+          <text class="svg-text svg-mono" x="60" y="300" text-anchor="middle" font-size="11" fill="#1a1815">Linear attn</text>
+          <text class="svg-text" x="60" y="315" text-anchor="middle" font-size="9" fill="#6b6359">constant cache · ctx bottleneck</text>
+        </g>
+
+        <!-- Mamba -->
+        <g>
+          <circle cx="180" cy="240" r="10" fill="#72569a" stroke="#1a1815" stroke-width="1"/>
+          <text class="svg-text svg-mono" x="180" y="270" text-anchor="middle" font-size="11" fill="#1a1815">Mamba</text>
+          <text class="svg-text" x="180" y="285" text-anchor="middle" font-size="9" fill="#6b6359">selectivity restores quality</text>
+        </g>
+      </g>
+
+      <!-- caveat -->
+      <text class="svg-text svg-serif" x="410" y="445" text-anchor="middle" font-size="13" fill="#1a1815" font-style="italic">The triangle is real. There is no single corner that beats all the others.</text>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 7.1</span>The three axes. MHA is the corner of pure quality. MQA, far down on the memory side, is the corner of pure cache savings. MLA sits up the side, dominating both — it is the closest thing to a free lunch this family has produced. Sliding window and Mamba live on the throughput axis, valued for long-context and streaming respectively.</figcaption>
+  </figure>
+</section>
+
+<!-- ================== § VIII MIXTURE ================== -->
+<section id="s8">
+  <span class="section-num">§ VIII</span>
+  <h2>In reality, models mix everything.</h2>
+  <p class="lede">No production model picks one variant and stops. Real systems combine head compression, token compression, and a battery of systems-level tricks. The architecture is a stack, not a choice.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 380" xmlns="http://www.w3.org/2000/svg">
+      <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">REAL MODELS · WHAT'S ACTUALLY ON THE SHELF</text>
+
+      <!-- Three columns: model, head choice, token choice, kernel -->
+      <g transform="translate(40,55)">
+        <!-- Header -->
+        <rect x="0" y="0" width="740" height="32" fill="#1a1815"/>
+        <text class="svg-text" x="20" y="20" font-size="11" letter-spacing="0.1em" fill="#fff">MODEL</text>
+        <text class="svg-text" x="200" y="20" font-size="11" letter-spacing="0.1em" fill="#fff">HEADS (Ch 8)</text>
+        <text class="svg-text" x="380" y="20" font-size="11" letter-spacing="0.1em" fill="#fff">TOKENS (Ch 9)</text>
+        <text class="svg-text" x="560" y="20" font-size="11" letter-spacing="0.1em" fill="#fff">KERNEL (Ch 10)</text>
+
+        <!-- Llama 3 70B -->
+        <g transform="translate(0,40)">
+          <rect x="0" y="0" width="740" height="42" fill="#ebe1c7" stroke="#3d3833" stroke-width="1"/>
+          <text class="svg-text svg-serif" x="20" y="26" font-size="14" fill="#1a1815" font-style="italic">Llama-3 70B</text>
+          <text class="svg-text svg-mono" x="200" y="20" font-size="12" fill="#1a1815">GQA · G = 8</text>
+          <text class="svg-text" x="200" y="35" font-size="10" fill="#6b6359">4× cache reduction</text>
+          <text class="svg-text svg-mono" x="380" y="20" font-size="12" fill="#1a1815">dense softmax</text>
+          <text class="svg-text" x="380" y="35" font-size="10" fill="#6b6359">no token compression</text>
+          <text class="svg-text svg-mono" x="560" y="20" font-size="12" fill="#1a1815">FlashAttention-2/3</text>
+          <text class="svg-text" x="560" y="35" font-size="10" fill="#6b6359">tiled, no N² in HBM</text>
+        </g>
+
+        <!-- Mistral 7B -->
+        <g transform="translate(0,90)">
+          <rect x="0" y="0" width="740" height="42" fill="#ebe1c7" stroke="#3d3833" stroke-width="1"/>
+          <text class="svg-text svg-serif" x="20" y="26" font-size="14" fill="#1a1815" font-style="italic">Mistral 7B</text>
+          <text class="svg-text svg-mono" x="200" y="20" font-size="12" fill="#1a1815">GQA · G = 8</text>
+          <text class="svg-text" x="200" y="35" font-size="10" fill="#6b6359">4× cache reduction</text>
+          <text class="svg-text svg-mono" x="380" y="20" font-size="12" fill="#1a1815">SWA · W = 4K</text>
+          <text class="svg-text" x="380" y="35" font-size="10" fill="#6b6359">circular buffer + relay</text>
+          <text class="svg-text svg-mono" x="560" y="20" font-size="12" fill="#1a1815">FlashAttention-2</text>
+          <text class="svg-text" x="560" y="35" font-size="10" fill="#6b6359">long-context tile</text>
+        </g>
+
+        <!-- Gemma 2 -->
+        <g transform="translate(0,140)">
+          <rect x="0" y="0" width="740" height="42" fill="#ebe1c7" stroke="#3d3833" stroke-width="1"/>
+          <text class="svg-text svg-serif" x="20" y="26" font-size="14" fill="#1a1815" font-style="italic">Gemma-2 27B</text>
+          <text class="svg-text svg-mono" x="200" y="20" font-size="12" fill="#1a1815">GQA · G = 4</text>
+          <text class="svg-text" x="200" y="35" font-size="10" fill="#6b6359">8× cache reduction</text>
+          <text class="svg-text svg-mono" x="380" y="20" font-size="12" fill="#1a1815">SWA + full (5:1)</text>
+          <text class="svg-text" x="380" y="35" font-size="10" fill="#6b6359">hybrid layers</text>
+          <text class="svg-text svg-mono" x="560" y="20" font-size="12" fill="#1a1815">FlashAttention-2</text>
+          <text class="svg-text" x="560" y="35" font-size="10" fill="#6b6359">multi-mask kernel</text>
+        </g>
+
+        <!-- DeepSeek V3 -->
+        <g transform="translate(0,190)">
+          <rect x="0" y="0" width="740" height="42" fill="#ebe1c7" stroke="#3d3833" stroke-width="1"/>
+          <text class="svg-text svg-serif" x="20" y="26" font-size="14" fill="#1a1815" font-style="italic">DeepSeek V3</text>
+          <text class="svg-text svg-mono" x="200" y="20" font-size="12" fill="#1a1815">MLA · R = 512</text>
+          <text class="svg-text" x="200" y="35" font-size="10" fill="#6b6359">~64× cache reduction</text>
+          <text class="svg-text svg-mono" x="380" y="20" font-size="12" fill="#1a1815">dense + NSA tier</text>
+          <text class="svg-text" x="380" y="35" font-size="10" fill="#6b6359">native sparse attn</text>
+          <text class="svg-text svg-mono" x="560" y="20" font-size="12" fill="#1a1815">FlashAttention-3 / TMA</text>
+          <text class="svg-text" x="560" y="35" font-size="10" fill="#6b6359">Hopper-optimised</text>
+        </g>
+
+        <!-- Mamba -->
+        <g transform="translate(0,240)">
+          <rect x="0" y="0" width="740" height="42" fill="#ebe1c7" stroke="#3d3833" stroke-width="1"/>
+          <text class="svg-text svg-serif" x="20" y="26" font-size="14" fill="#1a1815" font-style="italic">Mamba 2.8B</text>
+          <text class="svg-text svg-mono" x="200" y="20" font-size="12" fill="#1a1815">— (no heads)</text>
+          <text class="svg-text" x="200" y="35" font-size="10" fill="#6b6359">no attention at all</text>
+          <text class="svg-text svg-mono" x="380" y="20" font-size="12" fill="#1a1815">selective SSM</text>
+          <text class="svg-text" x="380" y="35" font-size="10" fill="#6b6359">constant hidden state</text>
+          <text class="svg-text svg-mono" x="560" y="20" font-size="12" fill="#1a1815">selective-scan kernel</text>
+          <text class="svg-text" x="560" y="35" font-size="10" fill="#6b6359">parallel scan in SRAM</text>
+        </g>
+      </g>
+
+      <text class="svg-text svg-serif" x="410" y="370" text-anchor="middle" font-size="13" fill="#1a1815" font-style="italic">notice the right-most column: it is the same name in every row.</text>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 8.1</span>Real production models. The heads column varies. The tokens column varies. The kernel column does not. FlashAttention (or its SSM-equivalent, the selective-scan kernel) is the constant — the systems-layer floor that everything sits on top of.</figcaption>
+  </figure>
+
+  <p>Two patterns to notice. First, every architecture combines a head choice <em>and</em> a token choice — they are orthogonal levers. Second, the kernel column is invariant. <strong>FlashAttention is the substrate.</strong> It is not one of the choices in the menu; it is the floor of the building.</p>
+</section>
+
+<!-- ================== § IX FLASHATTENTION ================== -->
+<section id="s9">
+  <span class="section-num">§ IX</span>
+  <h2>FlashAttention — the layer beneath all of it.</h2>
+  <p class="lede">FlashAttention is not a competitor to GQA, MLA, or Mamba. It sits underneath all of them. It computes whatever attention math you have decided on, but it computes it without ever writing the giant intermediate matrix to slow memory.</p>
+
+  <p>To understand the trick, picture the GPU's memory hierarchy. HBM is large and slow (~3 TB/s on H100, but cents per nanosecond compared to the speed of compute). On-chip SRAM is small and fast (~228 KB per streaming multiprocessor, roughly two orders of magnitude faster). The standard attention kernel materializes the <span class="mono">N × N</span> score matrix in HBM, reads it back to apply softmax, then reads it again to multiply by V. <em>The matrix is the bottleneck.</em></p>
+
+  <figure>
+    <svg viewBox="0 0 820 460" xmlns="http://www.w3.org/2000/svg">
+      <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">A STREAMING MULTIPROCESSOR · WHERE FLASHATTENTION LIVES</text>
+
+      <!-- Outer GPU frame -->
+      <g transform="translate(40,50)">
+        <rect x="0" y="0" width="740" height="380" fill="#ebe1c7" stroke="#1a1815" stroke-width="1.5"/>
+        <text class="svg-text" x="20" y="22" font-size="11" letter-spacing="0.12em" fill="#1a1815" font-weight="700">H100 GPU</text>
+
+        <!-- HBM bar (top) -->
+        <g transform="translate(40,40)">
+          <rect x="0" y="0" width="660" height="60" fill="#c8351b" opacity="0.8"/>
+          <text class="svg-text" x="330" y="36" text-anchor="middle" font-size="14" fill="#fff" font-weight="700">HBM · 80 GB · 3 TB/s</text>
+          <text class="svg-text" x="330" y="52" text-anchor="middle" font-size="11" fill="#fff">slow, large, where the model lives</text>
+        </g>
+
+        <!-- bidirectional arrow with cost -->
+        <g transform="translate(370,110)">
+          <line x1="0" y1="0" x2="0" y2="40" stroke="#1a1815" stroke-width="2"/>
+          <polygon points="0,40 -5,32 5,32" fill="#1a1815"/>
+          <polygon points="0,0 -5,8 5,8" fill="#1a1815"/>
+          <text class="svg-text svg-mono" x="14" y="25" font-size="11" fill="#c8351b">expensive!</text>
+        </g>
+
+        <!-- L2 cache bar -->
+        <g transform="translate(40,160)">
+          <rect x="0" y="0" width="660" height="36" fill="#b8862f" opacity="0.7"/>
+          <text class="svg-text" x="330" y="22" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">L2 cache · 50 MB · ~12 TB/s</text>
+        </g>
+
+        <!-- 4 SMs -->
+        <g transform="translate(40,210)">
+          <text class="svg-text" x="0" y="-5" font-size="10" letter-spacing="0.1em" fill="#6b6359">144 STREAMING MULTIPROCESSORS — ZOOM IN ON ONE</text>
+
+          <!-- 1 SM closeup at left -->
+          <g transform="translate(0,5)">
+            <rect x="0" y="0" width="320" height="155" fill="#fff" stroke="#1a1815" stroke-width="1.2"/>
+            <text class="svg-text" x="160" y="22" text-anchor="middle" font-size="11" letter-spacing="0.1em" fill="#1a1815" font-weight="700">SM</text>
+
+            <!-- SRAM block -->
+            <rect x="20" y="40" width="280" height="40" fill="#4a6b3a" opacity="0.7"/>
+            <text class="svg-text" x="160" y="58" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">SRAM (shared) · 228 KB · ~19 TB/s</text>
+            <text class="svg-text" x="160" y="74" text-anchor="middle" font-size="10" fill="#fff">FlashAttention's playground</text>
+
+            <!-- Tensor cores -->
+            <g transform="translate(20,95)">
+              <rect x="0" y="0" width="60" height="40" fill="#2e4a7b" opacity="0.7"/>
+              <text class="svg-text svg-mono" x="30" y="20" text-anchor="middle" font-size="9" fill="#fff">TC</text>
+              <text class="svg-text svg-mono" x="30" y="32" text-anchor="middle" font-size="9" fill="#fff">⊕</text>
+
+              <rect x="65" y="0" width="60" height="40" fill="#2e4a7b" opacity="0.7"/>
+              <text class="svg-text svg-mono" x="95" y="20" text-anchor="middle" font-size="9" fill="#fff">TC</text>
+
+              <rect x="130" y="0" width="60" height="40" fill="#2e4a7b" opacity="0.7"/>
+              <text class="svg-text svg-mono" x="160" y="20" text-anchor="middle" font-size="9" fill="#fff">TC</text>
+
+              <rect x="195" y="0" width="60" height="40" fill="#2e4a7b" opacity="0.7"/>
+              <text class="svg-text svg-mono" x="225" y="20" text-anchor="middle" font-size="9" fill="#fff">TC</text>
+            </g>
+            <text class="svg-text" x="160" y="148" text-anchor="middle" font-size="10" fill="#6b6359">tensor cores read directly from SRAM</text>
+          </g>
+
+          <!-- Right side: tile flow -->
+          <g transform="translate(360,5)">
+            <text class="svg-text" x="180" y="0" text-anchor="middle" font-size="11" letter-spacing="0.12em" fill="#1a1815" font-weight="700">FLASHATTENTION · TILE BY TILE</text>
+
+            <!-- Q matrix tiles -->
+            <g transform="translate(0,20)">
+              <text class="svg-text svg-mono" x="0" y="0" font-size="11" fill="#1a1815">Q tile</text>
+              <rect x="0" y="8" width="60" height="22" fill="#2e4a7b" opacity="0.7"/>
+
+              <text class="svg-text svg-mono" x="100" y="0" font-size="11" fill="#1a1815">K tile</text>
+              <rect x="100" y="8" width="60" height="22" fill="#c8351b" opacity="0.55"/>
+
+              <text class="svg-text svg-mono" x="200" y="0" font-size="11" fill="#1a1815">V tile</text>
+              <rect x="200" y="8" width="60" height="22" fill="#b8862f" opacity="0.6"/>
+            </g>
+
+            <text class="svg-mono svg-text" x="180" y="58" text-anchor="middle" font-size="13" fill="#1a1815">↓ load into SRAM</text>
+
+            <!-- in SRAM ops -->
+            <g transform="translate(0,72)">
+              <rect x="0" y="0" width="360" height="44" fill="#4a6b3a" opacity="0.18" stroke="#4a6b3a"/>
+              <text class="svg-mono svg-text" x="180" y="18" text-anchor="middle" font-size="11" fill="#1a1815">QKᵀ &nbsp;·&nbsp; online softmax &nbsp;·&nbsp; @V</text>
+              <text class="svg-text" x="180" y="34" text-anchor="middle" font-size="10" fill="#6b6359">all in fast on-chip memory · NO N×N matrix written out</text>
+            </g>
+
+            <text class="svg-mono svg-text" x="180" y="142" text-anchor="middle" font-size="13" fill="#1a1815">↓ accumulate to output</text>
+          </g>
+
+        </g>
+
+      </g>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 9.1</span>One streaming multiprocessor at the bottom of an H100. SRAM is the green band — small, but two orders of magnitude faster than HBM. FlashAttention's whole insight is to do the entire <span class="mono">QKᵀ · softmax · V</span> sequence inside SRAM, tile by tile, and only ever write the final output back to HBM. The N × N intermediate matrix never exists.</figcaption>
+  </figure>
+
+  <p>The "online softmax" trick is what makes this work. A naive softmax needs to scan all logits twice — once to find the max for numerical stability, once to exponentiate and normalize. FlashAttention rewrites it as a streaming reduction: as each new key tile arrives, the running maximum, the running denominator, and the running output are updated in a single pass. The math is identical to a standard softmax. The schedule is unrecognizable.</p>
+
+  <div class="formula">
+    <em>same output as MHA</em> &nbsp;·&nbsp; tile loop &nbsp;·&nbsp; online softmax &nbsp;·&nbsp; SRAM-resident
+  </div>
+</section>
+
+<!-- ================== § X N²d²/M ================== -->
+<section id="s10">
+  <span class="section-num">§ X</span>
+  <h2>Why N²·d²/M is the result that matters.</h2>
+  <p class="lede">Both kernels do the same FLOPs. What differs is the bytes they move between HBM and the chip. The book's Chapter 10 gives the formula in one line — and it is the line that explains everything.</p>
+
+  <p>Standard attention does <span class="mono">O(N·d)</span> work for the matmuls and <span class="mono">O(N²)</span> for the score matrix. Its HBM traffic is dominated by reading and writing that N × N matrix:</p>
+
+  <div class="formula">
+    standard HBM traffic &nbsp;=&nbsp; <em>O(N · d + N²)</em>
+  </div>
+
+  <p>FlashAttention never writes the score matrix. Its HBM traffic is dominated by reading and re-reading Q, K, V tiles in a way set by SRAM size <span class="mono">M</span>:</p>
+
+  <div class="formula">
+    FlashAttention HBM traffic &nbsp;=&nbsp; <em>O( N² · d² / M )</em>
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 820 320" xmlns="http://www.w3.org/2000/svg">
+      <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">HBM TRAFFIC · WHY d²/M IS THE FACTOR THAT WINS</text>
+
+      <!-- Two horizontal bars -->
+      <g transform="translate(60,60)">
+        <text class="svg-text svg-mono" x="0" y="0" font-size="12" fill="#c8351b">standard:</text>
+        <text class="svg-text svg-mono" x="0" y="18" font-size="11" fill="#1a1815">O(N² + N·d)</text>
+        <rect x="180" y="0" width="540" height="30" fill="#c8351b" opacity="0.75"/>
+        <text class="svg-text svg-mono" x="450" y="20" text-anchor="middle" font-size="12" fill="#fff">N=8K, d=128 → ~64M float reads</text>
+      </g>
+
+      <g transform="translate(60,120)">
+        <text class="svg-text svg-mono" x="0" y="0" font-size="12" fill="#4a6b3a">FlashAttention:</text>
+        <text class="svg-text svg-mono" x="0" y="18" font-size="11" fill="#1a1815">O(N²·d²/M)</text>
+        <rect x="180" y="0" width="80" height="30" fill="#4a6b3a" opacity="0.85"/>
+        <text class="svg-text svg-mono" x="220" y="20" text-anchor="middle" font-size="11" fill="#fff">~6× less</text>
+      </g>
+
+      <!-- Why d²/M is small panel -->
+      <g transform="translate(60,180)">
+        <rect x="0" y="0" width="700" height="100" fill="#ebe1c7" stroke="#3d3833" stroke-width="1"/>
+        <text class="svg-text" x="350" y="22" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#6b6359">PLUG IN THE NUMBERS · H100</text>
+
+        <text class="svg-text svg-mono" x="20" y="50" font-size="13" fill="#1a1815">d = 128 (head dim)</text>
+        <text class="svg-text svg-mono" x="220" y="50" font-size="13" fill="#1a1815">M ≈ 100 KB ≈ 25,000 floats</text>
+        <text class="svg-text svg-mono" x="490" y="50" font-size="13" fill="#1a1815">d²/M ≈ 16384/25000</text>
+
+        <text class="svg-text svg-serif" x="350" y="80" text-anchor="middle" font-size="14" fill="#4a6b3a" font-style="italic">d²/M is well below 1 — the SRAM is large enough to swallow the inner d dimension entirely.</text>
+      </g>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 10.1</span>The number that makes FlashAttention work. The factor d²/M is small precisely because SRAM (M) is much larger than the head-dim squared. The N×N matrix never appears in HBM, so the slow ramp on the roofline becomes mostly irrelevant for this kernel — the dot moves toward the ridge.</figcaption>
+  </figure>
+
+  <p>The interpretation: <hl>d² is fixed by the model architecture and is small (16K floats for a typical head). M is the SRAM, and on a modern GPU it's tens of thousands of floats per SM.</hl> The ratio <span class="mono">d²/M</span> is comfortably under 1, and FlashAttention's HBM traffic ends up <em>quadratic in N but with a tiny coefficient</em>, while standard attention's traffic is quadratic in N with a coefficient of 1. At long context, that small coefficient is what saves you.</p>
+
+  <div class="pull-quote">FlashAttention does not change what you compute. It changes which memory the bytes of the intermediate result ever touch.</div>
+</section>
+
+<!-- ================== § XI VLLM TEASER ================== -->
+<section id="s11">
+  <span class="section-num">§ XI</span>
+  <h2>Today's lecture — inside vLLM.</h2>
+  <p class="lede">Every chapter of this story has been about the math and the kernel. The next layer up is the engine: the runtime that takes all of these techniques and serves them to many users at once.</p>
+
+  <p>By now you have a model with GQA or MLA, a token-compression scheme if you wanted one, and a FlashAttention kernel underneath. What you do not yet have is anything that turns a flow of HTTP requests into a flow of tokens — that handles dynamic batching, fairness, prefix sharing, page-table-style cache allocation, and the dozens of decisions per second that determine whether your H100 is at 30% utilization or 90%.</p>
+
+  <p>That is what an inference engine does. The most important open-source one is <strong>vLLM</strong>. It is the subject of today's class.</p>
+
+  <div class="teaser">
+    <span class="small-caps">Today on the whiteboard</span>
+    <h3>vLLM — the engine that wraps the kernel.</h3>
+    <p>The runtime that takes everything in this essay and serves it. PagedAttention turns the KV cache into an OS-style page table. Continuous batching schedules at the iteration boundary, not the request boundary. Prefix caching shares the cost of repeated system prompts. Chunked prefill mixes long-prefill and short-decode work without head-of-line blocking.</p>
+    <ul>
+      <li>PagedAttention</li>
+      <li>Continuous batching</li>
+      <li>Prefix caching</li>
+      <li>Chunked prefill</li>
+      <li>Block-pool memory</li>
+      <li>Iteration scheduling</li>
+    </ul>
+  </div>
+
+  <p>Each of those is a chapter unto itself in the book. Each one is the engine answering a question that this essay has been quietly setting up. The KV cache is small now, thanks to MLA or GQA — how do we allocate it across users? The decode dot is closer to the ridge — how do we keep it there when prefill arrives mid-conversation? The kernel is fast — how do we feed it without bubbles?</p>
+
+  <p>That is where we go next.</p>
+
+  <div class="ornament">· · ·</div>
+
+  <p style="text-align:center;font-style:italic;color:var(--ink-faint)">From a single roofline plot to a full serving engine — and we have not even mentioned quantization, speculative decoding, parallelism, or disaggregated prefill/decode. The book has chapters for each. This page was just the spine.</p>
+</section>
+
+<footer>
+  <p class="small-caps">Vizuara · Inference Engineering</p>
+  <p style="margin-top:1rem;font-size:1rem;font-style:italic">The arc from the first inference to the engine — on a single page.</p>
+  <p style="margin-top:2rem;font-size:0.85rem;color:#bda88f">
+    <a href="visual-walkthroughs.html" style="color:#e08a76;text-decoration:none">← back to the library</a> &nbsp;·&nbsp;
+    <a href="book.html" style="color:#e08a76;text-decoration:none">read the book →</a>
+  </p>
+</footer>
+
+</main>
+</body>
+</html>

@@ -456,6 +456,26 @@
         0 48px 0 rgba(146, 116, 47, 0.16);
     }
 
+    .thumb.arc:before {
+      width: 80%;
+      height: 60%;
+      left: 10%;
+      top: 22%;
+      border: 0;
+      background: none;
+      border-bottom: 2px solid var(--ink);
+      border-left: 2px solid var(--ink);
+    }
+    .thumb.arc:after {
+      width: 14px;
+      height: 14px;
+      right: 24px;
+      top: 32px;
+      border-radius: 999px;
+      background: var(--red);
+      box-shadow: -28px 14px 0 var(--gold), -56px 32px 0 var(--green), -84px 50px 0 var(--blue);
+    }
+
     .thumb.book:before {
       width: 70%;
       height: 70%;
@@ -650,7 +670,7 @@
             then cache eviction, then modern inference ideas, then attention as the heart of speeding inference.
           </p>
           <div class="metric-grid">
-            <div class="metric"><strong>16</strong>visual pages</div>
+            <div class="metric"><strong>17</strong>visual pages</div>
             <div class="metric"><strong>7</strong>learning tracks</div>
           </div>
         </aside>
@@ -866,11 +886,19 @@
         <div class="section-head">
           <div>
             <div class="section-label">Track 6</div>
-            <h2>Across heads, across tokens, and the schedule</h2>
+            <h2>Spine — the whole arc on one page</h2>
           </div>
-          <div class="cluster-note">A visual companion to Chapters 8, 9, and 10 of the Inference Engineering book. The thread that ties head compression, token compression, and FlashAttention into one map.</div>
+          <div class="cluster-note">Single-page narrative companions to the book. Each one threads many chapters into one continuous story.</div>
         </div>
         <div class="cards">
+          <a class="card" href="https://vizuaraai.github.io/convolution-musical-journey/roofline-to-vllm.html" target="_blank" rel="noreferrer">
+            <div class="thumb arc"></div>
+            <div class="tag-row"><span class="tag">arc</span><span class="tag">spine</span></div>
+            <h3>From the Roofline to vLLM</h3>
+            <p>The full arc on one page. Naive inference, the KV cache and its memory cost, compressing across heads (MHA→MQA→GQA→MLA), across tokens (sliding window, linear, Mamba), and FlashAttention as the kernel underneath — leading into the vLLM engine.</p>
+            <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
+          </a>
+
           <a class="card" href="https://vizuaraai.github.io/convolution-musical-journey/attention-variants-retraining.html" target="_blank" rel="noreferrer">
             <div class="thumb workshop"></div>
             <div class="tag-row"><span class="tag">attention</span><span class="tag">retraining</span></div>
