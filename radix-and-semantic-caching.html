@@ -607,7 +607,7 @@
 
       <!-- branch to A -->
       <line x1="404" y1="153" x2="280" y2="220" stroke="#1a1815" stroke-width="1.5"/>
-      <text class="svg-text svg-mono" x="305" y="195" font-size="11" fill="#1a1815">"Q: rain"</text>
+      <text class="svg-text svg-mono" x="240" y="186" text-anchor="middle" font-size="11" fill="#1a1815">"Q: rain"</text>
 
       <!-- A node -->
       <g transform="translate(280,240)">
@@ -618,7 +618,7 @@
 
       <!-- branch to B -->
       <line x1="416" y1="153" x2="540" y2="220" stroke="#1a1815" stroke-width="1.5"/>
-      <text class="svg-text svg-mono" x="450" y="195" font-size="11" fill="#1a1815">"Q: snow"</text>
+      <text class="svg-text svg-mono" x="580" y="186" text-anchor="middle" font-size="11" fill="#1a1815">"Q: snow"</text>
 
       <!-- B node -->
       <g transform="translate(540,240)">
@@ -677,16 +677,17 @@
         <text class="svg-text svg-mono" x="14" y="22" font-size="12" fill="#1a1815">step 2 · same chat continues</text>
         <text class="svg-text" x="14" y="40" font-size="11" fill="#6b6359">user adds another turn — extends past a</text>
         <!-- root -->
-        <circle cx="100" cy="80" r="12" fill="#1a1815"/>
-        <line x1="100" y1="92" x2="100" y2="115" stroke="#1a1815" stroke-width="1.5"/>
+        <circle cx="100" cy="70" r="11" fill="#1a1815"/>
+        <line x1="100" y1="81" x2="100" y2="100" stroke="#1a1815" stroke-width="1.5"/>
         <!-- node a (hit, blue) -->
-        <circle cx="100" cy="127" r="12" fill="#2e4a7b"/>
-        <text class="svg-mono svg-text" x="100" y="131" text-anchor="middle" fill="#fff" font-size="9">a</text>
-        <line x1="100" y1="139" x2="100" y2="148" stroke="#1a1815" stroke-width="1.5"/>
+        <circle cx="100" cy="111" r="11" fill="#2e4a7b"/>
+        <text class="svg-mono svg-text" x="100" y="115" text-anchor="middle" fill="#fff" font-size="9">a</text>
+        <line x1="100" y1="122" x2="100" y2="135" stroke="#1a1815" stroke-width="1.5"/>
         <!-- node b (new) -->
-        <circle cx="100" cy="155" r="10" fill="#4a6b3a"/>
-        <text class="svg-text svg-serif" x="200" y="100" font-size="12" fill="#2e4a7b" font-style="italic">a is a hit (blue)</text>
-        <text class="svg-text svg-serif" x="200" y="118" font-size="12" fill="#4a6b3a" font-style="italic">b appended (green)</text>
+        <circle cx="100" cy="143" r="9" fill="#4a6b3a"/>
+        <text class="svg-mono svg-text" x="100" y="146" text-anchor="middle" fill="#fff" font-size="8">b</text>
+        <text class="svg-text svg-serif" x="200" y="92" font-size="12" fill="#2e4a7b" font-style="italic">a is a hit (blue)</text>
+        <text class="svg-text svg-serif" x="200" y="112" font-size="12" fill="#4a6b3a" font-style="italic">b appended (green)</text>
       </g>
 
       <!-- ============ STEP 3 ============ -->
@@ -733,16 +734,16 @@
 
         <!-- F has 4 question children -->
         <g>
-          <line x1="265" y1="125" x2="220" y2="158" stroke="#1a1815" stroke-width="1"/>
-          <line x1="268" y1="125" x2="252" y2="158" stroke="#1a1815" stroke-width="1"/>
-          <line x1="272" y1="125" x2="288" y2="158" stroke="#1a1815" stroke-width="1"/>
-          <line x1="275" y1="125" x2="320" y2="158" stroke="#1a1815" stroke-width="1"/>
-          <circle cx="220" cy="160" r="6" fill="#4a6b3a"/>
-          <circle cx="252" cy="160" r="6" fill="#4a6b3a"/>
-          <circle cx="288" cy="160" r="6" fill="#4a6b3a"/>
-          <circle cx="320" cy="160" r="6" fill="#4a6b3a"/>
+          <line x1="265" y1="125" x2="220" y2="148" stroke="#1a1815" stroke-width="1"/>
+          <line x1="268" y1="125" x2="252" y2="148" stroke="#1a1815" stroke-width="1"/>
+          <line x1="272" y1="125" x2="288" y2="148" stroke="#1a1815" stroke-width="1"/>
+          <line x1="275" y1="125" x2="320" y2="148" stroke="#1a1815" stroke-width="1"/>
+          <circle cx="220" cy="150" r="6" fill="#4a6b3a"/>
+          <circle cx="252" cy="150" r="6" fill="#4a6b3a"/>
+          <circle cx="288" cy="150" r="6" fill="#4a6b3a"/>
+          <circle cx="320" cy="150" r="6" fill="#4a6b3a"/>
         </g>
-        <text class="svg-text svg-serif" x="265" y="178" text-anchor="middle" font-size="11" fill="#4a6b3a" font-style="italic">8 leaves share node F</text>
+        <text class="svg-text svg-serif" x="270" y="170" text-anchor="middle" font-size="11" fill="#4a6b3a" font-style="italic">8 leaves share node F</text>
       </g>
 
       <!-- ============ STEP 5 ============ -->
@@ -995,49 +996,49 @@
         <!-- cached entries with epsilon balls -->
         <g>
           <!-- entry 1 -->
-          <circle cx="100" cy="60" r="48" fill="#72569a" opacity="0.12"/>
-          <circle cx="100" cy="60" r="8" fill="#72569a"/>
-          <text class="svg-text svg-mono" x="116" y="56" font-size="10" fill="#1a1815">"capital of France"</text>
-          <text class="svg-text svg-mono" x="116" y="70" font-size="10" fill="#72569a">→ Paris</text>
+          <circle cx="100" cy="70" r="44" fill="#72569a" opacity="0.12"/>
+          <circle cx="100" cy="70" r="8" fill="#72569a"/>
+          <text class="svg-text svg-mono" x="100" y="135" text-anchor="middle" font-size="10" fill="#1a1815">"capital of France"</text>
+          <text class="svg-text svg-mono" x="100" y="150" text-anchor="middle" font-size="10" fill="#72569a">→ Paris</text>
 
           <!-- entry 2 -->
-          <circle cx="280" cy="170" r="48" fill="#72569a" opacity="0.12"/>
+          <circle cx="280" cy="170" r="44" fill="#72569a" opacity="0.12"/>
           <circle cx="280" cy="170" r="8" fill="#72569a"/>
-          <text class="svg-text svg-mono" x="296" y="166" font-size="10" fill="#1a1815">"weather in Paris"</text>
-          <text class="svg-text svg-mono" x="296" y="180" font-size="10" fill="#72569a">→ "20°C, sunny"</text>
+          <text class="svg-text svg-mono" x="280" y="235" text-anchor="middle" font-size="10" fill="#1a1815">"weather in Paris"</text>
+          <text class="svg-text svg-mono" x="280" y="250" text-anchor="middle" font-size="10" fill="#72569a">→ "20°C, sunny"</text>
 
           <!-- entry 3 -->
-          <circle cx="380" cy="80" r="48" fill="#72569a" opacity="0.12"/>
-          <circle cx="380" cy="80" r="8" fill="#72569a"/>
-          <text class="svg-text svg-mono" x="296" y="50" font-size="10" fill="#1a1815">"capital of Spain"</text>
-          <text class="svg-text svg-mono" x="296" y="64" font-size="10" fill="#72569a">→ Madrid</text>
+          <circle cx="400" cy="80" r="44" fill="#72569a" opacity="0.12"/>
+          <circle cx="400" cy="80" r="8" fill="#72569a"/>
+          <text class="svg-text svg-mono" x="400" y="145" text-anchor="middle" font-size="10" fill="#1a1815">"capital of Spain"</text>
+          <text class="svg-text svg-mono" x="400" y="160" text-anchor="middle" font-size="10" fill="#72569a">→ Madrid</text>
 
           <!-- entry 4 -->
-          <circle cx="180" cy="220" r="48" fill="#72569a" opacity="0.12"/>
-          <circle cx="180" cy="220" r="8" fill="#72569a"/>
-          <text class="svg-text svg-mono" x="196" y="216" font-size="10" fill="#1a1815">"weather Tokyo"</text>
-          <text class="svg-text svg-mono" x="196" y="230" font-size="10" fill="#72569a">→ "14°C, rain"</text>
+          <circle cx="170" cy="225" r="44" fill="#72569a" opacity="0.12"/>
+          <circle cx="170" cy="225" r="8" fill="#72569a"/>
+          <text class="svg-text svg-mono" x="80"  y="225" font-size="10" fill="#1a1815" text-anchor="end">"weather Tokyo"</text>
+          <text class="svg-text svg-mono" x="80"  y="240" font-size="10" fill="#72569a" text-anchor="end">→ "14°C, rain"</text>
         </g>
 
         <!-- New incoming queries -->
         <!-- HIT (lands inside ball 1) -->
         <g>
-          <circle cx="115" cy="78" r="5" fill="#4a6b3a"/>
-          <line x1="115" y1="78" x2="160" y2="115" stroke="#4a6b3a" stroke-width="0.8" stroke-dasharray="3,2"/>
-          <text class="svg-text svg-mono" x="160" y="125" font-size="10" fill="#4a6b3a">new: "capital, France?" — HIT</text>
+          <circle cx="118" cy="92" r="5" fill="#4a6b3a"/>
+          <line x1="118" y1="92" x2="160" y2="22" stroke="#4a6b3a" stroke-width="0.8" stroke-dasharray="3,2"/>
+          <text class="svg-text svg-mono" x="166" y="22" font-size="10" fill="#4a6b3a">new query — HIT</text>
         </g>
 
-        <!-- MISS -->
+        <!-- MISS (in empty space far from any ball) -->
         <g>
-          <circle cx="450" cy="240" r="5" fill="#c8351b"/>
-          <line x1="450" y1="240" x2="430" y2="255" stroke="#c8351b" stroke-width="0.8" stroke-dasharray="3,2"/>
-          <text class="svg-text svg-mono" x="426" y="268" font-size="10" fill="#c8351b" text-anchor="end">new: "rainfall in Mumbai" — MISS</text>
+          <circle cx="465" cy="245" r="5" fill="#c8351b"/>
+          <line x1="465" y1="245" x2="455" y2="270" stroke="#c8351b" stroke-width="0.8" stroke-dasharray="3,2"/>
+          <text class="svg-text svg-mono" x="450" y="272" font-size="10" fill="#c8351b" text-anchor="end">new query — MISS</text>
         </g>
 
-        <!-- ε label -->
-        <g transform="translate(100,60)">
-          <line x1="0" y1="0" x2="48" y2="0" stroke="#1a1815" stroke-width="0.6"/>
-          <text class="svg-text svg-mono" x="24" y="-5" text-anchor="middle" font-size="10" fill="#1a1815">ε</text>
+        <!-- ε label: place along entry 3's radius (least crowded area) -->
+        <g transform="translate(400,80)">
+          <line x1="0" y1="0" x2="44" y2="0" stroke="#1a1815" stroke-width="0.6"/>
+          <text class="svg-text svg-mono" x="22" y="-6" text-anchor="middle" font-size="11" fill="#1a1815" font-style="italic">ε</text>
         </g>
       </g>
 
@@ -1145,24 +1146,24 @@
   <p>An ε-net is a finite set of "anchor" points in embedding space such that every other point is within ε of at least one anchor. As queries arrive, the system maintains such a covering and treats each anchor's neighbourhood as a single cache cell. The cost of a query in cell c is estimated by KRR over the queries observed in and near c, with a <em>quantified uncertainty</em>: cells with few observations get a wider confidence interval and the algorithm explores them; cells with tight estimates and high estimated cost are committed to the cache.</p>
 
   <figure>
-    <svg viewBox="0 0 820 360" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 820 380" xmlns="http://www.w3.org/2000/svg">
       <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">ε-NET DISCRETIZATION + KERNEL RIDGE REGRESSION</text>
 
       <!-- Embedding space tiled by anchors -->
       <g transform="translate(60,55)">
-        <rect x="0" y="0" width="500" height="260" fill="#ebe1c7" stroke="#3d3833"/>
+        <rect x="0" y="0" width="500" height="290" fill="#ebe1c7" stroke="#3d3833"/>
 
         <!-- Hex-like tiling: draw circles around anchors -->
         <g opacity="0.28">
-          <circle cx="80"  cy="60"  r="50" fill="#72569a"/>
-          <circle cx="180" cy="100" r="50" fill="#72569a"/>
-          <circle cx="280" cy="60"  r="50" fill="#72569a"/>
-          <circle cx="380" cy="100" r="50" fill="#72569a"/>
-          <circle cx="130" cy="170" r="50" fill="#72569a"/>
-          <circle cx="230" cy="200" r="50" fill="#72569a"/>
-          <circle cx="330" cy="170" r="50" fill="#72569a"/>
-          <circle cx="430" cy="200" r="50" fill="#72569a"/>
-          <circle cx="80"  cy="240" r="50" fill="#72569a"/>
+          <circle cx="80"  cy="60"  r="46" fill="#72569a"/>
+          <circle cx="180" cy="100" r="46" fill="#72569a"/>
+          <circle cx="280" cy="60"  r="46" fill="#72569a"/>
+          <circle cx="380" cy="100" r="46" fill="#72569a"/>
+          <circle cx="130" cy="170" r="46" fill="#72569a"/>
+          <circle cx="230" cy="200" r="46" fill="#72569a"/>
+          <circle cx="330" cy="170" r="46" fill="#72569a"/>
+          <circle cx="430" cy="200" r="46" fill="#72569a"/>
+          <circle cx="80"  cy="220" r="46" fill="#72569a"/>
         </g>
 
         <!-- Anchor points -->
@@ -1175,7 +1176,7 @@
           <circle cx="230" cy="200" r="4"/>
           <circle cx="330" cy="170" r="4"/>
           <circle cx="430" cy="200" r="4"/>
-          <circle cx="80"  cy="240" r="4"/>
+          <circle cx="80"  cy="220" r="4"/>
         </g>
 
         <!-- Per-cell cost estimate annotated -->
@@ -1187,15 +1188,15 @@
         <text class="svg-text svg-mono" x="230" y="190" text-anchor="middle" font-size="9" fill="#1a1815">ĉ=5.1 ★</text>
         <text class="svg-text svg-mono" x="330" y="160" text-anchor="middle" font-size="9" fill="#1a1815">ĉ=1.5</text>
         <text class="svg-text svg-mono" x="430" y="190" text-anchor="middle" font-size="9" fill="#1a1815">ĉ=2.0</text>
-        <text class="svg-text svg-mono" x="80"  y="230" text-anchor="middle" font-size="9" fill="#1a1815">ĉ=0.9</text>
+        <text class="svg-text svg-mono" x="80"  y="210" text-anchor="middle" font-size="9" fill="#1a1815">ĉ=0.9</text>
 
         <!-- Star: cached cells -->
-        <text class="svg-text svg-mono" x="250" y="252" text-anchor="middle" font-size="10" fill="#b8862f">★ = cached cell  ·  others = on-demand</text>
+        <text class="svg-text svg-mono" x="250" y="278" text-anchor="middle" font-size="10" fill="#b8862f">★ = cached cell  ·  others = on-demand</text>
       </g>
 
       <!-- Side: equations / takeaway -->
       <g transform="translate(580,55)">
-        <rect x="0" y="0" width="200" height="260" fill="#1a1815"/>
+        <rect x="0" y="0" width="200" height="290" fill="#1a1815"/>
         <text class="svg-text" x="100" y="22" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#e08a76">THE ALGORITHM</text>
 
         <text class="svg-text svg-mono" x="14" y="55" font-size="11" fill="#fff">1. embed q</text>
@@ -1248,11 +1249,11 @@
         <text class="svg-text svg-mono" x="85" y="36" text-anchor="middle" font-size="11" fill="#72569a">tier 1 · by meaning</text>
       </g>
 
-      <!-- Hit branch up -->
-      <line x1="285" y1="60" x2="285" y2="20" stroke="#4a6b3a" stroke-width="1.5"/>
-      <line x1="285" y1="20" x2="640" y2="20" stroke="#4a6b3a" stroke-width="1.5"/>
-      <polygon points="640,20 632,15 632,25" fill="#4a6b3a"/>
-      <text class="svg-text svg-mono" x="450" y="14" text-anchor="middle" font-size="11" fill="#4a6b3a">HIT → return cached response</text>
+      <!-- Hit branch up: bypasses radix and engine entirely -->
+      <line x1="285" y1="60" x2="285" y2="44" stroke="#4a6b3a" stroke-width="1.5"/>
+      <line x1="285" y1="44" x2="790" y2="44" stroke="#4a6b3a" stroke-width="1.5"/>
+      <polygon points="790,44 782,39 782,49" fill="#4a6b3a"/>
+      <text class="svg-text svg-mono" x="535" y="38" text-anchor="middle" font-size="11" fill="#4a6b3a">HIT — return cached response (skip the engine)</text>
 
       <!-- Miss arrow -->
       <line x1="370" y1="81" x2="410" y2="81" stroke="#1a1815" stroke-width="1.5"/>
