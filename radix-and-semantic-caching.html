@@ -1,0 +1,1388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RadixAttention &amp; Semantic Caching — A Visual Walkthrough</title>
+<meta name="description" content="A visual companion to two ideas that extend Chapter 12 of the Inference Engineering book: SGLang's RadixAttention (the prefix cache as a radix tree) and continuous semantic caching (caching by query meaning, not by token bytes)." />
+<link rel="icon" type="image/png" href="vizlogo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=JetBrains+Mono:wght@400;500;700&family=Inter+Tight:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:        #f4ecd8;
+    --paper-deep:   #ebe1c7;
+    --ink:          #1a1815;
+    --ink-soft:     #3d3833;
+    --ink-faint:    #6b6359;
+    --rule:         #2a2622;
+    --accent:       #c8351b;
+    --accent-soft:  #e08a76;
+    --gold:         #b8862f;
+    --teal:         #2f5e5a;
+    --blue:         #2e4a7b;
+    --green:        #4a6b3a;
+    --violet:       #72569a;
+    --hot:          #c8351b;
+    --cool:         #2e4a7b;
+    --margin:       max(2rem, calc(50vw - 38rem));
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Fraunces', 'Times New Roman', serif;
+    font-feature-settings: "ss01" on, "ss02" on, "onum" on;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.55;
+    font-size: 18px;
+    overflow-x: hidden;
+    position: relative;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(120,90,40,0.04) 0%, transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(60,40,20,0.035) 0%, transparent 40%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.15 0 0 0 0 0.12 0 0 0 0 0.08 0 0 0 0.18 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.35;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+    z-index: 1;
+  }
+  main { position: relative; z-index: 2; }
+
+  h1, h2, h3, h4 {
+    font-family: 'Fraunces', serif;
+    font-variation-settings: "opsz" 144;
+    color: var(--ink);
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    font-weight: 500;
+  }
+  h2 { font-size: clamp(2.2rem, 5vw, 3.6rem); margin-bottom: 1.5rem; font-weight: 400; }
+  h3 { font-size: clamp(1.5rem, 3vw, 2.1rem); margin: 2.5rem 0 1rem; font-weight: 500; }
+  h4 { font-size: 1.25rem; margin: 1.5rem 0 0.6rem; font-weight: 600; font-variation-settings: "opsz" 14; }
+
+  p { font-size: 1.125rem; margin-bottom: 1.25rem; max-width: 65ch; }
+  p.lede {
+    font-size: 1.45rem;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    font-style: italic;
+    font-weight: 300;
+    max-width: 60ch;
+  }
+  .small-caps {
+    font-family: 'Inter Tight', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ink-faint);
+  }
+  .drop::first-letter {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 4.5rem;
+    float: left;
+    line-height: 0.85;
+    margin: 0.4rem 0.5rem 0 0;
+    color: var(--accent);
+  }
+
+  code, .mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9em;
+    background: rgba(40,30,20,0.06);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    color: var(--ink);
+  }
+
+  section {
+    padding: 6rem var(--margin);
+    position: relative;
+    border-bottom: 1px solid rgba(40,30,20,0.08);
+  }
+  section:last-child { border-bottom: none; }
+
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    margin-bottom: 1rem;
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--accent);
+    border-radius: 2px;
+  }
+
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4rem var(--margin) 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 0.75rem;
+    margin-bottom: 3rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .hero-meta .vol {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 1rem;
+    color: var(--ink-soft);
+  }
+  .hero h1 {
+    font-size: clamp(3rem, 9.5vw, 8rem);
+    font-weight: 300;
+    line-height: 0.92;
+    margin: 1rem 0 2rem;
+    font-variation-settings: "opsz" 144, "wght" 300;
+  }
+  .hero h1 em {
+    font-style: italic;
+    color: var(--accent);
+    font-variation-settings: "opsz" 144, "wght" 400;
+  }
+  .hero-sub {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    margin-top: 3rem;
+    border-top: 1px solid rgba(40,30,20,0.2);
+    padding-top: 1.5rem;
+  }
+  .hero-sub p { font-size: 1rem; color: var(--ink-soft); }
+
+  .hero-formula {
+    margin: 2rem 0;
+    padding: 2rem;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'JetBrains Mono', monospace;
+    text-align: center;
+    border-radius: 2px;
+    position: relative;
+  }
+  .hero-formula .label {
+    position: absolute;
+    top: -0.7rem; left: 1rem;
+    background: var(--paper);
+    color: var(--ink);
+    padding: 0 0.5rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .hero-formula .eq {
+    font-size: 1.4rem;
+    letter-spacing: 0.05em;
+    line-height: 1.5;
+  }
+  .hero-formula .eq .var { color: var(--accent-soft); }
+  .hero-formula .eq .same { color: #9bd1a8; }
+
+  .toc {
+    background: var(--paper-deep);
+    padding: 4rem var(--margin);
+    border-top: 1px solid rgba(40,30,20,0.15);
+    border-bottom: 1px solid rgba(40,30,20,0.15);
+  }
+  .toc h2 {
+    font-size: 1.2rem;
+    font-family: 'Inter Tight', sans-serif;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 2rem;
+    font-weight: 600;
+  }
+  .toc-list { list-style: none; }
+  .toc-list li {
+    border-top: 1px solid rgba(40,30,20,0.15);
+    padding: 1rem 0;
+    display: flex;
+    align-items: baseline;
+    gap: 1.5rem;
+  }
+  .toc-list li:last-child { border-bottom: 1px solid rgba(40,30,20,0.15); }
+  .toc-list .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--accent);
+    width: 3rem;
+    flex-shrink: 0;
+  }
+  .toc-list a {
+    color: var(--ink);
+    text-decoration: none;
+    font-family: 'Fraunces', serif;
+    font-size: 1.4rem;
+    flex-grow: 1;
+    transition: color 0.2s;
+  }
+  .toc-list a:hover { color: var(--accent); font-style: italic; }
+  .toc-list .pg {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+  }
+
+  figure {
+    margin: 3rem auto;
+    padding: 0;
+    text-align: center;
+    max-width: 100%;
+  }
+  figure svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+    background: var(--paper);
+  }
+  figcaption {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+    margin-top: 1rem;
+    line-height: 1.4;
+    max-width: 56ch;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+  }
+  figcaption .fig-label {
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.72rem;
+    margin-right: 0.5rem;
+  }
+
+  .pull-quote {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: clamp(1.6rem, 3.8vw, 2.6rem);
+    line-height: 1.25;
+    color: var(--ink);
+    margin: 4rem auto;
+    padding: 2.5rem 0;
+    max-width: 50ch;
+    text-align: center;
+    border-top: 1px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+    position: relative;
+  }
+  .pull-quote::before {
+    content: '"';
+    position: absolute;
+    top: -1.5rem; left: 50%;
+    transform: translateX(-50%);
+    background: var(--paper);
+    padding: 0 1rem;
+    font-size: 4rem;
+    color: var(--accent);
+    line-height: 1;
+    font-style: normal;
+  }
+
+  .marginalia {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+    line-height: 1.4;
+    border-left: 2px solid var(--accent);
+    padding-left: 1rem;
+    margin: 1.5rem 0;
+    font-style: italic;
+  }
+
+  .formula {
+    background: var(--paper-deep);
+    border: 1px solid rgba(40,30,20,0.15);
+    padding: 1.5rem 2rem;
+    margin: 2rem 0;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1rem;
+    border-radius: 3px;
+    overflow-x: auto;
+  }
+  .formula em { color: var(--accent); font-style: normal; font-weight: 700; }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0;
+    margin: 2.5rem 0;
+    border-top: 1px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+  }
+  .stat {
+    padding: 1.5rem;
+    border-right: 1px solid rgba(40,30,20,0.15);
+    text-align: center;
+  }
+  .stat:last-child { border-right: none; }
+  .stat .num {
+    font-family: 'Fraunces', serif;
+    font-variation-settings: "opsz" 144, "wght" 400;
+    font-size: 2.6rem;
+    color: var(--accent);
+    line-height: 1;
+    display: block;
+  }
+  .stat .lbl {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-faint);
+    margin-top: 0.5rem;
+    display: block;
+  }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    margin: 2rem 0;
+  }
+  @media (max-width: 768px) {
+    .two-col { grid-template-columns: 1fr; gap: 1.5rem; }
+    .hero-sub { grid-template-columns: 1fr; }
+    .stat-grid { grid-template-columns: 1fr 1fr; }
+    .stat { border-right: 1px solid rgba(40,30,20,0.15); border-bottom: 1px solid rgba(40,30,20,0.15); }
+  }
+
+  /* Decision table */
+  .verdict-table {
+    margin: 3rem 0;
+    border: 1px solid var(--ink);
+    border-radius: 3px;
+    overflow: hidden;
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.95rem;
+  }
+  .verdict-table .row {
+    display: grid;
+    grid-template-columns: 1.4fr 1.5fr 1.5fr;
+    border-bottom: 1px solid rgba(40,30,20,0.12);
+  }
+  .verdict-table .row:last-child { border-bottom: none; }
+  .verdict-table .row.head {
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'Inter Tight', sans-serif;
+    font-weight: 600;
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .verdict-table .cell {
+    padding: 1rem 1.2rem;
+    border-right: 1px solid rgba(40,30,20,0.1);
+    line-height: 1.4;
+  }
+  .verdict-table .cell:last-child { border-right: none; }
+  .verdict-table .row .cell strong {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 500;
+    font-size: 1.1rem;
+    color: var(--ink);
+  }
+  @media (max-width: 768px) {
+    .verdict-table .row { grid-template-columns: 1fr; }
+    .verdict-table .cell { border-right: none; border-bottom: 1px solid rgba(40,30,20,0.06); }
+  }
+
+  .ornament {
+    text-align: center;
+    margin: 3rem 0;
+    color: var(--ink-faint);
+    font-size: 1.5rem;
+    letter-spacing: 1rem;
+  }
+
+  .hl { background: linear-gradient(180deg, transparent 60%, rgba(200,53,27,0.25) 60%); padding: 0 0.1em; }
+  .hl-gold { background: linear-gradient(180deg, transparent 60%, rgba(184,134,47,0.3) 60%); padding: 0 0.1em; }
+  .hl-green { background: linear-gradient(180deg, transparent 60%, rgba(74,107,58,0.3) 60%); padding: 0 0.1em; }
+  .hl-violet { background: linear-gradient(180deg, transparent 60%, rgba(114,86,154,0.32) 60%); padding: 0 0.1em; }
+
+  footer {
+    padding: 4rem var(--margin) 3rem;
+    background: var(--ink);
+    color: var(--paper);
+    text-align: center;
+  }
+  footer p { color: var(--paper); margin: 0 auto 0.5rem; max-width: none; }
+  footer .small-caps { color: var(--accent-soft); }
+
+  .svg-text {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 13px;
+    fill: var(--ink);
+  }
+  .svg-mono { font-family: 'JetBrains Mono', monospace; }
+  .svg-serif { font-family: 'Fraunces', serif; font-style: italic; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .anim { animation: fadeUp 0.8s ease-out backwards; }
+</style>
+</head>
+<body>
+<main>
+
+<!-- ============== HERO ============== -->
+<section class="hero">
+  <div class="hero-meta">
+    <span class="small-caps" style="display:flex;align-items:center;gap:0.6rem"><img src="vizlogo.png" alt="Vizuara" style="width:26px;height:26px;border-radius:5px;border:1px solid rgba(40,30,20,0.25);background:#fff"> Vizuara · Inference Engineering</span>
+    <span class="vol">Vol. VI · Two cache layers</span>
+    <span class="small-caps">Ch. 12 · 20</span>
+  </div>
+
+  <p class="small-caps anim" style="animation-delay:.05s">Beyond plain prefix caching</p>
+  <h1 class="anim" style="animation-delay:.15s">
+    <em>RadixAttention</em><br>
+    &amp; <em>Semantic</em><br>
+    Caching.
+  </h1>
+  <p class="lede anim" style="animation-delay:.35s">
+    Chapter 12 of the book gives you prefix caching: hash a prefix, store its KV blocks, reuse them when the same prefix shows up again. This page is what comes next. SGLang's <em>RadixAttention</em> turns the cache into a tree so any matching prefix between any two requests can be reused. Continuous semantic caching goes one step further — it skips the engine entirely when a new query <em>means</em> the same thing as one already answered.
+  </p>
+
+  <div class="hero-formula anim" style="animation-delay:.55s">
+    <span class="label">Two layers, one goal</span>
+    <div class="eq">
+      query &nbsp;<span class="var">→</span>&nbsp; <span class="same">semantic cache</span> &nbsp;<span class="var">→</span>&nbsp; <span class="same">radix tree</span> &nbsp;<span class="var">→</span>&nbsp; KV pages &nbsp;<span class="var">→</span>&nbsp; decode
+      <br>
+      <span style="font-size:0.9rem;color:#bda88f">two chances to skip work — one by meaning, one by tokens.</span>
+    </div>
+  </div>
+
+  <div class="hero-sub anim" style="animation-delay:.75s">
+    <p>Chapter 12 ends with the bonus that two users sharing a prefix share a cache hit. That bonus is leveraged once per request and only when prefixes match exactly. RadixAttention pushes that bonus to its limit; semantic caching argues that the limit is the wrong place to stop.</p>
+    <p style="text-align:right">Scroll to begin.<br><span style="font-size:1.5rem">↓</span></p>
+  </div>
+</section>
+
+<!-- ============== TOC ============== -->
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol class="toc-list">
+    <li><span class="num">I</span><a href="#s1">Why plain prefix caching is not enough</a><span class="pg">p. 01</span></li>
+    <li><span class="num">II</span><a href="#s2">RadixAttention — the cache as a tree</a><span class="pg">p. 02</span></li>
+    <li><span class="num">III</span><a href="#s3">The radix tree, step by step</a><span class="pg">p. 03</span></li>
+    <li><span class="num">IV</span><a href="#s4">Four reuse patterns in the wild</a><span class="pg">p. 04</span></li>
+    <li><span class="num">V</span><a href="#s5">Where token-exact caching breaks</a><span class="pg">p. 05</span></li>
+    <li><span class="num">VI</span><a href="#s6">Semantic caching — by meaning, not bytes</a><span class="pg">p. 06</span></li>
+    <li><span class="num">VII</span><a href="#s7">The continuous-query problem</a><span class="pg">p. 07</span></li>
+    <li><span class="num">VIII</span><a href="#s8">Dynamic ε-nets and online learning</a><span class="pg">p. 08</span></li>
+    <li><span class="num">IX</span><a href="#s9">The two-tier architecture</a><span class="pg">p. 09</span></li>
+    <li><span class="num">X</span><a href="#s10">When to use which</a><span class="pg">p. 10</span></li>
+  </ol>
+</nav>
+
+<!-- ============== § I PRELUDE ============== -->
+<section id="s1">
+  <span class="section-num">§ I</span>
+  <h2>Why plain prefix caching is not enough.</h2>
+  <p class="lede">Chapter 12's prefix cache hashes a prefix and reuses its K/V blocks. It works beautifully when the prefixes line up. The trouble is that, in real workloads, they often don't.</p>
+
+  <p class="drop">A vanilla prefix cache treats the cache as a flat hash table. When a new request arrives, the engine takes its prefix tokens, hashes them block by block, and walks the cache forward as long as each block hash matches. The first block whose hash is missing ends the match. Everything before is reused; everything after is recomputed from scratch.</p>
+
+  <p>This is enough for the easy case — the same system prompt across thousands of users. It is not enough for any workload that branches: tree-of-thought search, agentic loops, batched few-shot examples, or two chat sessions that share a system prompt but diverge in the second turn. Hashed prefix caching can only ride one prefix at a time. The moment two requests fork, you have two unrelated entries in the table.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 320" xmlns="http://www.w3.org/2000/svg">
+      <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">FLAT HASH TABLE · ONE PREFIX, ONE ENTRY</text>
+
+      <!-- Two requests that fork after a shared prefix -->
+      <g transform="translate(40,55)">
+        <text class="svg-text svg-mono" x="0" y="0" font-size="11" fill="#1a1815">request A:</text>
+        <g transform="translate(80,-12)">
+          <rect x="0"   y="0" width="80" height="22" fill="#4a6b3a" opacity="0.8"/>
+          <text class="svg-text svg-mono" x="40" y="15" text-anchor="middle" fill="#fff" font-size="10">sysprompt</text>
+          <rect x="84"  y="0" width="60" height="22" fill="#4a6b3a" opacity="0.8"/>
+          <text class="svg-text svg-mono" x="114" y="15" text-anchor="middle" fill="#fff" font-size="10">few-shot</text>
+          <rect x="148" y="0" width="60" height="22" fill="#c8351b" opacity="0.65"/>
+          <text class="svg-text svg-mono" x="178" y="15" text-anchor="middle" fill="#fff" font-size="10">Q: rain</text>
+        </g>
+      </g>
+
+      <g transform="translate(40,95)">
+        <text class="svg-text svg-mono" x="0" y="0" font-size="11" fill="#1a1815">request B:</text>
+        <g transform="translate(80,-12)">
+          <rect x="0"   y="0" width="80" height="22" fill="#4a6b3a" opacity="0.8"/>
+          <text class="svg-text svg-mono" x="40" y="15" text-anchor="middle" fill="#fff" font-size="10">sysprompt</text>
+          <rect x="84"  y="0" width="60" height="22" fill="#4a6b3a" opacity="0.8"/>
+          <text class="svg-text svg-mono" x="114" y="15" text-anchor="middle" fill="#fff" font-size="10">few-shot</text>
+          <rect x="148" y="0" width="60" height="22" fill="#c8351b" opacity="0.65"/>
+          <text class="svg-text svg-mono" x="178" y="15" text-anchor="middle" fill="#fff" font-size="10">Q: snow</text>
+        </g>
+      </g>
+
+      <text class="svg-text svg-serif" x="170" y="135" text-anchor="middle" font-size="13" fill="#1a1815" font-style="italic">two requests share two blocks of prefix.</text>
+
+      <!-- Hash table -->
+      <g transform="translate(440,55)">
+        <text class="svg-text" x="160" y="0" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#6b6359">FLAT PREFIX-HASH TABLE</text>
+
+        <g transform="translate(0,15)">
+          <rect x="0" y="0" width="320" height="30" fill="#ebe1c7" stroke="#3d3833"/>
+          <text class="svg-text svg-mono" x="10" y="20" font-size="11" fill="#1a1815">hash(sysprompt + few-shot + "Q: rain")</text>
+          <text class="svg-text svg-mono" x="280" y="20" text-anchor="end" font-size="11" fill="#c8351b">→ entry A</text>
+
+          <rect x="0" y="35" width="320" height="30" fill="#ebe1c7" stroke="#3d3833"/>
+          <text class="svg-text svg-mono" x="10" y="55" font-size="11" fill="#1a1815">hash(sysprompt + few-shot + "Q: snow")</text>
+          <text class="svg-text svg-mono" x="280" y="55" text-anchor="end" font-size="11" fill="#c8351b">→ entry B</text>
+        </g>
+        <text class="svg-text svg-serif" x="160" y="100" text-anchor="middle" font-size="13" fill="#c8351b" font-style="italic">no entry sees the shared sysprompt+few-shot prefix on its own.</text>
+      </g>
+
+      <!-- bottom commentary -->
+      <text class="svg-text svg-serif" x="410" y="280" text-anchor="middle" font-size="14" fill="#1a1815" font-style="italic">we want the data structure to know about <tspan fill="#c8351b">prefix relationships</tspan>, not just whole-prefix equalities.</text>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 1.1</span>The flat-hash version of prefix caching stores each unique prefix as its own opaque key. Two requests that share two blocks of prefix and diverge in the third produce two unrelated cache entries — the shared work is invisible to the table.</figcaption>
+  </figure>
+
+  <p>The picture above is the entire motivation for the next chapter. We want a data structure that <em>natively understands prefix relationships</em>. When request A and request B share two blocks of prefix, that shared portion should live exactly once in the cache, and both requests should hang off its tail. That data structure is a radix tree.</p>
+</section>
+
+<!-- ============== § II RADIX TREE INTRO ============== -->
+<section id="s2">
+  <span class="section-num">§ II</span>
+  <h2>RadixAttention — the cache as a tree.</h2>
+  <p class="lede">SGLang's RadixAttention replaces the flat hash table with a radix tree. Tokens become path edges. Cached KV blocks live at the nodes. Prefix matching becomes a tree walk.</p>
+
+  <p>A radix tree is a compressed trie: each edge can carry a sequence of tokens (not just one). Every node represents a prefix that some past request has followed; the KV blocks for those prefix tokens are physically allocated and indexed by the node. Insertion and lookup walk the tree edge by edge, matching tokens until the input runs out or until an edge requires a token the input doesn't have.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 360" xmlns="http://www.w3.org/2000/svg">
+      <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">RADIX TREE · EDGES ARE TOKEN SEQUENCES</text>
+
+      <!-- root -->
+      <g transform="translate(410,60)">
+        <circle cx="0" cy="0" r="14" fill="#1a1815"/>
+        <text class="svg-mono svg-text" x="0" y="4" text-anchor="middle" fill="#fff" font-size="10">root</text>
+      </g>
+
+      <!-- edge to sysprompt node -->
+      <line x1="410" y1="74" x2="410" y2="120" stroke="#1a1815" stroke-width="1.5"/>
+      <text class="svg-text svg-mono" x="420" y="100" font-size="11" fill="#1a1815">"sysprompt + few-shot"</text>
+
+      <!-- shared node -->
+      <g transform="translate(410,140)">
+        <circle cx="0" cy="0" r="16" fill="#2e4a7b" opacity="0.85"/>
+        <text class="svg-mono svg-text" x="0" y="4" text-anchor="middle" fill="#fff" font-size="10">SHARED</text>
+        <text class="svg-text svg-mono" x="0" y="34" text-anchor="middle" font-size="10" fill="#1a1815">KV pages: blocks 0–1</text>
+      </g>
+
+      <!-- branch to A -->
+      <line x1="404" y1="153" x2="280" y2="220" stroke="#1a1815" stroke-width="1.5"/>
+      <text class="svg-text svg-mono" x="305" y="195" font-size="11" fill="#1a1815">"Q: rain"</text>
+
+      <!-- A node -->
+      <g transform="translate(280,240)">
+        <circle cx="0" cy="0" r="16" fill="#4a6b3a" opacity="0.9"/>
+        <text class="svg-mono svg-text" x="0" y="4" text-anchor="middle" fill="#fff" font-size="10">A</text>
+        <text class="svg-text svg-mono" x="0" y="34" text-anchor="middle" font-size="10" fill="#1a1815">KV: block 2A</text>
+      </g>
+
+      <!-- branch to B -->
+      <line x1="416" y1="153" x2="540" y2="220" stroke="#1a1815" stroke-width="1.5"/>
+      <text class="svg-text svg-mono" x="450" y="195" font-size="11" fill="#1a1815">"Q: snow"</text>
+
+      <!-- B node -->
+      <g transform="translate(540,240)">
+        <circle cx="0" cy="0" r="16" fill="#4a6b3a" opacity="0.9"/>
+        <text class="svg-mono svg-text" x="0" y="4" text-anchor="middle" fill="#fff" font-size="10">B</text>
+        <text class="svg-text svg-mono" x="0" y="34" text-anchor="middle" font-size="10" fill="#1a1815">KV: block 2B</text>
+      </g>
+
+      <!-- annotation -->
+      <text class="svg-text svg-serif" x="410" y="310" text-anchor="middle" font-size="13" fill="#1a1815" font-style="italic">the shared prefix lives once. branches share it natively.</text>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 2.1</span>The cache as a radix tree. The shared <span class="mono">sysprompt + few-shot</span> prefix is a single node holding two KV blocks. Both requests A and B walk the same path through that node, then branch on their final question. Prefix-cache hits are tree walks; insertions are node splits.</figcaption>
+  </figure>
+
+  <p>Three operations matter. <strong>Lookup</strong> walks the tree from the root, matching token blocks against edges, returning the longest matched node. <strong>Insertion</strong> appends a new edge for the unmatched suffix. <strong>Eviction</strong> removes leaves under an LRU policy, recursively, when the GPU's KV memory budget is full.</p>
+
+  <p>Two important properties. First, <em>any</em> two requests that share a prefix automatically share KV blocks — no manual configuration, no per-template glue. Second, the tree structure lives on the CPU and is small (kilobytes); only the KV blocks themselves live in GPU memory, addressed via the page-table mechanism inherited from PagedAttention (Chapter 11).</p>
+
+  <div class="formula">
+    lookup(prefix) &nbsp;=&nbsp; longest path in the tree spelling a prefix of <em>prefix</em>
+  </div>
+</section>
+
+<!-- ============== § III TREE STEP BY STEP ============== -->
+<section id="s3">
+  <span class="section-num">§ III</span>
+  <h2>The radix tree, step by step.</h2>
+  <p class="lede">The tree is dynamic — every request walks it, splits it, or grows it. Following a single sequence of requests is the cleanest way to internalize the data structure.</p>
+
+  <p>Below is a five-step trace of the radix tree. The system handles two chat sessions and a batched few-shot inference. Green means a node was just added. Blue means a node was hit during this step. Red means a node was evicted.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 760" xmlns="http://www.w3.org/2000/svg">
+      <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">FIVE STEPS · A LIVE RADIX TREE</text>
+
+      <!-- ============ STEP 1 ============ -->
+      <g transform="translate(40,55)">
+        <rect x="0" y="0" width="350" height="160" fill="#ebe1c7" stroke="#3d3833"/>
+        <text class="svg-text svg-mono" x="14" y="22" font-size="12" fill="#1a1815">step 1 · empty cache</text>
+        <text class="svg-text" x="14" y="40" font-size="11" fill="#6b6359">user request: "Hello!"</text>
+        <!-- root -->
+        <circle cx="100" cy="80" r="12" fill="#1a1815"/>
+        <text class="svg-text svg-mono" x="100" y="84" text-anchor="middle" fill="#fff" font-size="9">root</text>
+        <!-- edge -->
+        <line x1="100" y1="92" x2="100" y2="120" stroke="#1a1815" stroke-width="1.5"/>
+        <text class="svg-text svg-mono" x="110" y="110" font-size="10" fill="#1a1815">sys + "Hi!"</text>
+        <!-- node A -->
+        <circle cx="100" cy="135" r="12" fill="#4a6b3a"/>
+        <text class="svg-mono svg-text" x="100" y="139" text-anchor="middle" fill="#fff" font-size="9">a</text>
+        <text class="svg-text svg-serif" x="200" y="100" font-size="12" fill="#4a6b3a" font-style="italic">node a is created</text>
+      </g>
+
+      <!-- ============ STEP 2 ============ -->
+      <g transform="translate(430,55)">
+        <rect x="0" y="0" width="350" height="160" fill="#ebe1c7" stroke="#3d3833"/>
+        <text class="svg-text svg-mono" x="14" y="22" font-size="12" fill="#1a1815">step 2 · same chat continues</text>
+        <text class="svg-text" x="14" y="40" font-size="11" fill="#6b6359">user adds another turn — extends past a</text>
+        <!-- root -->
+        <circle cx="100" cy="80" r="12" fill="#1a1815"/>
+        <line x1="100" y1="92" x2="100" y2="115" stroke="#1a1815" stroke-width="1.5"/>
+        <!-- node a (hit, blue) -->
+        <circle cx="100" cy="127" r="12" fill="#2e4a7b"/>
+        <text class="svg-mono svg-text" x="100" y="131" text-anchor="middle" fill="#fff" font-size="9">a</text>
+        <line x1="100" y1="139" x2="100" y2="148" stroke="#1a1815" stroke-width="1.5"/>
+        <!-- node b (new) -->
+        <circle cx="100" cy="155" r="10" fill="#4a6b3a"/>
+        <text class="svg-text svg-serif" x="200" y="100" font-size="12" fill="#2e4a7b" font-style="italic">a is a hit (blue)</text>
+        <text class="svg-text svg-serif" x="200" y="118" font-size="12" fill="#4a6b3a" font-style="italic">b appended (green)</text>
+      </g>
+
+      <!-- ============ STEP 3 ============ -->
+      <g transform="translate(40,235)">
+        <rect x="0" y="0" width="350" height="180" fill="#ebe1c7" stroke="#3d3833"/>
+        <text class="svg-text svg-mono" x="14" y="22" font-size="12" fill="#1a1815">step 3 · second chat session begins</text>
+        <text class="svg-text" x="14" y="40" font-size="11" fill="#6b6359">node a is split — sysprompt is shared, replies fork</text>
+        <!-- root -->
+        <circle cx="180" cy="80" r="12" fill="#1a1815"/>
+        <line x1="180" y1="92" x2="180" y2="115" stroke="#1a1815" stroke-width="1.5"/>
+        <text class="svg-text svg-mono" x="190" y="105" font-size="10" fill="#1a1815">sysprompt</text>
+        <!-- shared node S (split off) -->
+        <circle cx="180" cy="127" r="12" fill="#2e4a7b"/>
+        <text class="svg-mono svg-text" x="180" y="131" text-anchor="middle" fill="#fff" font-size="9">S</text>
+        <!-- branch left to a' -->
+        <line x1="173" y1="138" x2="120" y2="155" stroke="#1a1815" stroke-width="1.5"/>
+        <text class="svg-text svg-mono" x="115" y="150" font-size="9" fill="#1a1815" text-anchor="end">"Hi!" + b</text>
+        <circle cx="115" cy="160" r="9" fill="#2e4a7b"/>
+        <text class="svg-mono svg-text" x="115" y="164" text-anchor="middle" fill="#fff" font-size="8">a-b</text>
+        <!-- branch right to c (new) -->
+        <line x1="187" y1="138" x2="240" y2="155" stroke="#1a1815" stroke-width="1.5"/>
+        <text class="svg-text svg-mono" x="245" y="150" font-size="9" fill="#1a1815">"Hey"</text>
+        <circle cx="245" cy="160" r="9" fill="#4a6b3a"/>
+        <text class="svg-mono svg-text" x="245" y="164" text-anchor="middle" fill="#fff" font-size="8">c</text>
+      </g>
+
+      <!-- ============ STEP 4 ============ -->
+      <g transform="translate(430,235)">
+        <rect x="0" y="0" width="350" height="180" fill="#ebe1c7" stroke="#3d3833"/>
+        <text class="svg-text svg-mono" x="14" y="22" font-size="12" fill="#1a1815">step 4 · few-shot batch arrives</text>
+        <text class="svg-text" x="14" y="40" font-size="11" fill="#6b6359">8 queries share a few-shot block · root forks</text>
+        <!-- root -->
+        <circle cx="180" cy="75" r="12" fill="#1a1815"/>
+        <!-- two children of root -->
+        <line x1="172" y1="84" x2="100" y2="105" stroke="#1a1815" stroke-width="1.5"/>
+        <text class="svg-text svg-mono" x="100" y="100" font-size="9" text-anchor="end" fill="#1a1815">sysprompt</text>
+        <circle cx="100" cy="115" r="11" fill="#2e4a7b"/>
+        <text class="svg-mono svg-text" x="100" y="119" text-anchor="middle" fill="#fff" font-size="8">S</text>
+
+        <line x1="188" y1="84" x2="270" y2="105" stroke="#1a1815" stroke-width="1.5"/>
+        <text class="svg-text svg-mono" x="280" y="100" font-size="9" fill="#1a1815">few-shot prefix</text>
+        <circle cx="270" cy="115" r="11" fill="#4a6b3a"/>
+        <text class="svg-mono svg-text" x="270" y="119" text-anchor="middle" fill="#fff" font-size="8">F</text>
+
+        <!-- F has 4 question children -->
+        <g>
+          <line x1="265" y1="125" x2="220" y2="158" stroke="#1a1815" stroke-width="1"/>
+          <line x1="268" y1="125" x2="252" y2="158" stroke="#1a1815" stroke-width="1"/>
+          <line x1="272" y1="125" x2="288" y2="158" stroke="#1a1815" stroke-width="1"/>
+          <line x1="275" y1="125" x2="320" y2="158" stroke="#1a1815" stroke-width="1"/>
+          <circle cx="220" cy="160" r="6" fill="#4a6b3a"/>
+          <circle cx="252" cy="160" r="6" fill="#4a6b3a"/>
+          <circle cx="288" cy="160" r="6" fill="#4a6b3a"/>
+          <circle cx="320" cy="160" r="6" fill="#4a6b3a"/>
+        </g>
+        <text class="svg-text svg-serif" x="265" y="178" text-anchor="middle" font-size="11" fill="#4a6b3a" font-style="italic">8 leaves share node F</text>
+      </g>
+
+      <!-- ============ STEP 5 ============ -->
+      <g transform="translate(40,435)">
+        <rect x="0" y="0" width="740" height="180" fill="#ebe1c7" stroke="#3d3833"/>
+        <text class="svg-text svg-mono" x="14" y="22" font-size="12" fill="#1a1815">step 5 · memory pressure · LRU eviction</text>
+        <text class="svg-text" x="14" y="40" font-size="11" fill="#6b6359">second chat is idle the longest — node c and its descendants are evicted</text>
+
+        <!-- mini tree -->
+        <circle cx="160" cy="80" r="12" fill="#1a1815"/>
+
+        <line x1="152" y1="89" x2="100" y2="115" stroke="#1a1815" stroke-width="1.5"/>
+        <circle cx="100" cy="120" r="11" fill="#2e4a7b"/>
+        <text class="svg-mono svg-text" x="100" y="124" text-anchor="middle" fill="#fff" font-size="8">S</text>
+        <line x1="100" y1="131" x2="100" y2="142" stroke="#1a1815" stroke-width="1.5"/>
+        <circle cx="100" cy="148" r="9" fill="#2e4a7b"/>
+        <text class="svg-mono svg-text" x="100" y="152" text-anchor="middle" fill="#fff" font-size="8">a-b</text>
+
+        <line x1="168" y1="89" x2="220" y2="115" stroke="#1a1815" stroke-width="1.5"/>
+        <circle cx="220" cy="120" r="11" fill="#4a6b3a"/>
+        <text class="svg-mono svg-text" x="220" y="124" text-anchor="middle" fill="#fff" font-size="8">F</text>
+        <g>
+          <circle cx="190" cy="148" r="6" fill="#4a6b3a"/>
+          <circle cx="210" cy="148" r="6" fill="#4a6b3a"/>
+          <circle cx="230" cy="148" r="6" fill="#4a6b3a"/>
+          <circle cx="250" cy="148" r="6" fill="#4a6b3a"/>
+          <line x1="218" y1="131" x2="190" y2="142" stroke="#1a1815" stroke-width="0.8"/>
+          <line x1="219" y1="131" x2="210" y2="142" stroke="#1a1815" stroke-width="0.8"/>
+          <line x1="221" y1="131" x2="230" y2="142" stroke="#1a1815" stroke-width="0.8"/>
+          <line x1="222" y1="131" x2="250" y2="142" stroke="#1a1815" stroke-width="0.8"/>
+        </g>
+
+        <!-- evicted (greyed out) c branch -->
+        <g opacity="0.4">
+          <circle cx="350" cy="120" r="11" fill="#c8351b"/>
+          <text class="svg-mono svg-text" x="350" y="124" text-anchor="middle" fill="#fff" font-size="8">c</text>
+          <line x1="350" y1="131" x2="350" y2="142" stroke="#c8351b" stroke-width="1" stroke-dasharray="3,3"/>
+          <circle cx="350" cy="150" r="8" fill="#c8351b"/>
+        </g>
+        <text class="svg-text svg-mono" x="395" y="125" font-size="11" fill="#c8351b">←</text>
+        <text class="svg-text svg-serif" x="410" y="125" font-size="12" fill="#c8351b" font-style="italic">evicted leaves first, recursively up</text>
+
+        <!-- legend -->
+        <g transform="translate(540,75)">
+          <text class="svg-text" x="0" y="0" font-size="11" letter-spacing="0.12em" fill="#6b6359" font-weight="700">LEGEND</text>
+          <circle cx="10" cy="22" r="6" fill="#4a6b3a"/>
+          <text class="svg-text" x="22" y="26" font-size="11" fill="#1a1815">just added</text>
+          <circle cx="10" cy="44" r="6" fill="#2e4a7b"/>
+          <text class="svg-text" x="22" y="48" font-size="11" fill="#1a1815">hit this step</text>
+          <circle cx="10" cy="66" r="6" fill="#c8351b"/>
+          <text class="svg-text" x="22" y="70" font-size="11" fill="#1a1815">evicted</text>
+        </g>
+
+      </g>
+
+      <!-- bottom commentary -->
+      <text class="svg-text svg-serif" x="410" y="660" text-anchor="middle" font-size="14" fill="#1a1815" font-style="italic">the tree shape is the workload's prefix structure, made visible.</text>
+
+      <!-- Pseudocode -->
+      <g transform="translate(40,675)">
+        <rect x="0" y="0" width="740" height="80" fill="#1a1815"/>
+        <text class="svg-text svg-mono" x="20" y="24" font-size="11" fill="#e08a76">def lookup(req):</text>
+        <text class="svg-text svg-mono" x="20" y="42" font-size="11" fill="#fff">    node, matched = walk(root, req.tokens)</text>
+        <text class="svg-text svg-mono" x="20" y="60" font-size="11" fill="#fff">    return node.kv_blocks[:matched], req.tokens[matched:]   # hit, miss-suffix</text>
+      </g>
+
+    </svg>
+    <figcaption><span class="fig-label">Fig. 3.1</span>A live radix tree. Step 1 is empty. Step 2 grows a node. Step 3 splits a node so two chat sessions can share their system prompt. Step 4 shows how a few-shot batch all collapses onto a shared node F. Step 5 shows LRU eviction reclaiming the second chat's memory. The pseudocode at the bottom is the entire lookup loop.</figcaption>
+  </figure>
+</section>
+
+<!-- ============== § IV FOUR PATTERNS ============== -->
+<section id="s4">
+  <span class="section-num">§ IV</span>
+  <h2>Four reuse patterns in the wild.</h2>
+  <p class="lede">SGLang's authors point out that real LLM workloads almost always exhibit one of four prefix-sharing structures. Each one is a textbook reason RadixAttention exists.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 360" xmlns="http://www.w3.org/2000/svg">
+      <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">FOUR PATTERNS · BLUE = SHAREABLE PREFIX, GREEN = PER-REQUEST INPUT, GOLD = OUTPUT</text>
+
+      <!-- Few-shot -->
+      <g transform="translate(40,55)">
+        <text class="svg-text svg-mono" x="160" y="-8" text-anchor="middle" font-size="12" fill="#1a1815">few-shot batch</text>
+        <rect x="0" y="0" width="200" height="22" fill="#2e4a7b" opacity="0.8"/>
+        <text class="svg-text svg-mono" x="100" y="15" text-anchor="middle" fill="#fff" font-size="10">few-shot examples</text>
+        <!-- 4 queries -->
+        <g transform="translate(0,28)">
+          <rect x="200" y="0"  width="60" height="18" fill="#4a6b3a" opacity="0.85"/>
+          <rect x="200" y="22" width="60" height="18" fill="#4a6b3a" opacity="0.85"/>
+          <rect x="200" y="44" width="60" height="18" fill="#4a6b3a" opacity="0.85"/>
+          <rect x="200" y="66" width="60" height="18" fill="#4a6b3a" opacity="0.85"/>
+          <text class="svg-text svg-mono" x="230" y="13" text-anchor="middle" fill="#fff" font-size="10">Q₁</text>
+          <text class="svg-text svg-mono" x="230" y="35" text-anchor="middle" fill="#fff" font-size="10">Q₂</text>
+          <text class="svg-text svg-mono" x="230" y="57" text-anchor="middle" fill="#fff" font-size="10">Q₃</text>
+          <text class="svg-text svg-mono" x="230" y="79" text-anchor="middle" fill="#fff" font-size="10">Q₄</text>
+        </g>
+        <!-- vertical linkage from prefix to all 4 queries -->
+        <line x1="180" y1="22" x2="180" y2="105" stroke="#3d3833" stroke-width="0.8" stroke-dasharray="2,2"/>
+        <line x1="180" y1="37" x2="200" y2="37" stroke="#3d3833" stroke-width="0.8" stroke-dasharray="2,2"/>
+        <line x1="180" y1="59" x2="200" y2="59" stroke="#3d3833" stroke-width="0.8" stroke-dasharray="2,2"/>
+        <line x1="180" y1="81" x2="200" y2="81" stroke="#3d3833" stroke-width="0.8" stroke-dasharray="2,2"/>
+        <line x1="180" y1="103" x2="200" y2="103" stroke="#3d3833" stroke-width="0.8" stroke-dasharray="2,2"/>
+        <text class="svg-text" x="100" y="155" text-anchor="middle" font-size="11" fill="#6b6359">prefix shared across N queries</text>
+      </g>
+
+      <!-- Self-consistency -->
+      <g transform="translate(420,55)">
+        <text class="svg-text svg-mono" x="160" y="-8" text-anchor="middle" font-size="12" fill="#1a1815">self-consistency sampling</text>
+        <rect x="0" y="0" width="240" height="22" fill="#2e4a7b" opacity="0.8"/>
+        <text class="svg-text svg-mono" x="120" y="15" text-anchor="middle" fill="#fff" font-size="10">prompt + question</text>
+        <!-- multiple completions -->
+        <g transform="translate(0,28)">
+          <rect x="240" y="0"  width="80" height="18" fill="#b8862f" opacity="0.85"/>
+          <rect x="240" y="22" width="80" height="18" fill="#b8862f" opacity="0.85"/>
+          <rect x="240" y="44" width="80" height="18" fill="#b8862f" opacity="0.85"/>
+          <rect x="240" y="66" width="80" height="18" fill="#b8862f" opacity="0.85"/>
+          <text class="svg-text svg-mono" x="280" y="13" text-anchor="middle" fill="#fff" font-size="9">sample 1</text>
+          <text class="svg-text svg-mono" x="280" y="35" text-anchor="middle" fill="#fff" font-size="9">sample 2</text>
+          <text class="svg-text svg-mono" x="280" y="57" text-anchor="middle" fill="#fff" font-size="9">sample 3</text>
+          <text class="svg-text svg-mono" x="280" y="79" text-anchor="middle" fill="#fff" font-size="9">sample 4</text>
+        </g>
+        <text class="svg-text" x="160" y="155" text-anchor="middle" font-size="11" fill="#6b6359">single prefill, K independent decodes</text>
+      </g>
+
+      <!-- Multi-turn chat -->
+      <g transform="translate(40,225)">
+        <text class="svg-text svg-mono" x="160" y="-8" text-anchor="middle" font-size="12" fill="#1a1815">multi-turn chat</text>
+        <rect x="0"   y="0" width="80"  height="22" fill="#2e4a7b" opacity="0.8"/>
+        <rect x="84"  y="0" width="80"  height="22" fill="#b8862f" opacity="0.85"/>
+        <rect x="168" y="0" width="80"  height="22" fill="#2e4a7b" opacity="0.8"/>
+        <rect x="252" y="0" width="80"  height="22" fill="#b8862f" opacity="0.85"/>
+        <text class="svg-text svg-mono" x="40" y="15" text-anchor="middle" fill="#fff" font-size="9">user 1</text>
+        <text class="svg-text svg-mono" x="124" y="15" text-anchor="middle" fill="#fff" font-size="9">reply 1</text>
+        <text class="svg-text svg-mono" x="208" y="15" text-anchor="middle" fill="#fff" font-size="9">user 2</text>
+        <text class="svg-text svg-mono" x="292" y="15" text-anchor="middle" fill="#fff" font-size="9">reply 2</text>
+
+        <text class="svg-text" x="160" y="65" text-anchor="middle" font-size="11" fill="#6b6359">turn N reuses turns 1…N-1</text>
+      </g>
+
+      <!-- Tree-of-thought -->
+      <g transform="translate(420,225)">
+        <text class="svg-text svg-mono" x="160" y="-8" text-anchor="middle" font-size="12" fill="#1a1815">tree-of-thought search</text>
+        <!-- root prompt -->
+        <rect x="120" y="0" width="80" height="20" fill="#2e4a7b" opacity="0.8"/>
+        <text class="svg-text svg-mono" x="160" y="14" text-anchor="middle" fill="#fff" font-size="9">prompt</text>
+
+        <!-- 2 children -->
+        <line x1="148" y1="20" x2="80" y2="40" stroke="#3d3833" stroke-width="0.8"/>
+        <line x1="172" y1="20" x2="240" y2="40" stroke="#3d3833" stroke-width="0.8"/>
+        <rect x="40"  y="40" width="80" height="20" fill="#4a6b3a" opacity="0.85"/>
+        <rect x="200" y="40" width="80" height="20" fill="#4a6b3a" opacity="0.85"/>
+        <text class="svg-text svg-mono" x="80"  y="54" text-anchor="middle" fill="#fff" font-size="9">step 1A</text>
+        <text class="svg-text svg-mono" x="240" y="54" text-anchor="middle" fill="#fff" font-size="9">step 1B</text>
+
+        <!-- 4 grandchildren -->
+        <line x1="65"  y1="60" x2="30"  y2="80" stroke="#3d3833" stroke-width="0.8"/>
+        <line x1="95"  y1="60" x2="120" y2="80" stroke="#3d3833" stroke-width="0.8"/>
+        <line x1="225" y1="60" x2="190" y2="80" stroke="#3d3833" stroke-width="0.8"/>
+        <line x1="255" y1="60" x2="290" y2="80" stroke="#3d3833" stroke-width="0.8"/>
+        <rect x="0"   y="80" width="60" height="20" fill="#4a6b3a" opacity="0.85"/>
+        <rect x="90"  y="80" width="60" height="20" fill="#4a6b3a" opacity="0.85"/>
+        <rect x="160" y="80" width="60" height="20" fill="#4a6b3a" opacity="0.85"/>
+        <rect x="260" y="80" width="60" height="20" fill="#4a6b3a" opacity="0.85"/>
+
+        <text class="svg-text" x="160" y="125" text-anchor="middle" font-size="11" fill="#6b6359">every internal node is shared by its descendants</text>
+      </g>
+
+    </svg>
+    <figcaption><span class="fig-label">Fig. 4.1</span>The four canonical reuse patterns from the SGLang paper. Few-shot batches share the example block. Self-consistency sampling shares the prefill across all decodes. Multi-turn chat reuses every previous turn. Tree-of-thought reuses every ancestor on the search path. RadixAttention catches all four with the same data structure.</figcaption>
+  </figure>
+
+  <p>The reported throughput numbers are dramatic. On Llama-7B and Mixtral-8x7B with these workloads, SGLang reaches up to <span class="hl-gold">5× the throughput of vLLM and Guidance</span> — not because the kernel is faster, but because so much prefill never has to run.</p>
+</section>
+
+<!-- ============== § V LIMIT OF TOKEN-EXACT ============== -->
+<section id="s5">
+  <span class="section-num">§ V</span>
+  <h2>Where token-exact caching breaks.</h2>
+  <p class="lede">RadixAttention is exact-prefix caching done as well as it can be done. There is still a wall: it can only reuse computation when prefixes are <em>byte-equal</em>.</p>
+
+  <p>Two queries that mean the same thing but are spelled differently — even just by a punctuation mark — produce different token sequences and therefore different cache keys. The radix tree sees no relationship between them. From a user-facing perspective, this is a missed cache hit; from the engine's perspective, it is doing the work it was built to do.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 360" xmlns="http://www.w3.org/2000/svg">
+      <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">SAME MEANING, DIFFERENT TOKENS · A PROBLEM RADIX CANNOT SEE</text>
+
+      <!-- Three queries -->
+      <g transform="translate(40,60)">
+        <text class="svg-text svg-mono" x="0" y="0" font-size="11" fill="#1a1815">query 1:</text>
+        <rect x="80" y="-15" width="320" height="22" fill="#ebe1c7" stroke="#3d3833"/>
+        <text class="svg-text svg-mono" x="90" y="0" font-size="11" fill="#1a1815">"What is the capital of France?"</text>
+      </g>
+
+      <g transform="translate(40,100)">
+        <text class="svg-text svg-mono" x="0" y="0" font-size="11" fill="#1a1815">query 2:</text>
+        <rect x="80" y="-15" width="320" height="22" fill="#ebe1c7" stroke="#3d3833"/>
+        <text class="svg-text svg-mono" x="90" y="0" font-size="11" fill="#1a1815">"capital of France?"</text>
+      </g>
+
+      <g transform="translate(40,140)">
+        <text class="svg-text svg-mono" x="0" y="0" font-size="11" fill="#1a1815">query 3:</text>
+        <rect x="80" y="-15" width="320" height="22" fill="#ebe1c7" stroke="#3d3833"/>
+        <text class="svg-text svg-mono" x="90" y="0" font-size="11" fill="#1a1815">"Tell me France's capital."</text>
+      </g>
+
+      <!-- Token verdict -->
+      <g transform="translate(440,60)">
+        <text class="svg-text" x="0" y="0" font-size="11" letter-spacing="0.12em" fill="#6b6359">RADIXATTENTION SAYS</text>
+        <text class="svg-text svg-mono" x="0" y="22" font-size="11" fill="#c8351b">prefix(q1, q2) = ∅</text>
+        <text class="svg-text svg-mono" x="0" y="42" font-size="11" fill="#c8351b">prefix(q1, q3) = ∅</text>
+        <text class="svg-text svg-mono" x="0" y="62" font-size="11" fill="#c8351b">prefix(q2, q3) = ∅</text>
+        <text class="svg-text svg-serif" x="0" y="92" font-size="13" fill="#c8351b" font-style="italic">three independent prefills.</text>
+      </g>
+
+      <!-- Embedding verdict -->
+      <g transform="translate(440,170)">
+        <text class="svg-text" x="0" y="0" font-size="11" letter-spacing="0.12em" fill="#6b6359">EMBEDDING SPACE SAYS</text>
+        <text class="svg-text svg-mono" x="0" y="22" font-size="11" fill="#4a6b3a">‖e(q1) − e(q2)‖ = 0.07</text>
+        <text class="svg-text svg-mono" x="0" y="42" font-size="11" fill="#4a6b3a">‖e(q1) − e(q3)‖ = 0.09</text>
+        <text class="svg-text svg-mono" x="0" y="62" font-size="11" fill="#4a6b3a">‖e(q2) − e(q3)‖ = 0.05</text>
+        <text class="svg-text svg-serif" x="0" y="92" font-size="13" fill="#4a6b3a" font-style="italic">all within ε. one answer suffices.</text>
+      </g>
+
+      <!-- Bottom: -->
+      <text class="svg-text svg-serif" x="410" y="320" text-anchor="middle" font-size="14" fill="#1a1815" font-style="italic">a different abstraction is needed: cache by what the query <tspan fill="#c8351b">means</tspan>, not how it is <tspan fill="#c8351b">spelled</tspan>.</text>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 5.1</span>Three queries with the same answer. RadixAttention sees them as unrelated because the prefixes don't match byte-for-byte. An embedding-based comparator sees them as near-neighbours in semantic space — close enough that one cached answer would serve all three.</figcaption>
+  </figure>
+
+  <p class="marginalia">RadixAttention is not "wrong" here — token-equal prefixes is exactly the contract it is built on, and that contract is what makes it cheap and correct. Semantic caching is a different contract that lives at a different layer.</p>
+</section>
+
+<!-- ============== § VI SEMANTIC CACHING ============== -->
+<section id="s6">
+  <span class="section-num">§ VI</span>
+  <h2>Semantic caching — by meaning, not bytes.</h2>
+  <p class="lede">A semantic cache stores answered (query, response) pairs indexed by the query's <em>embedding</em>. A new query is embedded and looked up by nearest-neighbour search. If a stored entry is close enough, the cached response is returned and inference never runs.</p>
+
+  <p>The picture is concrete. Embed every query into <span class="mono">ℝᵈ</span> with a small encoder. Pick a similarity threshold ε. The cache is a set of points (the queries that have been answered) with their responses attached. A new query is a point. If it lands within ε of a cached point, that's a hit and the engine returns the stored response. If not, the engine runs inference, stores the new (point, response) pair, and continues.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 380" xmlns="http://www.w3.org/2000/svg">
+      <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">EMBEDDING SPACE · CACHE ENTRIES AS POINTS · ε-BALLS AS HITS</text>
+
+      <!-- Embedding space (a 2D box) -->
+      <g transform="translate(60,55)">
+        <rect x="0" y="0" width="500" height="280" fill="#ebe1c7" stroke="#3d3833"/>
+
+        <!-- cached entries with epsilon balls -->
+        <g>
+          <!-- entry 1 -->
+          <circle cx="100" cy="60" r="48" fill="#72569a" opacity="0.12"/>
+          <circle cx="100" cy="60" r="8" fill="#72569a"/>
+          <text class="svg-text svg-mono" x="116" y="56" font-size="10" fill="#1a1815">"capital of France"</text>
+          <text class="svg-text svg-mono" x="116" y="70" font-size="10" fill="#72569a">→ Paris</text>
+
+          <!-- entry 2 -->
+          <circle cx="280" cy="170" r="48" fill="#72569a" opacity="0.12"/>
+          <circle cx="280" cy="170" r="8" fill="#72569a"/>
+          <text class="svg-text svg-mono" x="296" y="166" font-size="10" fill="#1a1815">"weather in Paris"</text>
+          <text class="svg-text svg-mono" x="296" y="180" font-size="10" fill="#72569a">→ "20°C, sunny"</text>
+
+          <!-- entry 3 -->
+          <circle cx="380" cy="80" r="48" fill="#72569a" opacity="0.12"/>
+          <circle cx="380" cy="80" r="8" fill="#72569a"/>
+          <text class="svg-text svg-mono" x="296" y="50" font-size="10" fill="#1a1815">"capital of Spain"</text>
+          <text class="svg-text svg-mono" x="296" y="64" font-size="10" fill="#72569a">→ Madrid</text>
+
+          <!-- entry 4 -->
+          <circle cx="180" cy="220" r="48" fill="#72569a" opacity="0.12"/>
+          <circle cx="180" cy="220" r="8" fill="#72569a"/>
+          <text class="svg-text svg-mono" x="196" y="216" font-size="10" fill="#1a1815">"weather Tokyo"</text>
+          <text class="svg-text svg-mono" x="196" y="230" font-size="10" fill="#72569a">→ "14°C, rain"</text>
+        </g>
+
+        <!-- New incoming queries -->
+        <!-- HIT (lands inside ball 1) -->
+        <g>
+          <circle cx="115" cy="78" r="5" fill="#4a6b3a"/>
+          <line x1="115" y1="78" x2="160" y2="115" stroke="#4a6b3a" stroke-width="0.8" stroke-dasharray="3,2"/>
+          <text class="svg-text svg-mono" x="160" y="125" font-size="10" fill="#4a6b3a">new: "capital, France?" — HIT</text>
+        </g>
+
+        <!-- MISS -->
+        <g>
+          <circle cx="450" cy="240" r="5" fill="#c8351b"/>
+          <line x1="450" y1="240" x2="430" y2="255" stroke="#c8351b" stroke-width="0.8" stroke-dasharray="3,2"/>
+          <text class="svg-text svg-mono" x="426" y="268" font-size="10" fill="#c8351b" text-anchor="end">new: "rainfall in Mumbai" — MISS</text>
+        </g>
+
+        <!-- ε label -->
+        <g transform="translate(100,60)">
+          <line x1="0" y1="0" x2="48" y2="0" stroke="#1a1815" stroke-width="0.6"/>
+          <text class="svg-text svg-mono" x="24" y="-5" text-anchor="middle" font-size="10" fill="#1a1815">ε</text>
+        </g>
+      </g>
+
+      <!-- Side panel -->
+      <g transform="translate(580,55)">
+        <rect x="0" y="0" width="200" height="280" fill="#1a1815"/>
+        <text class="svg-text" x="100" y="24" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#e08a76">SEMANTIC CACHE</text>
+
+        <text class="svg-text svg-mono" x="14" y="56" font-size="11" fill="#fff">on hit:</text>
+        <text class="svg-text svg-mono" x="14" y="74" font-size="11" fill="#9bd1a8">  return cached</text>
+        <text class="svg-text svg-mono" x="14" y="92" font-size="11" fill="#9bd1a8">  cost: 0 tokens</text>
+
+        <text class="svg-text svg-mono" x="14" y="124" font-size="11" fill="#fff">on miss:</text>
+        <text class="svg-text svg-mono" x="14" y="142" font-size="11" fill="#e08a76">  full inference</text>
+        <text class="svg-text svg-mono" x="14" y="160" font-size="11" fill="#e08a76">  store new entry</text>
+
+        <text class="svg-text svg-mono" x="14" y="194" font-size="11" fill="#fff">cost per query:</text>
+        <text class="svg-text svg-serif" x="14" y="220" font-size="13" fill="#e08a76" font-style="italic">embed (small)</text>
+        <text class="svg-text svg-serif" x="14" y="238" font-size="13" fill="#e08a76" font-style="italic">+ NN search</text>
+        <text class="svg-text svg-serif" x="14" y="256" font-size="13" fill="#e08a76" font-style="italic">+ optional inference</text>
+      </g>
+    </svg>
+    <figcaption><span class="fig-label">Fig. 6.1</span>The semantic cache visualized. Each cached entry is a point in embedding space surrounded by an ε-ball — the region in which a new query is "close enough" to be served from this entry. Queries that fall in a ball are answered for free; queries that miss become new cached entries. The cache fills the embedding space the way packed disks tile a plane.</figcaption>
+  </figure>
+
+  <p>The economics are striking. A semantic-cache hit costs essentially nothing — one embedding, one nearest-neighbour query, no GPU inference. A semantic-cache miss costs whatever inference would have cost anyway, plus the small overhead of the embedding lookup. So as long as the hit rate is above any positive threshold, the average serving cost drops monotonically.</p>
+</section>
+
+<!-- ============== § VII THE CONTINUOUS QUERY PROBLEM ============== -->
+<section id="s7">
+  <span class="section-num">§ VII</span>
+  <h2>The continuous-query problem.</h2>
+  <p class="lede">Earlier semantic-cache designs assumed the world looks like a finite catalogue of queries with known arrival probabilities. In production, that assumption is false in a way that breaks the cache.</p>
+
+  <p>Real LLM queries do not come from a discrete list. They come from a continuous, infinite-dimensional embedding space, and their distribution drifts day by day as users, products, and prompts change. You will never see the same sequence of bytes twice. The cache cannot enumerate the universe; it has to <em>generalize</em> over it.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 320" xmlns="http://www.w3.org/2000/svg">
+      <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">DISCRETE CATALOGUE vs CONTINUOUS DISTRIBUTION</text>
+
+      <!-- Left: discrete -->
+      <g transform="translate(40,60)">
+        <text class="svg-text svg-mono" x="160" y="-10" text-anchor="middle" font-size="12" fill="#1a1815">old assumption: discrete catalogue</text>
+        <rect x="0" y="0" width="320" height="180" fill="#ebe1c7" stroke="#3d3833"/>
+        <!-- finite isolated points -->
+        <g>
+          <circle cx="50"  cy="40"  r="6" fill="#72569a"/>
+          <circle cx="150" cy="60"  r="6" fill="#72569a"/>
+          <circle cx="220" cy="50"  r="6" fill="#72569a"/>
+          <circle cx="280" cy="100" r="6" fill="#72569a"/>
+          <circle cx="120" cy="120" r="6" fill="#72569a"/>
+          <circle cx="60"  cy="140" r="6" fill="#72569a"/>
+          <circle cx="200" cy="150" r="6" fill="#72569a"/>
+          <circle cx="260" cy="160" r="6" fill="#72569a"/>
+        </g>
+        <text class="svg-text svg-serif" x="160" y="200" text-anchor="middle" font-size="13" fill="#1a1815" font-style="italic">N known queries · learn p(q) and cost(q)</text>
+      </g>
+
+      <!-- Right: continuous -->
+      <g transform="translate(440,60)">
+        <text class="svg-text svg-mono" x="160" y="-10" text-anchor="middle" font-size="12" fill="#1a1815">reality: continuous embedding space</text>
+        <rect x="0" y="0" width="320" height="180" fill="#ebe1c7" stroke="#3d3833"/>
+        <!-- density gradient -->
+        <ellipse cx="100" cy="80" rx="80" ry="50" fill="#c8351b" opacity="0.18"/>
+        <ellipse cx="220" cy="120" rx="60" ry="40" fill="#c8351b" opacity="0.22"/>
+        <ellipse cx="180" cy="60" rx="40" ry="25" fill="#c8351b" opacity="0.25"/>
+        <!-- many sample points -->
+        <g fill="#c8351b">
+          <circle cx="60" cy="50" r="2"/>
+          <circle cx="80" cy="65" r="2"/>
+          <circle cx="100" cy="80" r="2"/>
+          <circle cx="120" cy="55" r="2"/>
+          <circle cx="140" cy="100" r="2"/>
+          <circle cx="160" cy="70" r="2"/>
+          <circle cx="180" cy="60" r="2"/>
+          <circle cx="200" cy="100" r="2"/>
+          <circle cx="220" cy="120" r="2"/>
+          <circle cx="240" cy="110" r="2"/>
+          <circle cx="180" cy="135" r="2"/>
+          <circle cx="200" cy="140" r="2"/>
+          <circle cx="260" cy="130" r="2"/>
+          <circle cx="120" cy="120" r="2"/>
+          <circle cx="280" cy="100" r="2"/>
+          <circle cx="60" cy="120" r="2"/>
+          <circle cx="80" cy="150" r="2"/>
+          <circle cx="100" cy="160" r="2"/>
+          <circle cx="40" cy="100" r="2"/>
+        </g>
+        <text class="svg-text svg-serif" x="160" y="200" text-anchor="middle" font-size="13" fill="#c8351b" font-style="italic">infinite, drifting · we never see the same q twice</text>
+      </g>
+
+    </svg>
+    <figcaption><span class="fig-label">Fig. 7.1</span>The shift in framing. Older semantic caches treated queries like a movie catalogue — finite list, known popularity. The 2026 paper "Continuous Semantic Caching for Low-Cost LLM Serving" (Atalar et al.) makes the case that this assumption never matched LLM workloads. The right picture has no discrete points; it has a density that the cache must generalize over.</figcaption>
+  </figure>
+
+  <p>Two questions become first-class. <strong>Which neighbourhoods of embedding space are worth caching?</strong> — because some regions are dense with queries and high-cost answers, others are sparse and cheap. <strong>How do we decide under uncertainty?</strong> — because we only ever see partial feedback (the cost of the queries we actually answered), never the full cost surface.</p>
+</section>
+
+<!-- ============== § VIII EPSILON NETS ============== -->
+<section id="s8">
+  <span class="section-num">§ VIII</span>
+  <h2>Dynamic ε-nets and online learning.</h2>
+  <p class="lede">The Atalar-et-al. framework's central trick is to discretize the continuous embedding space with a dynamic ε-net, then estimate the cost surface across each cell with kernel ridge regression. This connects the discrete cache literature to the continuous query reality with a clean theoretical bridge.</p>
+
+  <p>An ε-net is a finite set of "anchor" points in embedding space such that every other point is within ε of at least one anchor. As queries arrive, the system maintains such a covering and treats each anchor's neighbourhood as a single cache cell. The cost of a query in cell c is estimated by KRR over the queries observed in and near c, with a <em>quantified uncertainty</em>: cells with few observations get a wider confidence interval and the algorithm explores them; cells with tight estimates and high estimated cost are committed to the cache.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 360" xmlns="http://www.w3.org/2000/svg">
+      <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">ε-NET DISCRETIZATION + KERNEL RIDGE REGRESSION</text>
+
+      <!-- Embedding space tiled by anchors -->
+      <g transform="translate(60,55)">
+        <rect x="0" y="0" width="500" height="260" fill="#ebe1c7" stroke="#3d3833"/>
+
+        <!-- Hex-like tiling: draw circles around anchors -->
+        <g opacity="0.28">
+          <circle cx="80"  cy="60"  r="50" fill="#72569a"/>
+          <circle cx="180" cy="100" r="50" fill="#72569a"/>
+          <circle cx="280" cy="60"  r="50" fill="#72569a"/>
+          <circle cx="380" cy="100" r="50" fill="#72569a"/>
+          <circle cx="130" cy="170" r="50" fill="#72569a"/>
+          <circle cx="230" cy="200" r="50" fill="#72569a"/>
+          <circle cx="330" cy="170" r="50" fill="#72569a"/>
+          <circle cx="430" cy="200" r="50" fill="#72569a"/>
+          <circle cx="80"  cy="240" r="50" fill="#72569a"/>
+        </g>
+
+        <!-- Anchor points -->
+        <g fill="#1a1815">
+          <circle cx="80"  cy="60"  r="4"/>
+          <circle cx="180" cy="100" r="4"/>
+          <circle cx="280" cy="60"  r="4"/>
+          <circle cx="380" cy="100" r="4"/>
+          <circle cx="130" cy="170" r="4"/>
+          <circle cx="230" cy="200" r="4"/>
+          <circle cx="330" cy="170" r="4"/>
+          <circle cx="430" cy="200" r="4"/>
+          <circle cx="80"  cy="240" r="4"/>
+        </g>
+
+        <!-- Per-cell cost estimate annotated -->
+        <text class="svg-text svg-mono" x="80"  y="50"  text-anchor="middle" font-size="9" fill="#1a1815">ĉ=2.1</text>
+        <text class="svg-text svg-mono" x="180" y="90"  text-anchor="middle" font-size="9" fill="#1a1815">ĉ=4.3 ★</text>
+        <text class="svg-text svg-mono" x="280" y="50"  text-anchor="middle" font-size="9" fill="#1a1815">ĉ=1.8</text>
+        <text class="svg-text svg-mono" x="380" y="90"  text-anchor="middle" font-size="9" fill="#1a1815">ĉ=3.2 ★</text>
+        <text class="svg-text svg-mono" x="130" y="160" text-anchor="middle" font-size="9" fill="#1a1815">ĉ=2.6</text>
+        <text class="svg-text svg-mono" x="230" y="190" text-anchor="middle" font-size="9" fill="#1a1815">ĉ=5.1 ★</text>
+        <text class="svg-text svg-mono" x="330" y="160" text-anchor="middle" font-size="9" fill="#1a1815">ĉ=1.5</text>
+        <text class="svg-text svg-mono" x="430" y="190" text-anchor="middle" font-size="9" fill="#1a1815">ĉ=2.0</text>
+        <text class="svg-text svg-mono" x="80"  y="230" text-anchor="middle" font-size="9" fill="#1a1815">ĉ=0.9</text>
+
+        <!-- Star: cached cells -->
+        <text class="svg-text svg-mono" x="250" y="252" text-anchor="middle" font-size="10" fill="#b8862f">★ = cached cell  ·  others = on-demand</text>
+      </g>
+
+      <!-- Side: equations / takeaway -->
+      <g transform="translate(580,55)">
+        <rect x="0" y="0" width="200" height="260" fill="#1a1815"/>
+        <text class="svg-text" x="100" y="22" text-anchor="middle" font-size="11" letter-spacing="0.15em" fill="#e08a76">THE ALGORITHM</text>
+
+        <text class="svg-text svg-mono" x="14" y="55" font-size="11" fill="#fff">1. embed q</text>
+        <text class="svg-text svg-mono" x="14" y="75" font-size="11" fill="#fff">2. find anchor a*</text>
+        <text class="svg-text svg-mono" x="14" y="95" font-size="11" fill="#fff">3. if a* is cached:</text>
+        <text class="svg-text svg-mono" x="14" y="113" font-size="11" fill="#9bd1a8">     return cached</text>
+        <text class="svg-text svg-mono" x="14" y="133" font-size="11" fill="#fff">4. else:</text>
+        <text class="svg-text svg-mono" x="14" y="151" font-size="11" fill="#e08a76">     run inference</text>
+        <text class="svg-text svg-mono" x="14" y="169" font-size="11" fill="#e08a76">     update KRR(a*)</text>
+        <text class="svg-text svg-mono" x="14" y="187" font-size="11" fill="#e08a76">     re-rank cells</text>
+
+        <text class="svg-text svg-serif" x="100" y="220" text-anchor="middle" font-size="12" fill="#e08a76" font-style="italic">sublinear regret vs</text>
+        <text class="svg-text svg-serif" x="100" y="238" text-anchor="middle" font-size="12" fill="#e08a76" font-style="italic">a continuous oracle</text>
+      </g>
+
+    </svg>
+    <figcaption><span class="fig-label">Fig. 8.1</span>The ε-net covers continuous embedding space with a finite set of anchor points. Each anchor's neighbourhood gets an estimated cost ĉ from kernel ridge regression over observed queries. The algorithm caches the highest-estimated-cost cells (★) and refines its estimates online. The paper's main theorem: regret against an optimal continuous oracle is sublinear, and reduces to known discrete-cache bounds when the query distribution is finite.</figcaption>
+  </figure>
+
+  <p>Two practical consequences. The cache adapts when query patterns drift — a region that becomes hot is detected and its cells become cached. Switching costs are explicitly accounted for, so the algorithm doesn't churn the cache on every minor shift.</p>
+
+  <p class="marginalia">"Sublinear regret" is the same theoretical promise that bandit algorithms make: the long-run average cost of the algorithm approaches the cost of the best fixed strategy you could have chosen with hindsight. Here, that "best fixed strategy" is the optimal cache layout under the true continuous query distribution.</p>
+</section>
+
+<!-- ============== § IX TWO TIER ============== -->
+<section id="s9">
+  <span class="section-num">§ IX</span>
+  <h2>The two-tier architecture.</h2>
+  <p class="lede">Semantic caching and RadixAttention are not alternatives. They live at different layers and answer different questions. A modern serving stack ships both.</p>
+
+  <figure>
+    <svg viewBox="0 0 820 420" xmlns="http://www.w3.org/2000/svg">
+      <text class="svg-text" x="40" y="22" font-size="11" letter-spacing="0.15em" fill="#6b6359">REQUEST PATH · TWO CHANCES TO SKIP WORK</text>
+
+      <!-- Request -->
+      <g transform="translate(40,60)">
+        <rect x="0" y="0" width="120" height="42" fill="#ebe1c7" stroke="#3d3833"/>
+        <text class="svg-text svg-mono" x="60" y="20" text-anchor="middle" font-size="12" fill="#1a1815">incoming</text>
+        <text class="svg-text svg-mono" x="60" y="36" text-anchor="middle" font-size="12" fill="#1a1815">query</text>
+      </g>
+
+      <!-- Arrow 1 -->
+      <line x1="160" y1="81" x2="200" y2="81" stroke="#1a1815" stroke-width="1.5"/>
+      <polygon points="200,81 192,76 192,86" fill="#1a1815"/>
+
+      <!-- Tier 1: semantic cache -->
+      <g transform="translate(200,60)">
+        <rect x="0" y="0" width="170" height="42" fill="#72569a" opacity="0.18" stroke="#72569a" stroke-width="1.5"/>
+        <text class="svg-text svg-mono" x="85" y="20" text-anchor="middle" font-size="12" fill="#1a1815">semantic cache</text>
+        <text class="svg-text svg-mono" x="85" y="36" text-anchor="middle" font-size="11" fill="#72569a">tier 1 · by meaning</text>
+      </g>
+
+      <!-- Hit branch up -->
+      <line x1="285" y1="60" x2="285" y2="20" stroke="#4a6b3a" stroke-width="1.5"/>
+      <line x1="285" y1="20" x2="640" y2="20" stroke="#4a6b3a" stroke-width="1.5"/>
+      <polygon points="640,20 632,15 632,25" fill="#4a6b3a"/>
+      <text class="svg-text svg-mono" x="450" y="14" text-anchor="middle" font-size="11" fill="#4a6b3a">HIT → return cached response</text>
+
+      <!-- Miss arrow -->
+      <line x1="370" y1="81" x2="410" y2="81" stroke="#1a1815" stroke-width="1.5"/>
+      <polygon points="410,81 402,76 402,86" fill="#1a1815"/>
+      <text class="svg-text svg-mono" x="390" y="98" text-anchor="middle" font-size="10" fill="#c8351b">miss</text>
+
+      <!-- Tier 2: radix attention -->
+      <g transform="translate(410,60)">
+        <rect x="0" y="0" width="170" height="42" fill="#2e4a7b" opacity="0.18" stroke="#2e4a7b" stroke-width="1.5"/>
+        <text class="svg-text svg-mono" x="85" y="20" text-anchor="middle" font-size="12" fill="#1a1815">RadixAttention</text>
+        <text class="svg-text svg-mono" x="85" y="36" text-anchor="middle" font-size="11" fill="#2e4a7b">tier 2 · by tokens</text>
+      </g>
+
+      <!-- Partial hit annotation -->
+      <line x1="495" y1="102" x2="495" y2="135" stroke="#1a1815" stroke-width="1.5" stroke-dasharray="3,2"/>
+      <text class="svg-text svg-mono" x="510" y="120" font-size="11" fill="#2e4a7b">prefix hit → reuse KV blocks</text>
+
+      <!-- Arrow to engine -->
+      <line x1="580" y1="81" x2="620" y2="81" stroke="#1a1815" stroke-width="1.5"/>
+      <polygon points="620,81 612,76 612,86" fill="#1a1815"/>
+
+      <!-- Engine -->
+      <g transform="translate(620,60)">
+        <rect x="0" y="0" width="160" height="42" fill="#1a1815"/>
+        <text class="svg-text svg-mono" x="80" y="20" text-anchor="middle" font-size="12" fill="#fff">decode loop</text>
+        <text class="svg-text svg-mono" x="80" y="36" text-anchor="middle" font-size="11" fill="#e08a76">PagedAttention + FA</text>
+      </g>
+
+      <!-- Below: cost model -->
+      <g transform="translate(40,180)">
+        <text class="svg-text" x="0" y="0" font-size="11" letter-spacing="0.12em" fill="#6b6359" font-weight="700">COST PER REQUEST · THREE OUTCOMES</text>
+
+        <g transform="translate(0,30)">
+          <!-- semantic hit -->
+          <rect x="0" y="0" width="40" height="22" fill="#4a6b3a" opacity="0.85"/>
+          <text class="svg-text svg-mono" x="50" y="15" font-size="11" fill="#1a1815">semantic hit:  embed(q) + NN search · ~1 ms</text>
+        </g>
+        <g transform="translate(0,60)">
+          <rect x="0" y="0" width="220" height="22" fill="#b8862f" opacity="0.7"/>
+          <text class="svg-text svg-mono" x="230" y="15" font-size="11" fill="#1a1815">prefix hit (radix): prefill skipped, decode runs · ~0.3× full</text>
+        </g>
+        <g transform="translate(0,90)">
+          <rect x="0" y="0" width="700" height="22" fill="#c8351b" opacity="0.75"/>
+          <text class="svg-text svg-mono" x="350" y="15" text-anchor="middle" font-size="11" fill="#fff">cold miss: full prefill + full decode · 1× baseline</text>
+        </g>
+      </g>
+
+      <!-- Bottom commentary -->
+      <text class="svg-text svg-serif" x="410" y="380" text-anchor="middle" font-size="14" fill="#1a1815" font-style="italic">two abstractions, two cost cliffs. the goal is to keep the request out of the rightmost bar.</text>
+
+    </svg>
+    <figcaption><span class="fig-label">Fig. 9.1</span>The two-tier path. The semantic cache sits in front of the engine and decides whether inference needs to run at all. If it does, RadixAttention decides how much of the prefill can be skipped. The decode loop only sees what neither layer could absorb. The cost-per-request bars below show the three outcomes — and why hit rates dominate average serving cost.</figcaption>
+  </figure>
+
+  <p>An important practical detail: the semantic cache is <em>response-level</em> caching, so it is only safe for queries that are deterministic, idempotent, and not personalized. Customer-specific lookups, time-sensitive questions, anything with sampling temperature greater than zero — those have to bypass tier 1 and go straight to tier 2. Production systems often gate semantic caching behind a tag or a query-classifier, and let RadixAttention be the always-on path.</p>
+</section>
+
+<!-- ============== § X DECISION TABLE ============== -->
+<section id="s10">
+  <span class="section-num">§ X</span>
+  <h2>When to use which.</h2>
+  <p class="lede">A short verdict table. The two techniques live at different layers — the question is which workload gets which.</p>
+
+  <div class="verdict-table">
+    <div class="row head">
+      <div class="cell">Workload</div>
+      <div class="cell">RadixAttention</div>
+      <div class="cell">Semantic cache</div>
+    </div>
+
+    <div class="row">
+      <div class="cell"><strong>Few-shot batch</strong><br><span class="mono" style="font-size:0.8rem">N queries, same examples</span></div>
+      <div class="cell">★ Excellent — one shared node F serves all N. Reported 5× throughput vs vLLM.</div>
+      <div class="cell">Off — each query has a unique answer.</div>
+    </div>
+
+    <div class="row">
+      <div class="cell"><strong>Multi-turn chat</strong><br><span class="mono" style="font-size:0.8rem">conversation accumulates</span></div>
+      <div class="cell">★ Excellent — every turn N reuses turns 1…N−1. Native fit.</div>
+      <div class="cell">Off — answers are personalized and contextual.</div>
+    </div>
+
+    <div class="row">
+      <div class="cell"><strong>Tree-of-thought / agent</strong><br><span class="mono" style="font-size:0.8rem">branching search</span></div>
+      <div class="cell">★ The killer use case — every internal node is shared by all descendants.</div>
+      <div class="cell">Off — branches diverge by design.</div>
+    </div>
+
+    <div class="row">
+      <div class="cell"><strong>Public-knowledge Q&amp;A</strong><br><span class="mono" style="font-size:0.8rem">"capital of France?"</span></div>
+      <div class="cell">Helpful for shared system prompts; misses the paraphrases.</div>
+      <div class="cell">★ The killer use case — paraphrases collapse onto one cached answer.</div>
+    </div>
+
+    <div class="row">
+      <div class="cell"><strong>RAG with stable corpus</strong><br><span class="mono" style="font-size:0.8rem">long-doc retrieval</span></div>
+      <div class="cell">★ Document chunks become shared prefix nodes; huge wins on TTFT.</div>
+      <div class="cell">Useful when query phrasings overlap and retrieved context is stable.</div>
+    </div>
+
+    <div class="row">
+      <div class="cell"><strong>Personalized / time-sensitive</strong><br><span class="mono" style="font-size:0.8rem">user-specific, T&gt;0</span></div>
+      <div class="cell">Helpful for shared system + user-template prefixes.</div>
+      <div class="cell">Unsafe — must bypass.</div>
+    </div>
+  </div>
+
+  <div class="pull-quote">RadixAttention reuses computation. Semantic caching avoids it. Production systems do both, in that order.</div>
+
+  <h3>Where this fits in the book.</h3>
+  <p>Chapter 12 introduces prefix caching as the foundation. RadixAttention is the data-structure upgrade that lets prefix caching work across unrelated requests, not just within a session — it is the engine-layer gem that makes SGLang outperform vLLM on tree-search and agentic workloads (Chapter 20). Continuous semantic caching, in turn, sits one layer above the engine entirely: a request-router decision, made before the model is loaded for a given query at all. Both are caching ideas; both are about doing less work; both are extensions of the bonus that Chapter 12 ends on.</p>
+
+  <div class="ornament">· · ·</div>
+
+  <p style="text-align:center;font-style:italic;color:var(--ink-faint)">Two layers, one philosophy: the cheapest token is the one you never compute.</p>
+</section>
+
+<footer>
+  <p class="small-caps">Vizuara · Inference Engineering</p>
+  <p style="margin-top:1rem;font-size:1rem;font-style:italic">A visual companion to Chapters 12 and 20.</p>
+  <p style="margin-top:2rem;font-size:0.85rem;color:#bda88f">
+    <a href="visual-walkthroughs.html" style="color:#e08a76;text-decoration:none">← back to the library</a> &nbsp;·&nbsp;
+    <a href="book.html" style="color:#e08a76;text-decoration:none">read the book →</a>
+  </p>
+  <p style="margin-top:2rem;font-size:0.78rem;color:#9b8970">
+    sources: Zheng et al., "Fast and Expressive LLM Inference with RadixAttention and SGLang", LMSYS 2024 ·
+    Atalar et al., "Continuous Semantic Caching for Low-Cost LLM Serving", arXiv:2604.20021 (2026).
+  </p>
+</footer>
+
+</main>
+</body>
+</html>
