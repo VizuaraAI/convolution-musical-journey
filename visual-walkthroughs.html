@@ -456,6 +456,40 @@
         0 48px 0 rgba(146, 116, 47, 0.16);
     }
 
+    .thumb.book:before {
+      width: 70%;
+      height: 70%;
+      left: 15%;
+      top: 15%;
+      border-radius: 4px;
+      background:
+        linear-gradient(180deg, rgba(154, 74, 60, 0.18) 0%, rgba(154, 74, 60, 0.18) 22%, transparent 22%, transparent 24%, rgba(22,22,22,0.06) 24%, rgba(22,22,22,0.06) 100%),
+        #fff;
+      border-color: rgba(22, 22, 22, 0.32);
+      box-shadow: 4px 4px 0 rgba(22, 22, 22, 0.18);
+    }
+
+    .thumb.book:after {
+      content: "INFERENCE ENGINEERING";
+      width: auto;
+      height: auto;
+      left: 22%;
+      right: 22%;
+      top: 28%;
+      padding: 4px 6px;
+      display: grid;
+      place-items: center;
+      border: 0;
+      background: rgba(255, 255, 255, 0.85);
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 780;
+      letter-spacing: 0.5px;
+      text-align: center;
+      line-height: 1.2;
+    }
+
     .thumb.workshop:before {
       content: "Q·K·V";
       width: 96px;
@@ -586,13 +620,14 @@
         <span>Vizuara Visual Walkthroughs</span>
       </div>
       <nav class="nav" aria-label="Page sections">
+        <a href="#book">The book</a>
         <a href="#foundations">Foundations</a>
         <a href="#basics">Basics</a>
         <a href="#kv-cache">KV cache</a>
         <a href="#kv-eviction">Eviction</a>
         <a href="#modern">Modern inference</a>
         <a href="#attention">Attention ♥</a>
-        <a href="#workshop">Book companion</a>
+        <a href="#workshop">Companion</a>
       </nav>
     </header>
 
@@ -619,6 +654,25 @@
             <div class="metric"><strong>7</strong>learning tracks</div>
           </div>
         </aside>
+      </section>
+
+      <section id="book" class="section">
+        <div class="section-head">
+          <div>
+            <div class="section-label">The book</div>
+            <h2>Read the full reference</h2>
+          </div>
+          <div class="cluster-note">Every walkthrough on this page is a visual companion to a chapter of the Inference Engineering book. Open the book itself for the full text.</div>
+        </div>
+        <div class="cards">
+          <a class="card" href="book.html" target="_blank" rel="noreferrer">
+            <div class="thumb book"></div>
+            <div class="tag-row"><span class="tag">book</span><span class="tag">28 chapters</span></div>
+            <h3>Inference Engineering</h3>
+            <p>The full book in one HTML file. From the Roofline and the KV cache through FlashAttention, PagedAttention, quantization, speculative decoding, parallelism, and three capstone systems.</p>
+            <div class="link-row"><span>Open the book</span><span class="arrow">↗</span></div>
+          </a>
+        </div>
       </section>
 
       <section id="foundations" class="section">
