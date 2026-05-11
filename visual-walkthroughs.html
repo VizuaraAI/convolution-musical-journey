@@ -674,6 +674,7 @@
         <a href="#basics">Basics</a>
         <a href="#kv-cache">KV cache</a>
         <a href="#kv-eviction">Eviction</a>
+        <a href="#quantization">Quantization</a>
         <a href="#modern">Modern inference</a>
         <a href="#attention">Attention ♥</a>
         <a href="#workshop">Companion</a>
@@ -840,13 +841,13 @@
         </div>
       </section>
 
-      <section id="modern" class="section">
+      <section id="quantization" class="section">
         <div class="section-head">
           <div>
             <div class="section-label">Track 4</div>
-            <h2>Modern inference concepts</h2>
+            <h2>Quantization</h2>
           </div>
-          <div class="cluster-note">Quantization, DeepSeek-style efficiency, and selective sequence models live here.</div>
+          <div class="cluster-note">From how a single float is stored in silicon, through the modern post-training methods (GPTQ, AWQ, GGUF) and quantization-aware training, to rotation-aware compression of the KV cache.</div>
         </div>
         <div class="cards">
           <a class="card" href="https://vizuaraai.github.io/convolution-musical-journey/quantization-visual-walkthrough/" target="_blank" rel="noreferrer">
@@ -864,7 +865,18 @@
             <p>A visual guide to rotation-aware quantization ideas and how they improve practical model compression.</p>
             <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
           </a>
+        </div>
+      </section>
 
+      <section id="modern" class="section">
+        <div class="section-head">
+          <div>
+            <div class="section-label">Track 5</div>
+            <h2>Modern inference concepts</h2>
+          </div>
+          <div class="cluster-note">DeepSeek-style efficiency, sparse attention, and modern cache designs live here.</div>
+        </div>
+        <div class="cards">
           <a class="card" href="https://vizuaraai.github.io/DeepSeek-Sparse/" target="_blank" rel="noreferrer">
             <div class="thumb deepseek"></div>
             <div class="tag-row"><span class="tag">DeepSeek</span><span class="tag">sparse attention</span></div>
@@ -895,7 +907,7 @@
       <section id="attention" class="section">
         <div class="section-head">
           <div>
-            <div class="section-label">Track 5</div>
+            <div class="section-label">Track 6</div>
             <h2>Attention is the heart of speeding inference</h2>
           </div>
           <div class="cluster-note">Attention is where the cost often concentrates, so this guide becomes the map for making inference faster.</div>
