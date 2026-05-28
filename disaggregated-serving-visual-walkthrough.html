@@ -114,10 +114,13 @@ footer{text-align:center;border-top:1px solid var(--line);padding:38px 24px;back
     <span class="nav-brand">Disaggregated Serving</span>
     <div class="nav-links">
       <a href="#why">Why split?</a>
+      <a href="#vllm">vLLM loop</a>
+      <a href="#chunking">Chunking</a>
       <a href="#phases">Prefill vs decode</a>
       <a href="#interference">Interference</a>
       <a href="#architecture">Architecture</a>
       <a href="#kv-tax">KV tax</a>
+      <a href="#kv-lifecycle">KV lifecycle</a>
       <a href="#routing">Routing</a>
       <a href="#decision">Decision</a>
     </div>
@@ -205,6 +208,74 @@ footer{text-align:center;border-top:1px solid var(--line);padding:38px 24px;back
   </div>
 </section>
 
+<section id="vllm" class="alt">
+  <div class="container">
+    <div class="label">Inside the vLLM engine</div>
+    <h2>Disaggregation only makes sense after you understand the engine loop.</h2>
+    <p>A modern vLLM-style server is not a simple web process that calls <code>model.generate()</code>. It is a continuously running scheduler. At every step, the engine chooses which requests enter the batch, updates KV block metadata, prepares compact GPU inputs, runs a flattened forward pass, samples tokens, and then repeats.</p>
+    <div class="pipeline">
+      <div class="stage"><div class="icon">Q</div><h4>Waiting queue</h4><p>New prompts, resumed requests, and preempted requests compete for a token budget.</p></div>
+      <div class="stage"><div class="icon">S</div><h4>Scheduler step</h4><p>Chooses prefill chunks and decode tokens subject to memory and token limits.</p></div>
+      <div class="stage"><div class="icon">M</div><h4>Metadata</h4><p>Builds positions, slot mappings, block tables, and attention metadata.</p></div>
+      <div class="stage"><div class="icon">F</div><h4>Forward pass</h4><p>Flattens all active sequences into one compact super-batch with paged attention.</p></div>
+      <div class="stage"><div class="icon">T</div><h4>Sample token</h4><p>Extracts last-token states, samples, appends KV, and returns to the scheduler.</p></div>
+    </div>
+    <div class="callout blue"><strong>Why this matters.</strong> The prefill/decode split is not outside the engine; it changes what the scheduler is allowed to place in each step. A unified worker mixes prompt chunks and decode tokens in the same loop. A disaggregated system gives each phase its own loop and its own resource pool.</div>
+    <div class="two-col">
+      <div class="card">
+        <h3>Continuous batching</h3>
+        <p>After every engine step, finished requests leave, new requests can enter, and active requests continue. There is no need to pad every sequence to the same length; paged attention and attention metadata keep sequences separate inside one flattened batch.</p>
+      </div>
+      <div class="card">
+        <h3>Paged KV memory</h3>
+        <p>Each request owns logical KV positions, but the physical KV cache is stored in blocks. The scheduler updates the block table, and the attention kernel follows that mapping during the forward pass.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="chunking">
+  <div class="container">
+    <div class="label">The bridge idea</div>
+    <h2>Chunked prefill is the local fix. Disaggregation is the architectural fix.</h2>
+    <p>Before splitting workers, vLLM can reduce interference by cutting a long prompt into smaller prefill chunks. Instead of letting one 8K-token prompt consume a whole step, the scheduler caps how many new prompt tokens can be processed in one iteration. This keeps decode tokens moving, but the same GPU pool is still sharing two incompatible workloads.</p>
+    <div class="timeline">
+      <div class="tl-row">
+        <div class="tl-label">No chunking</div>
+        <div class="tl-track">
+          <div class="tl-block prefill-block" style="flex:72">8K prefill monopolizes step</div>
+          <div class="tl-block decode-block" style="flex:10">D</div>
+          <div class="tl-block decode-block" style="flex:10">D</div>
+        </div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-label">Chunked</div>
+        <div class="tl-track">
+          <div class="tl-block prefill-block" style="flex:20">P1</div>
+          <div class="tl-block decode-block" style="flex:8">D</div>
+          <div class="tl-block prefill-block" style="flex:20">P2</div>
+          <div class="tl-block decode-block" style="flex:8">D</div>
+          <div class="tl-block prefill-block" style="flex:20">P3</div>
+          <div class="tl-block decode-block" style="flex:8">D</div>
+        </div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-label">Disagg P/D</div>
+        <div class="tl-track">
+          <div class="tl-block prefill-block" style="flex:44">prefill pool eats chunks</div>
+          <div class="tl-block transfer-block" style="flex:10">KV</div>
+          <div class="tl-block decode-block" style="flex:44">decode pool streams steadily</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-grid">
+      <div class="card"><h3>Chunked prefill helps TTFT fairness</h3><p>It prevents a single long prompt from blocking every other request for a very large engine step.</p></div>
+      <div class="card"><h3>It does not remove resource mismatch</h3><p>Compute-heavy prefill and memory-heavy decode are still sharing one worker's GPU memory, queue, and scheduler.</p></div>
+      <div class="card"><h3>Disaggregation adds a new cost</h3><p>Once prefill and decode live on different workers, the KV cache must move across the fabric before streaming starts.</p></div>
+    </div>
+  </div>
+</section>
+
 <section id="interference" class="alt">
   <div class="container">
     <div class="label">The production problem</div>
@@ -250,6 +321,15 @@ footer{text-align:center;border-top:1px solid var(--line);padding:38px 24px;back
       <div class="card"><h3>Decode pool</h3><p>Optimized for steady token cadence, continuous batching, memory bandwidth, and P95/P99 TPOT.</p></div>
       <div class="card"><h3>KV transfer plane</h3><p>The new tax. Disaggregation only works if moving the KV cache is cheaper than letting prefill disturb decode.</p></div>
     </div>
+    <table>
+      <thead><tr><th>Component</th><th>What it owns</th><th>Production concern</th></tr></thead>
+      <tbody>
+        <tr><td>Router</td><td>Admission, phase placement, worker choice, request state.</td><td>Must not sit on the KV data path after handoff.</td></tr>
+        <tr><td>Prefill worker</td><td>Prompt execution, first logits, temporary prompt KV blocks.</td><td>Needs high compute throughput and prompt batching.</td></tr>
+        <tr><td>Decode worker</td><td>Streaming loop, persistent KV state, token cadence.</td><td>Needs memory bandwidth, stable queues, and enough KV capacity.</td></tr>
+        <tr><td>Connector</td><td>KV movement from producer to consumer.</td><td>Needs fast local fabric: NVLink, InfiniBand, or high-speed Ethernet.</td></tr>
+      </tbody>
+    </table>
   </div>
 </section>
 
@@ -279,6 +359,46 @@ footer{text-align:center;border-top:1px solid var(--line);padding:38px 24px;back
       </div>
     </div>
     <div class="callout green"><strong>The design rule.</strong> Disaggregation is attractive when the KV transfer tax is smaller than the decode interference you avoid.</div>
+    <div class="card">
+      <h3>Network ladder for a 1.34 GB KV cache</h3>
+      <p>For a Llama-70B-style model, a 4K prompt creates roughly 1.34 GB of KV cache. On ordinary networking this is painfully slow; on local datacenter fabric it becomes plausible.</p>
+      <table>
+        <thead><tr><th>Fabric</th><th>Approx bandwidth</th><th>Transfer time for 1.34 GB</th><th>Verdict</th></tr></thead>
+        <tbody>
+          <tr><td>1 GbE</td><td>0.125 GB/s</td><td class="bad">~10.7 s</td><td>Not viable for interactive serving.</td></tr>
+          <tr><td>10 GbE</td><td>1.25 GB/s</td><td class="bad">~1.1 s</td><td>Often too slow for TTFT budgets.</td></tr>
+          <tr><td>100 GbE</td><td>12.5 GB/s</td><td class="warn">~110 ms</td><td>Possible with careful queueing.</td></tr>
+          <tr><td>InfiniBand HDR</td><td>25 GB/s</td><td class="good">~54 ms</td><td>Production-relevant.</td></tr>
+          <tr><td>NVLink / same node</td><td>hundreds of GB/s</td><td class="good">few ms</td><td>Excellent if placement is local.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="kv-lifecycle">
+  <div class="container">
+    <div class="label">KV connector lifecycle</div>
+    <h2>The handoff is a protocol, not just a copy.</h2>
+    <p>In a disaggregated vLLM-style design, KV transfer is coordinated around model execution. The prefill worker produces KV blocks; the decode worker reserves space and waits for those blocks; once loaded, decode proceeds and the external KV is consumed only once for that request.</p>
+    <div class="pipeline">
+      <div class="stage"><div class="icon">A</div><h4>Allocate</h4><p>Decode worker reserves KV blocks for the incoming request.</p></div>
+      <div class="stage"><div class="icon">P</div><h4>Produce</h4><p>Prefill worker creates K and V tensors for every prompt token and layer.</p></div>
+      <div class="stage"><div class="icon">C</div><h4>Connect</h4><p>Router coordinates the producer and consumer; data path can be direct.</p></div>
+      <div class="stage"><div class="icon">L</div><h4>Load</h4><p>Decode worker imports the KV blocks before the first decode step.</p></div>
+      <div class="stage"><div class="icon">D</div><h4>Decode</h4><p>Now the request behaves like a normal local decode request.</p></div>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <h3>What can go wrong?</h3>
+        <p>KV blocks may arrive late, decode memory may be full, a prefill worker may finish before a decode slot is ready, or network congestion may turn a clean architecture into a TTFT problem.</p>
+      </div>
+      <div class="card">
+        <h3>What must be measured?</h3>
+        <p>Time spent waiting for prefill, time spent transferring KV, decode queue delay, KV memory occupancy, and the number of requests that miss their SLO because of handoff.</p>
+      </div>
+    </div>
+    <div class="callout orange"><strong>Subtle point.</strong> The decode worker does not want to repeatedly fetch the same remote KV every token. The remote KV is loaded into its local cache once, then the normal decode loop appends new local KV entries.</div>
   </div>
 </section>
 
@@ -304,6 +424,19 @@ footer{text-align:center;border-top:1px solid var(--line);padding:38px 24px;back
         <tr><td>Long multi-turn chat</td><td class="warn">Locality-aware</td><td>Keep KV close to the decode worker if the session continues.</td></tr>
       </tbody>
     </table>
+    <div class="card">
+      <h3>Independent scaling rule of thumb</h3>
+      <p>For short prompts and long responses, allocate fewer prefill workers and more decode workers. For long prompts and short responses, allocate more prefill workers and fewer decode workers. The correct split is workload-dependent, which is the whole point: scaling the phases together wastes capacity.</p>
+      <table>
+        <thead><tr><th>Traffic mix</th><th>Likely pressure</th><th>Pool shape</th></tr></thead>
+        <tbody>
+          <tr><td>Chat assistant with long answers</td><td>Decode occupancy</td><td>More decode workers.</td></tr>
+          <tr><td>RAG over long documents</td><td>Prefill bursts plus KV transfer</td><td>More prefill workers; watch fabric.</td></tr>
+          <tr><td>Summarization batches</td><td>Prompt processing</td><td>Prefill-heavy, throughput-oriented.</td></tr>
+          <tr><td>Agent loops with reusable templates</td><td>Cache locality</td><td>Router should exploit prefix/cache reuse.</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </section>
 
@@ -315,6 +448,18 @@ footer{text-align:center;border-top:1px solid var(--line);padding:38px 24px;back
       <div class="card"><h3>Use it when</h3><p>Prompts are long, traffic is bursty, decode SLOs matter, and you have enough requests to keep both pools warm.</p><div class="chip-row"><span class="chip">long context</span><span class="chip">P99 TPOT</span><span class="chip">multi-GPU</span></div></div>
       <div class="card"><h3>Be careful when</h3><p>Requests are short, traffic is low, network bandwidth is weak, or the KV cache is too large to move cheaply.</p><div class="chip-row"><span class="chip">short prompts</span><span class="chip">low QPS</span><span class="chip">slow fabric</span></div></div>
       <div class="card"><h3>Measure these</h3><p>TTFT, TPOT, P95/P99 latency, prefill queue delay, decode queue delay, KV transfer time, GPU utilization, and cost per generated token.</p><div class="chip-row"><span class="chip">TTFT</span><span class="chip">TPOT</span><span class="chip">goodput</span></div></div>
+    </div>
+    <div class="card">
+      <h3>How this fits into the full vLLM stack</h3>
+      <p>Disaggregated P/D sits beside other vLLM serving features. PagedAttention makes KV memory manageable, continuous batching keeps decode slots filled, chunked prefill reduces local interference, prefix caching avoids repeated prompt work, speculative decoding attacks decode latency, and disaggregation separates the two resource profiles when one pool cannot serve both cleanly.</p>
+    </div>
+    <div class="card">
+      <h3>Sources for further reading</h3>
+      <p>This walkthrough builds on two excellent public explainers: JarvisLabs' article on disaggregated prefill-decode and Aleksa Gordić's deep dive into vLLM's engine, scheduling, paged attention, chunked prefill, and advanced serving features.</p>
+      <div class="chip-row">
+        <a class="chip" href="https://jarvislabs.ai/blog/llm-optimization-disaggregated-prefill-decode" target="_blank" rel="noreferrer">JarvisLabs P/D article</a>
+        <a class="chip" href="https://www.aleksagordic.com/blog/vllm" target="_blank" rel="noreferrer">Inside vLLM</a>
+      </div>
     </div>
     <div class="callout blue"><strong>The mental model.</strong> Unified serving is one kitchen where everyone cooks and serves. Disaggregated serving has a prep kitchen and a service line. It is better when prep work is large enough to disrupt service.</div>
   </div>
