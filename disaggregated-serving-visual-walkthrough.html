@@ -98,6 +98,11 @@ p{margin:0 0 14px;color:#36322f}
 .result-box h3{margin-top:0;color:#fff}.result-line{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(255,255,255,.13);padding:9px 0;font-family:'JetBrains Mono';font-size:13px}
 .result-line:last-child{border-bottom:0}.result-line strong{color:#8ad4ff}
 .equation{font-family:'JetBrains Mono';background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto;margin:14px 0;color:#1f2937}
+.figure-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:var(--shadow);margin:18px 0}
+.figure-card img{display:block;width:100%;height:auto;border-radius:8px;border:1px solid var(--line)}
+.figure-caption{font-size:13px;color:var(--muted);margin:10px 2px 0;line-height:1.55}
+.code-block{background:#151923;color:#f8fafc;border-radius:10px;padding:16px;overflow-x:auto;font:12.5px/1.7 'JetBrains Mono';margin:14px 0;border:1px solid rgba(255,255,255,.08)}
+.code-block .comment{color:#9ca3af}.code-block .hl{color:#8ad4ff}.code-block .ok{color:#7dd3a8}
 .checklist{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:18px 0}
 .check{background:#fff;border:1px solid var(--line);border-radius:8px;padding:15px}.check strong{display:block;margin-bottom:4px;color:var(--ink)}
 .chip-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 9px;font:700 11px 'JetBrains Mono';color:var(--muted)}
@@ -121,6 +126,7 @@ footer{text-align:center;border-top:1px solid var(--line);padding:38px 24px;back
       <a href="#architecture">Architecture</a>
       <a href="#kv-tax">KV tax</a>
       <a href="#kv-lifecycle">KV lifecycle</a>
+      <a href="#production">Production</a>
       <a href="#routing">Routing</a>
       <a href="#decision">Decision</a>
     </div>
@@ -295,6 +301,10 @@ footer{text-align:center;border-top:1px solid var(--line);padding:38px 24px;back
     <div class="label">The architecture</div>
     <h2>Separate pools, explicit handoff.</h2>
     <p>Disaggregated serving creates dedicated prefill workers and dedicated decode workers. The router sends prompt-heavy work to the prefill pool. Once the initial KV cache exists, the system transfers it to a decode worker that owns the streaming loop.</p>
+    <div class="figure-card">
+      <img src="assets/disaggregated-pd.png" alt="Disaggregated prefill-decode architecture: prefill-only GPU transfers KV cache to decode-only GPU, reducing ITL spikes.">
+      <p class="figure-caption"><strong>The picture to remember.</strong> The left worker does high-arithmetic-intensity prefill for many input tokens. The right worker does memory-bandwidth-bound decode for one token at a time. KV cache transfer is the bridge. Without the split, ITL spikes whenever long prefills enter the unified worker; with the split, decode cadence stays flatter.</p>
+    </div>
     <div class="system-vis">
       <div class="pool ingress">
         <h4>Ingress router</h4>
@@ -399,6 +409,90 @@ footer{text-align:center;border-top:1px solid var(--line);padding:38px 24px;back
       </div>
     </div>
     <div class="callout orange"><strong>Subtle point.</strong> The decode worker does not want to repeatedly fetch the same remote KV every token. The remote KV is loaded into its local cache once, then the normal decode loop appends new local KV entries.</div>
+  </div>
+</section>
+
+<section id="production" class="alt">
+  <div class="container">
+    <div class="label">Production implementation</div>
+    <h2>Yes: vLLM and SGLang both have disaggregated serving paths.</h2>
+    <p>This is no longer only a paper architecture. It is emerging in real serving stacks, but it is still an advanced deployment pattern: you need multiple instances, a router or proxy, KV transfer configuration, fast local fabric, and careful observability.</p>
+    <div class="card-grid">
+      <div class="card">
+        <h3>vLLM status</h3>
+        <p>vLLM documents <strong>disaggregated prefilling</strong> as experimental. The implementation runs a prefill instance and a decode instance, then transfers KV cache through connectors under <code>vllm/distributed/kv_transfer</code>. Available connector examples include NIXL, LMCache, P2P NCCL, Mooncake, FlexKV, and offloading connectors.</p>
+      </div>
+      <div class="card">
+        <h3>vLLM Router</h3>
+        <p>The vLLM Router is a state-aware load balancer for large deployments. Its public repository describes support for load balancing, service discovery, health checks, metrics, and prefill/decode disaggregation.</p>
+      </div>
+      <div class="card">
+        <h3>SGLang status</h3>
+        <p>SGLang has documented <strong>PD disaggregation</strong> and also <strong>EPD disaggregation</strong> for multimodal workloads, where the encoder, prefill, and decode stages can be separated for VLM serving.</p>
+      </div>
+    </div>
+
+    <h3>Minimal SGLang single-node sketch</h3>
+    <p>SGLang has the cleanest starter commands today. The basic shape is: launch one server in prefill mode, one in decode mode, then put a small load balancer in front.</p>
+    <pre class="code-block"><span class="comment"># 1. Prefill worker</span>
+python -m sglang.launch_server \
+  --model-path meta-llama/Llama-3.1-8B-Instruct \
+  --disaggregation-mode prefill \
+  --disaggregation-transfer-backend nixl
+
+<span class="comment"># 2. Decode worker on another GPU / port</span>
+python -m sglang.launch_server \
+  --model-path meta-llama/Llama-3.1-8B-Instruct \
+  --disaggregation-mode decode \
+  --port 30001 \
+  --base-gpu-id 1 \
+  --disaggregation-transfer-backend nixl
+
+<span class="comment"># 3. Lightweight load balancer / front door</span>
+python -m sglang.srt.disaggregation.mini_lb \
+  --prefill http://127.0.0.1:30000 \
+  --decode http://127.0.0.1:30001 \
+  --host 0.0.0.0 \
+  --port 8000</pre>
+
+    <h3>vLLM production shape</h3>
+    <p>vLLM's production setup is connector-dependent. The stable mental model is the same: prefill is the KV producer, decode is the KV consumer, and the proxy/router orchestrates the two-phase request. Use the official example scripts for the exact connector-specific JSON.</p>
+    <pre class="code-block"><span class="comment"># Conceptual vLLM layout. Fill connector JSON from the official example you use.</span>
+
+<span class="comment"># 1. Prefill instance: computes prompt KV cache</span>
+vllm serve $MODEL \
+  --port 8100 \
+  --kv-transfer-config '<span class="hl">{"kv_connector":"NixlConnector","kv_role":"kv_producer", ...}</span>'
+
+<span class="comment"># 2. Decode instance: receives/loads KV, then streams tokens</span>
+vllm serve $MODEL \
+  --port 8200 \
+  --kv-transfer-config '<span class="hl">{"kv_connector":"NixlConnector","kv_role":"kv_consumer", ...}</span>'
+
+<span class="comment"># 3. Router/proxy: OpenAI-compatible entry point</span>
+<span class="comment"># Routes request -> prefill -> decode, tracks worker health and queue state.</span></pre>
+
+    <h3>Production checklist</h3>
+    <div class="checklist">
+      <div class="check"><strong>Start with a baseline.</strong> Measure normal vLLM/SGLang serving first: TTFT, ITL/TPOT, P95/P99, throughput, GPU memory, and queue delay.</div>
+      <div class="check"><strong>Use the same model and traffic.</strong> Compare unified and disaggregated serving on identical prompt/output length distributions.</div>
+      <div class="check"><strong>Pin the topology.</strong> Keep prefill and decode workers in the same node, rack, or high-speed fabric domain. Internet-style networking is not enough for large KV transfer.</div>
+      <div class="check"><strong>Watch KV memory.</strong> Decode workers must have room for transferred prompt KV plus newly generated decode KV.</div>
+      <div class="check"><strong>Separate metrics by phase.</strong> Track prefill queue delay, transfer wait, decode queue delay, token cadence, and request failure/retry rate.</div>
+      <div class="check"><strong>Fail safely.</strong> Add health checks, timeouts, cleanup of producer KV blocks, and fallback to unified serving when handoff fails.</div>
+    </div>
+
+    <h3>Useful tutorials and docs</h3>
+    <table>
+      <thead><tr><th>Resource</th><th>What to use it for</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://docs.vllm.ai/en/latest/features/disagg_prefill/" target="_blank" rel="noreferrer">vLLM disaggregated prefilling docs</a></td><td>Connector abstractions, official example paths, benchmarks, and implementation location.</td></tr>
+        <tr><td><a href="https://github.com/vllm-project/router" target="_blank" rel="noreferrer">vLLM Router</a></td><td>Production routing, load balancing, service discovery, and P/D-aware orchestration.</td></tr>
+        <tr><td><a href="https://vllm.ai/blog/2026-04-07-moriio-kv-connector" target="_blank" rel="noreferrer">vLLM MORI-IO blog</a></td><td>Concrete single-node PD setup, read/write transfer modes, proxy, and RDMA handoff details.</td></tr>
+        <tr><td><a href="https://docs.sglang.ai/backend/pd_disaggregation.html" target="_blank" rel="noreferrer">SGLang PD disaggregation docs</a></td><td>Single-node and multi-node commands using Mooncake, NIXL, and other transfer backends.</td></tr>
+        <tr><td><a href="https://docs.sglang.io/docs/advanced_features/epd_disaggregation" target="_blank" rel="noreferrer">SGLang EPD disaggregation docs</a></td><td>Encoder-Prefill-Decode separation for multimodal/VLM workloads.</td></tr>
+      </tbody>
+    </table>
   </div>
 </section>
 
