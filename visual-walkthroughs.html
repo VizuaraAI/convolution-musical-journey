@@ -485,6 +485,32 @@
         0 -36px 0 1px rgba(22, 22, 22, 0.08);
     }
 
+    .thumb.serving:before {
+      width: 78px;
+      height: 48px;
+      left: 20px;
+      top: 22px;
+      border-radius: 8px;
+      background: rgba(49, 93, 141, 0.15);
+      box-shadow: 118px 54px 0 rgba(146, 116, 47, 0.18);
+    }
+
+    .thumb.serving:after {
+      width: 126px;
+      height: 14px;
+      left: 92px;
+      top: 88px;
+      border-radius: 999px;
+      background: repeating-linear-gradient(
+        90deg,
+        rgba(47, 118, 95, 0.85),
+        rgba(47, 118, 95, 0.85) 10px,
+        rgba(47, 118, 95, 0.32) 10px,
+        rgba(47, 118, 95, 0.32) 20px
+      );
+      border-color: rgba(47, 118, 95, 0.45);
+    }
+
     .thumb.arc:before {
       width: 80%;
       height: 60%;
@@ -676,6 +702,7 @@
         <a href="#kv-eviction">Eviction</a>
         <a href="#quantization">Quantization</a>
         <a href="#modern">Modern inference</a>
+        <a href="#serving">Serving at scale</a>
         <a href="#attention">Attention ♥</a>
         <a href="#workshop">Companion</a>
       </nav>
@@ -689,7 +716,7 @@
           <p class="lead">
             A curated shelf of interactive walkthroughs for attention, KV cache reduction and eviction,
             FFT convolution, Mamba, DeepSeek sparse attention, quantization, transformers,
-            and GPU anatomy.
+            disaggregated serving, and GPU anatomy.
           </p>
         </div>
         <aside class="truth">
@@ -700,8 +727,8 @@
             then cache eviction, then modern inference ideas, then attention as the heart of speeding inference.
           </p>
           <div class="metric-grid">
-            <div class="metric"><strong>18</strong>visual pages</div>
-            <div class="metric"><strong>7</strong>learning tracks</div>
+            <div class="metric"><strong>19</strong>visual pages</div>
+            <div class="metric"><strong>8</strong>learning tracks</div>
           </div>
         </aside>
       </section>
@@ -904,10 +931,37 @@
         </div>
       </section>
 
-      <section id="attention" class="section">
+      <section id="serving" class="section">
         <div class="section-head">
           <div>
             <div class="section-label">Track 6</div>
+            <h2>Serving at scale</h2>
+          </div>
+          <div class="cluster-note">The engine-level ideas: batching, prefill/decode separation, KV transfer, routing, and the shape of real production inference.</div>
+        </div>
+        <div class="cards">
+          <a class="card" href="https://vizuaraai.github.io/convolution-musical-journey/disaggregated-serving-visual-walkthrough.html" target="_blank" rel="noreferrer">
+            <div class="thumb serving"></div>
+            <div class="tag-row"><span class="tag">disaggregated</span><span class="tag">prefill/decode</span></div>
+            <h3>Disaggregated Serving</h3>
+            <p>A visual walkthrough of why prefill and decode fight, how separate GPU pools fix it, and how to price the KV transfer tax.</p>
+            <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
+          </a>
+
+          <a class="card" href="https://vizuaraai.github.io/convolution-musical-journey/radix-and-semantic-caching.html" target="_blank" rel="noreferrer">
+            <div class="thumb radix"></div>
+            <div class="tag-row"><span class="tag">RadixAttention</span><span class="tag">semantic cache</span></div>
+            <h3>RadixAttention &amp; Semantic Caching</h3>
+            <p>Two cache layers above plain prefix caching: tree-indexed prefix reuse and semantic skipping when a query means something already answered.</p>
+            <div class="link-row"><span>Open walkthrough</span><span class="arrow">↗</span></div>
+          </a>
+        </div>
+      </section>
+
+      <section id="attention" class="section">
+        <div class="section-head">
+          <div>
+            <div class="section-label">Track 7</div>
             <h2>Attention is the heart of speeding inference</h2>
           </div>
           <div class="cluster-note">Attention is where the cost often concentrates, so this guide becomes the map for making inference faster.</div>
@@ -942,7 +996,7 @@
       <section id="workshop" class="section">
         <div class="section-head">
           <div>
-            <div class="section-label">Track 6</div>
+            <div class="section-label">Track 8</div>
             <h2>Spine — the whole arc on one page</h2>
           </div>
           <div class="cluster-note">Single-page narrative companions to the book. Each one threads many chapters into one continuous story.</div>

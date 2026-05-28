@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Disaggregated Serving — Visual Walkthrough</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --purple:#7c5cfc;--blue:#2563eb;--green:#059669;--orange:#d97706;
+  --red:#dc2626;--pink:#db2777;--cyan:#0891b2;--ink:#171717;
+  --muted:#66635f;--paper:#fbfaf7;--soft:#f4efe7;--line:#ded8cf;
+  --bg:#fff;--shadow:0 16px 42px rgba(30,28,25,.08);--max-w:1040px;
+}
+html{scroll-behavior:smooth}
+body{
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;
+  color:var(--ink);background:
+  linear-gradient(90deg,rgba(22,22,22,.035) 1px,transparent 1px),
+  linear-gradient(180deg,rgba(22,22,22,.028) 1px,transparent 1px),var(--paper);
+  background-size:28px 28px;line-height:1.68;font-size:15.5px;letter-spacing:0
+}
+code,.mono{font-family:'JetBrains Mono',monospace}
+.nav{position:sticky;top:0;z-index:20;background:rgba(251,250,247,.92);backdrop-filter:blur(14px);border-bottom:1px solid rgba(222,216,207,.78)}
+.nav-inner{max-width:var(--max-w);margin:0 auto;padding:12px 22px;display:flex;align-items:center;justify-content:space-between;gap:18px}
+.nav-brand{font-family:'Instrument Serif',serif;font-size:20px;color:var(--purple)}
+.nav-links{display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end}
+.nav-links a{font-size:12px;color:var(--muted);text-decoration:none;border:1px solid var(--line);background:rgba(255,255,255,.7);padding:6px 9px;border-radius:999px}
+.nav-links a:hover{color:var(--ink);border-color:var(--ink)}
+.container{max-width:var(--max-w);margin:0 auto;padding:0 24px}
+section{padding:64px 0}
+section.alt{background:rgba(255,255,255,.45);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+h1{font-family:'Instrument Serif',serif;font-size:clamp(44px,7vw,88px);line-height:.95;font-weight:400;margin:0;color:var(--ink)}
+h2{font-family:'Instrument Serif',serif;font-size:clamp(32px,4vw,48px);line-height:1.05;font-weight:400;margin:0 0 12px}
+h3{font-size:20px;line-height:1.2;margin:26px 0 10px}
+p{margin:0 0 14px;color:#36322f}
+.subtitle{font-size:19px;color:var(--muted);max-width:760px;margin:20px 0 0}
+.label{font-size:11px;letter-spacing:1.9px;text-transform:uppercase;font-weight:800;color:var(--purple);margin-bottom:8px}
+.gradient-text{background:linear-gradient(135deg,var(--purple),var(--cyan),var(--green));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero{min-height:calc(100vh - 68px);display:grid;grid-template-columns:minmax(0,1.05fr) minmax(340px,.75fr);gap:34px;align-items:center;padding:52px 0 36px}
+.hero-card{border:1px solid var(--ink);border-radius:8px;background:#fff;box-shadow:var(--shadow);padding:18px}
+.hero-diagram{height:360px;border:1px solid var(--line);border-radius:8px;background:linear-gradient(180deg,#fff,#f8f6f2);position:relative;overflow:hidden}
+.request{position:absolute;left:18px;top:36px;width:64px;height:28px;background:var(--ink);color:#fff;border-radius:999px;display:grid;place-items:center;font:700 11px 'JetBrains Mono';animation:requestMove 5s ease-in-out infinite}
+@keyframes requestMove{0%,100%{transform:translateX(0)}32%{transform:translateX(112px)}64%{transform:translateX(224px)}}
+.lane{position:absolute;left:34px;right:34px;height:96px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.lane.prefill{top:92px}.lane.decode{top:212px}
+.lane-title{position:absolute;left:12px;top:8px;font:800 11px 'JetBrains Mono';text-transform:uppercase;letter-spacing:.8px}
+.lane.prefill .lane-title{color:var(--blue)}.lane.decode .lane-title{color:var(--orange)}
+.gpu-mini{position:absolute;top:38px;width:58px;height:36px;border-radius:8px;display:grid;place-items:center;color:#fff;font:800 10px 'JetBrains Mono'}
+.lane.prefill .gpu-mini{background:var(--blue)}.lane.decode .gpu-mini{background:var(--orange)}
+.g1{left:16px}.g2{left:86px}.g3{left:156px}.g4{left:226px}
+.kv-packet{position:absolute;left:72px;top:192px;width:208px;height:16px;border-radius:999px;background:repeating-linear-gradient(90deg,var(--green),var(--green) 12px,#7dd3a8 12px,#7dd3a8 24px);animation:kvFlow 3.2s linear infinite}
+@keyframes kvFlow{from{background-position:0 0}to{background-position:48px 0}}
+.metric-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
+.metric{border:1px solid var(--line);background:var(--soft);border-radius:8px;padding:14px}
+.metric strong{display:block;font-size:30px;line-height:1;font-family:'JetBrains Mono';margin-bottom:6px}
+.callout{border-left:4px solid var(--purple);background:#f3f0ff;border-radius:0 10px 10px 0;padding:18px 22px;margin:18px 0}
+.callout.blue{border-left-color:var(--blue);background:#eff6ff}.callout.green{border-left-color:var(--green);background:#f0fdf4}.callout.orange{border-left-color:var(--orange);background:#fffbeb}.callout.red{border-left-color:var(--red);background:#fef2f2}
+.card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:20px;box-shadow:0 1px 2px rgba(0,0,0,.04);margin:16px 0}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin:18px 0}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+.phase-card{min-height:230px;position:relative;overflow:hidden}
+.phase-pill{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:6px 10px;font:800 11px 'JetBrains Mono';text-transform:uppercase}
+.phase-pill.prefill{background:#dbeafe;color:#1d4ed8}.phase-pill.decode{background:#fef3c7;color:#92400e}
+.bars{display:flex;gap:10px;align-items:flex-end;height:132px;margin:20px 0 8px}
+.bar{flex:1;border-radius:8px 8px 0 0;color:#fff;display:flex;align-items:flex-end;justify-content:center;padding:8px 4px;font:800 11px 'JetBrains Mono';text-align:center}
+.bar.compute{height:118px;background:var(--blue)}.bar.memory{height:38px;background:#93c5fd}.bar.decode-compute{height:42px;background:#fbbf24;color:#6b3a00}.bar.decode-memory{height:120px;background:var(--orange)}
+.pipeline{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:22px 0}
+.stage{border:1px solid var(--line);background:#fff;border-radius:8px;padding:14px;min-height:118px;position:relative;text-align:center}
+.stage::after{content:"";position:absolute;right:-16px;top:50%;width:22px;height:2px;background:var(--line)}
+.stage:last-child::after{display:none}
+.stage .icon{width:48px;height:48px;margin:0 auto 10px;border-radius:14px;background:var(--soft);display:grid;place-items:center;font:900 20px 'JetBrains Mono';color:var(--purple)}
+.stage h4{font-size:13px;margin-bottom:4px}.stage p{font-size:12.5px;color:var(--muted);margin:0}
+.timeline{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;margin:16px 0}
+.tl-row{display:grid;grid-template-columns:120px 1fr;border-bottom:1px solid var(--line)}
+.tl-row:last-child{border-bottom:0}.tl-label{padding:12px;font:800 12px 'JetBrains Mono';background:#faf9f7;border-right:1px solid var(--line)}
+.tl-track{padding:10px;display:flex;gap:4px;min-height:52px}
+.tl-block{display:flex;align-items:center;justify-content:center;border-radius:7px;color:#fff;font:800 10px 'JetBrains Mono';min-width:24px;padding:0 6px}
+.prefill-block{background:var(--blue)}.decode-block{background:var(--orange)}.idle-block{background:#e5e7eb;color:#777;border:1px dashed #c9c9c9}.transfer-block{background:var(--green)}
+.controls{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+.btn{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:8px 15px;font:700 13px 'Inter';cursor:pointer}
+.btn.active,.btn:hover{border-color:var(--purple);color:var(--purple);background:#f3f0ff}
+.system-vis{position:relative;border:1px solid var(--line);border-radius:12px;background:#fff;min-height:420px;margin:18px 0;overflow:hidden}
+.pool{position:absolute;border:2px solid;border-radius:14px;padding:14px;background:rgba(255,255,255,.92)}
+.pool h4{font-size:13px;text-transform:uppercase;letter-spacing:.9px;margin-bottom:10px}
+.pool.ingress{left:22px;top:38px;width:160px;border-color:var(--purple)}.pool.prefill{left:242px;top:28px;width:260px;border-color:var(--blue)}.pool.decode{right:22px;top:138px;width:260px;border-color:var(--orange)}.pool.store{left:242px;bottom:28px;width:260px;border-color:var(--green)}
+.server-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.server{height:46px;border-radius:8px;color:#fff;display:grid;place-items:center;font:800 11px 'JetBrains Mono'}
+.server.blue{background:var(--blue)}.server.orange{background:var(--orange)}.server.green{background:var(--green)}.server.purple{background:var(--purple)}
+.arrow-line{position:absolute;height:3px;background:var(--line);transform-origin:left center}
+.a1{left:184px;top:98px;width:58px}.a2{left:502px;top:112px;width:122px;transform:rotate(28deg)}.a3{left:372px;top:164px;width:126px;transform:rotate(90deg)}.a4{left:502px;top:306px;width:98px;transform:rotate(-31deg)}
+.packet{position:absolute;border-radius:999px;padding:5px 9px;color:#fff;font:800 10px 'JetBrains Mono';box-shadow:0 4px 12px rgba(0,0,0,.12)}
+.p1{left:198px;top:78px;background:var(--purple)}.p2{left:528px;top:138px;background:var(--green)}.p3{left:516px;top:276px;background:var(--green)}
+.calc{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,.75fr);gap:18px;align-items:start}
+.slider-row{margin:16px 0}.slider-row label{display:flex;justify-content:space-between;font-weight:700;font-size:13px;margin-bottom:8px}.slider-row input{width:100%}
+.result-box{background:var(--ink);color:#fff;border-radius:10px;padding:18px;position:sticky;top:90px}
+.result-box h3{margin-top:0;color:#fff}.result-line{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(255,255,255,.13);padding:9px 0;font-family:'JetBrains Mono';font-size:13px}
+.result-line:last-child{border-bottom:0}.result-line strong{color:#8ad4ff}
+.equation{font-family:'JetBrains Mono';background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto;margin:14px 0;color:#1f2937}
+.checklist{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:18px 0}
+.check{background:#fff;border:1px solid var(--line);border-radius:8px;padding:15px}.check strong{display:block;margin-bottom:4px;color:var(--ink)}
+.chip-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 9px;font:700 11px 'JetBrains Mono';color:var(--muted)}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:16px 0;font-size:13px}th{background:#f4efe7;text-align:left;font:800 11px 'JetBrains Mono';text-transform:uppercase;letter-spacing:.7px;color:#514b45}td,th{padding:11px 12px;border-bottom:1px solid var(--line)}tr:last-child td{border-bottom:0}.good{color:var(--green);font-weight:800}.bad{color:var(--red);font-weight:800}.warn{color:var(--orange);font-weight:800}
+footer{text-align:center;border-top:1px solid var(--line);padding:38px 24px;background:#fff}
+.footer-brand{font-family:'Instrument Serif',serif;color:var(--purple);font-size:20px}
+@media(max-width:860px){.hero,.two-col,.calc{grid-template-columns:1fr}.pipeline{grid-template-columns:1fr}.stage::after{display:none}.system-vis{min-height:740px}.pool.ingress,.pool.prefill,.pool.decode,.pool.store{position:relative;left:auto;right:auto;top:auto;bottom:auto;width:auto;margin:16px}.arrow-line,.packet{display:none}.nav-inner{align-items:flex-start;flex-direction:column}}
+@media(max-width:620px){section{padding:46px 0}.metric-grid{grid-template-columns:1fr}.tl-row{grid-template-columns:1fr}.tl-label{border-right:0;border-bottom:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="nav-inner">
+    <span class="nav-brand">Disaggregated Serving</span>
+    <div class="nav-links">
+      <a href="#why">Why split?</a>
+      <a href="#phases">Prefill vs decode</a>
+      <a href="#interference">Interference</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#kv-tax">KV tax</a>
+      <a href="#routing">Routing</a>
+      <a href="#decision">Decision</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+<section class="hero container">
+  <div>
+    <div class="label">An end-to-end visual walkthrough</div>
+    <h1><span class="gradient-text">Disaggregated Serving</span></h1>
+    <p class="subtitle">A production LLM server is really two very different machines wearing one name: a prompt-eating prefill machine and a token-streaming decode machine. Disaggregated serving separates them so each can run at its natural speed.</p>
+    <div class="metric-grid">
+      <div class="metric"><strong>TTFT</strong>prefill queue pressure</div>
+      <div class="metric"><strong>TPOT</strong>decode token rhythm</div>
+      <div class="metric"><strong>KV</strong>the handoff payload</div>
+      <div class="metric"><strong>SLO</strong>the reason routing matters</div>
+    </div>
+  </div>
+  <aside class="hero-card">
+    <div class="hero-diagram" aria-label="Animated prefill-decode lanes">
+      <div class="request">REQ</div>
+      <div class="lane prefill">
+        <div class="lane-title">prefill pool: big prompt chunks</div>
+        <div class="gpu-mini g1">P0</div><div class="gpu-mini g2">P1</div><div class="gpu-mini g3">P2</div><div class="gpu-mini g4">P3</div>
+      </div>
+      <div class="kv-packet"></div>
+      <div class="lane decode">
+        <div class="lane-title">decode pool: one token at a time</div>
+        <div class="gpu-mini g1">D0</div><div class="gpu-mini g2">D1</div><div class="gpu-mini g3">D2</div><div class="gpu-mini g4">D3</div>
+      </div>
+    </div>
+  </aside>
+</section>
+
+<section id="why" class="alt">
+  <div class="container">
+    <div class="label">The core idea</div>
+    <h2>One model, two workloads</h2>
+    <p>Autoregressive inference has two phases. During <strong>prefill</strong>, the model processes the entire prompt and creates the first KV cache. During <strong>decode</strong>, the model generates one new token, appends one new KV entry, and repeats. These phases stress the GPU differently.</p>
+    <div class="callout blue"><strong>Prefill is wide.</strong> Thousands of prompt tokens can be processed in parallel. It looks like large matrix multiplication and tends to be compute-heavy.</div>
+    <div class="callout orange"><strong>Decode is narrow.</strong> Each active request advances by one token per iteration. It repeatedly reads weights and KV cache, so memory bandwidth and scheduling dominate.</div>
+    <div class="two-col">
+      <div class="card phase-card">
+        <span class="phase-pill prefill">Prefill</span>
+        <h3>Prompt ingestion</h3>
+        <p>Input: many tokens. Output: first logits and a complete KV cache for the prompt.</p>
+        <div class="bars">
+          <div class="bar compute">compute</div>
+          <div class="bar memory">memory</div>
+        </div>
+        <p class="mono">Good at: large batches, chunky work, high GPU occupancy.</p>
+      </div>
+      <div class="card phase-card">
+        <span class="phase-pill decode">Decode</span>
+        <h3>Token streaming</h3>
+        <p>Input: one token per sequence. Output: one token per sequence, repeated many times.</p>
+        <div class="bars">
+          <div class="bar decode-compute">compute</div>
+          <div class="bar decode-memory">memory</div>
+        </div>
+        <p class="mono">Good at: stable cadence, continuous batching, protected TPOT.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="phases">
+  <div class="container">
+    <div class="label">The math picture</div>
+    <h2>Prefill wants big chunks. Decode wants rhythm.</h2>
+    <p>For a single request, prefill happens once, while decode happens once per generated token. That means a long prompt creates a burst of compute at the beginning, and a long answer creates many small decode iterations afterward.</p>
+    <div class="equation">
+      prefill cost  ≈  process(prompt_tokens) once<br>
+      decode cost   ≈  process(1 new token) × output_tokens<br>
+      serving pain  ≈  prefill bursts interfering with decode rhythm
+    </div>
+    <div class="pipeline">
+      <div class="stage"><div class="icon">1</div><h4>Request arrives</h4><p>Prompt length and SLO are estimated.</p></div>
+      <div class="stage"><div class="icon">2</div><h4>Prefill runs</h4><p>Prompt tokens create the initial KV cache.</p></div>
+      <div class="stage"><div class="icon">3</div><h4>KV moves</h4><p>The cache becomes the state needed by decode.</p></div>
+      <div class="stage"><div class="icon">4</div><h4>Decode loops</h4><p>One token per sequence per iteration.</p></div>
+      <div class="stage"><div class="icon">5</div><h4>Tokens stream</h4><p>The user sees output while decode continues.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="interference" class="alt">
+  <div class="container">
+    <div class="label">The production problem</div>
+    <h2>In a unified server, prefill and decode fight each other.</h2>
+    <p>When both phases run on the same GPU pool, a long prefill can occupy GPU time while active users are waiting for their next streamed token. The symptom is simple: the first user already got a response started, but suddenly the stream stutters because another user's long prompt entered the batch.</p>
+    <div class="controls" role="group" aria-label="Timeline mode">
+      <button class="btn active" data-mode="unified">Unified pool</button>
+      <button class="btn" data-mode="disagg">Disaggregated pool</button>
+    </div>
+    <div class="timeline" id="timelineVis"></div>
+    <div class="callout red" id="timelineText"><strong>Unified pool.</strong> Long prefills and decode iterations share the same queue. Throughput can be high, but TPOT becomes noisy when prompt bursts arrive.</div>
+  </div>
+</section>
+
+<section id="architecture">
+  <div class="container">
+    <div class="label">The architecture</div>
+    <h2>Separate pools, explicit handoff.</h2>
+    <p>Disaggregated serving creates dedicated prefill workers and dedicated decode workers. The router sends prompt-heavy work to the prefill pool. Once the initial KV cache exists, the system transfers it to a decode worker that owns the streaming loop.</p>
+    <div class="system-vis">
+      <div class="pool ingress">
+        <h4>Ingress router</h4>
+        <div class="server purple">SLO</div>
+        <p style="font-size:12px;margin-top:10px;color:var(--muted)">Classifies prompt length, priority, and estimated output length.</p>
+      </div>
+      <div class="pool prefill">
+        <h4>Prefill workers</h4>
+        <div class="server-grid"><div class="server blue">P0</div><div class="server blue">P1</div><div class="server blue">P2</div><div class="server blue">P3</div></div>
+      </div>
+      <div class="pool store">
+        <h4>KV transfer plane</h4>
+        <div class="server-grid"><div class="server green">KV</div><div class="server green">DMA</div><div class="server green">RDMA</div><div class="server green">PIN</div></div>
+      </div>
+      <div class="pool decode">
+        <h4>Decode workers</h4>
+        <div class="server-grid"><div class="server orange">D0</div><div class="server orange">D1</div><div class="server orange">D2</div><div class="server orange">D3</div></div>
+      </div>
+      <div class="arrow-line a1"></div><div class="arrow-line a2"></div><div class="arrow-line a3"></div><div class="arrow-line a4"></div>
+      <div class="packet p1">prompt</div><div class="packet p2">KV cache</div><div class="packet p3">state</div>
+    </div>
+    <div class="card-grid">
+      <div class="card"><h3>Prefill pool</h3><p>Optimized for large chunks, high arithmetic intensity, prompt batching, and TTFT reduction.</p></div>
+      <div class="card"><h3>Decode pool</h3><p>Optimized for steady token cadence, continuous batching, memory bandwidth, and P95/P99 TPOT.</p></div>
+      <div class="card"><h3>KV transfer plane</h3><p>The new tax. Disaggregation only works if moving the KV cache is cheaper than letting prefill disturb decode.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="kv-tax" class="alt">
+  <div class="container">
+    <div class="label">The hidden cost</div>
+    <h2>The KV cache is the toll you pay to disaggregate.</h2>
+    <p>After prefill finishes, the decode worker needs the request's KV cache. The size is predictable from model architecture and prompt length.</p>
+    <div class="equation">
+      KV bytes = tokens × layers × 2 × kv_heads × head_dim × bytes_per_value
+    </div>
+    <div class="calc">
+      <div class="card">
+        <h3>Interactive KV transfer calculator</h3>
+        <p>Defaults are close to a Llama-70B-style GQA model: 80 layers, 8 KV heads, 128 head dimension, BF16.</p>
+        <div class="slider-row"><label>Prompt tokens <span id="tokVal">4096</span></label><input id="tokens" type="range" min="512" max="32768" step="512" value="4096"></div>
+        <div class="slider-row"><label>Layers <span id="layerVal">80</span></label><input id="layers" type="range" min="24" max="128" step="4" value="80"></div>
+        <div class="slider-row"><label>KV heads <span id="headVal">8</span></label><input id="heads" type="range" min="1" max="32" step="1" value="8"></div>
+        <div class="slider-row"><label>Network bandwidth GB/s <span id="bwVal">50</span></label><input id="bandwidth" type="range" min="10" max="900" step="10" value="50"></div>
+      </div>
+      <div class="result-box">
+        <h3>Transfer estimate</h3>
+        <div class="result-line"><span>KV per token</span><strong id="perTok">320 KiB</strong></div>
+        <div class="result-line"><span>Total KV</span><strong id="totalKv">1.25 GiB</strong></div>
+        <div class="result-line"><span>Raw transfer</span><strong id="transferMs">25.6 ms</strong></div>
+        <div class="result-line"><span>Interpretation</span><strong id="verdict">watch it</strong></div>
+      </div>
+    </div>
+    <div class="callout green"><strong>The design rule.</strong> Disaggregation is attractive when the KV transfer tax is smaller than the decode interference you avoid.</div>
+  </div>
+</section>
+
+<section id="routing">
+  <div class="container">
+    <div class="label">Routing and scheduling</div>
+    <h2>The router becomes part of the model server.</h2>
+    <p>A disaggregated system needs placement decisions. The router estimates whether a request should go through the split path, stay local, wait for a free decode slot, or use a compressed/offloaded KV path.</p>
+    <div class="checklist">
+      <div class="check"><strong>Prompt length</strong>Long prompts produce large prefill bursts and large KV transfers.</div>
+      <div class="check"><strong>Expected output length</strong>Long outputs occupy decode workers for many iterations.</div>
+      <div class="check"><strong>SLO tier</strong>Interactive chat cares about TPOT; batch jobs care about throughput.</div>
+      <div class="check"><strong>Cache locality</strong>Prefix reuse and KV residency can beat a theoretically cleaner placement.</div>
+      <div class="check"><strong>Network pressure</strong>KV transfers share fabric with all other distributed traffic.</div>
+      <div class="check"><strong>GPU pool balance</strong>Too many prefill workers starve decode; too few raise TTFT.</div>
+    </div>
+    <table>
+      <thead><tr><th>Request type</th><th>Routing choice</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td>Short prompt, short answer</td><td class="warn">Unified or local</td><td>KV transfer overhead may dominate.</td></tr>
+        <tr><td>Long prompt, interactive answer</td><td class="good">Disaggregated</td><td>Large prefill should not disturb active decode streams.</td></tr>
+        <tr><td>Batch summarization</td><td class="good">Prefill-heavy pool</td><td>Throughput matters more than token cadence.</td></tr>
+        <tr><td>Long multi-turn chat</td><td class="warn">Locality-aware</td><td>Keep KV close to the decode worker if the session continues.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="decision" class="alt">
+  <div class="container">
+    <div class="label">Decision framework</div>
+    <h2>When should you disaggregate?</h2>
+    <div class="card-grid">
+      <div class="card"><h3>Use it when</h3><p>Prompts are long, traffic is bursty, decode SLOs matter, and you have enough requests to keep both pools warm.</p><div class="chip-row"><span class="chip">long context</span><span class="chip">P99 TPOT</span><span class="chip">multi-GPU</span></div></div>
+      <div class="card"><h3>Be careful when</h3><p>Requests are short, traffic is low, network bandwidth is weak, or the KV cache is too large to move cheaply.</p><div class="chip-row"><span class="chip">short prompts</span><span class="chip">low QPS</span><span class="chip">slow fabric</span></div></div>
+      <div class="card"><h3>Measure these</h3><p>TTFT, TPOT, P95/P99 latency, prefill queue delay, decode queue delay, KV transfer time, GPU utilization, and cost per generated token.</p><div class="chip-row"><span class="chip">TTFT</span><span class="chip">TPOT</span><span class="chip">goodput</span></div></div>
+    </div>
+    <div class="callout blue"><strong>The mental model.</strong> Unified serving is one kitchen where everyone cooks and serves. Disaggregated serving has a prep kitchen and a service line. It is better when prep work is large enough to disrupt service.</div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="footer-brand">Vizuara AI Labs</div>
+  <div style="font-size:12px;color:var(--muted);margin-top:4px">A visual walkthrough for inference engineers</div>
+</footer>
+
+<script>
+const timeline = document.getElementById('timelineVis');
+const text = document.getElementById('timelineText');
+const buttons = document.querySelectorAll('[data-mode]');
+const rows = {
+  unified: [
+    ['GPU pool', [['P:long',30,'prefill'],['D',8,'decode'],['D',8,'decode'],['P:burst',24,'prefill'],['D',8,'decode'],['D',8,'decode']]],
+    ['User stream', [['wait',30,'idle'],['tok',8,'decode'],['tok',8,'decode'],['stall',24,'idle'],['tok',8,'decode'],['tok',8,'decode']]],
+    ['Problem', [['TTFT ok',30,'prefill'],['TPOT',16,'decode'],['jitter',24,'idle'],['TPOT',16,'decode']]]
+  ],
+  disagg: [
+    ['Prefill pool', [['P:long',28,'prefill'],['P:burst',24,'prefill'],['P:batch',26,'prefill'],['idle',10,'idle']]],
+    ['KV transfer', [['KV',12,'transfer'],['',16,'idle'],['KV',12,'transfer'],['',24,'idle']]],
+    ['Decode pool', [['D',8,'decode'],['D',8,'decode'],['D',8,'decode'],['D',8,'decode'],['D',8,'decode'],['D',8,'decode'],['D',8,'decode']]]
+  ]
+};
+function blockClass(kind){return kind==='prefill'?'prefill-block':kind==='decode'?'decode-block':kind==='transfer'?'transfer-block':'idle-block'}
+function renderTimeline(mode){
+  timeline.innerHTML = rows[mode].map(([label,blocks]) => `
+    <div class="tl-row">
+      <div class="tl-label">${label}</div>
+      <div class="tl-track">${blocks.map(([name,width,kind]) => `<div class="tl-block ${blockClass(kind)}" style="flex:${width}">${name}</div>`).join('')}</div>
+    </div>`).join('');
+  text.className = 'callout ' + (mode === 'unified' ? 'red' : 'green');
+  text.innerHTML = mode === 'unified'
+    ? '<strong>Unified pool.</strong> Long prefills and decode iterations share the same queue. Throughput can be high, but TPOT becomes noisy when prompt bursts arrive.'
+    : '<strong>Disaggregated pool.</strong> Prefill bursts run on their own workers, while decode workers keep a steadier token rhythm. The price is KV transfer.';
+}
+buttons.forEach(btn => btn.addEventListener('click', () => {
+  buttons.forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTimeline(btn.dataset.mode);
+}));
+renderTimeline('unified');
+
+const tokens = document.getElementById('tokens');
+const layers = document.getElementById('layers');
+const heads = document.getElementById('heads');
+const bandwidth = document.getElementById('bandwidth');
+const ids = ['tokVal','layerVal','headVal','bwVal','perTok','totalKv','transferMs','verdict'].reduce((o,id)=>{o[id]=document.getElementById(id);return o},{});
+function fmtBytes(bytes){
+  const units=['B','KiB','MiB','GiB','TiB']; let v=bytes, i=0;
+  while(v>=1024 && i<units.length-1){v/=1024;i++}
+  return `${v.toFixed(v>=10?1:2)} ${units[i]}`;
+}
+function updateCalc(){
+  const t=+tokens.value,l=+layers.value,h=+heads.value,bw=+bandwidth.value;
+  const headDim=128, bytesPer=2;
+  const perToken=l*2*h*headDim*bytesPer;
+  const total=perToken*t;
+  const seconds=total/(bw*1e9);
+  ids.tokVal.textContent=t.toLocaleString();
+  ids.layerVal.textContent=l;
+  ids.headVal.textContent=h;
+  ids.bwVal.textContent=bw;
+  ids.perTok.textContent=fmtBytes(perToken);
+  ids.totalKv.textContent=fmtBytes(total);
+  ids.transferMs.textContent=(seconds*1000).toFixed(1)+' ms';
+  ids.verdict.textContent=seconds*1000 < 20 ? 'cheap' : seconds*1000 < 80 ? 'watch it' : 'expensive';
+}
+[tokens,layers,heads,bandwidth].forEach(el=>el.addEventListener('input',updateCalc));
+updateCalc();
+</script>
+</body>
+</html>
