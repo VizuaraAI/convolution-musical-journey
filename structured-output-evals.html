@@ -3,117 +3,231 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Structured Output and Evals - Visual Lecture Notes</title>
+  <title>Structured Output and Evals - Deep Visual Lecture Notes</title>
   <style>
     :root{--ink:#161616;--muted:#625f5a;--paper:#fbfaf7;--line:#ded8cf;--soft:#f0ebe3;--blue:#315d8d;--green:#2f765f;--red:#9a4a3c;--gold:#92742f;--violet:#72569a;--shadow:0 16px 42px rgba(30,28,25,.08);--font:"Avenir Next","Helvetica Neue",Arial,sans-serif;--mono:"SFMono-Regular",Consolas,monospace}
-    *{box-sizing:border-box}body{margin:0;color:var(--ink);background:linear-gradient(90deg,rgba(22,22,22,.035) 1px,transparent 1px),linear-gradient(180deg,rgba(22,22,22,.03) 1px,transparent 1px),var(--paper);background-size:28px 28px;font-family:var(--font);line-height:1.65;letter-spacing:0}.nav{position:sticky;top:0;background:rgba(251,250,247,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);z-index:5}.nav-inner{width:min(1120px,calc(100vw - 32px));margin:auto;display:flex;justify-content:space-between;gap:16px;align-items:center;padding:12px 0}.brand{font-weight:800}.links{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.nav a{color:var(--muted);text-decoration:none;border:1px solid var(--line);background:#fff;padding:7px 10px;border-radius:999px;font-size:12px}.shell{width:min(1120px,calc(100vw - 32px));margin:auto}.hero{min-height:calc(100vh - 64px);display:grid;grid-template-columns:minmax(0,1fr) minmax(330px,.72fr);gap:28px;align-items:center;padding:48px 0}.label{font:800 12px var(--mono);text-transform:uppercase;color:var(--gold);margin-bottom:10px}h1{font-size:clamp(48px,7vw,86px);line-height:.96;margin:0;letter-spacing:0}h2{font-size:clamp(30px,4vw,48px);line-height:1.05;margin:0 0 14px;letter-spacing:0}h3{font-size:22px;margin:26px 0 10px}.lead{font-size:20px;color:#3d3a36;max-width:780px;margin-top:22px}p{margin:0 0 14px;color:#36322f}section{padding:58px 0;border-top:1px solid var(--line)}.card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:20px;margin:16px 0}.hero-card{background:#fff;border:1px solid var(--ink);border-radius:8px;padding:14px;box-shadow:var(--shadow)}.hero-card img{width:100%;display:block;border:1px solid var(--line);border-radius:8px;background:#fff}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}.callout{border-left:4px solid var(--green);background:#e7f0ed;padding:16px 18px;border-radius:0 8px 8px 0;margin:18px 0}.warn{border-left-color:var(--red);background:#fff0ed}.blue{border-left-color:var(--blue);background:#eaf2ff}code,pre{font-family:var(--mono)}pre{background:#151923;color:#f8fafc;border-radius:8px;padding:16px;overflow:auto;font-size:13px;line-height:1.6}table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:16px 0;font-size:14px}th{background:var(--soft);text-align:left;font:800 12px var(--mono);text-transform:uppercase}td,th{padding:11px 12px;border-bottom:1px solid var(--line)}tr:last-child td{border-bottom:0}.metric{background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px}.metric strong{display:block;font:800 28px var(--mono);line-height:1;margin-bottom:6px}@media(max-width:860px){.hero,.two{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.nav-inner{align-items:flex-start;flex-direction:column}}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;color:var(--ink);background:linear-gradient(90deg,rgba(22,22,22,.035) 1px,transparent 1px),linear-gradient(180deg,rgba(22,22,22,.03) 1px,transparent 1px),var(--paper);background-size:28px 28px;font-family:var(--font);line-height:1.65;letter-spacing:0}.nav{position:sticky;top:0;background:rgba(251,250,247,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);z-index:5}.nav-inner{width:min(1160px,calc(100vw - 32px));margin:auto;display:flex;justify-content:space-between;gap:16px;align-items:center;padding:12px 0}.brand{font-weight:800}.links{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.nav a{color:var(--muted);text-decoration:none;border:1px solid var(--line);background:#fff;padding:7px 10px;border-radius:999px;font-size:12px}.shell{width:min(1160px,calc(100vw - 32px));margin:auto}.hero{min-height:calc(100vh - 64px);display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,.74fr);gap:28px;align-items:center;padding:48px 0}.label{font:800 12px var(--mono);text-transform:uppercase;color:var(--gold);margin-bottom:10px}h1{font-size:clamp(48px,7vw,88px);line-height:.96;margin:0;letter-spacing:0}h2{font-size:clamp(30px,4vw,50px);line-height:1.05;margin:0 0 14px;letter-spacing:0}h3{font-size:22px;margin:26px 0 10px}.lead{font-size:20px;color:#3d3a36;max-width:800px;margin-top:22px}p{margin:0 0 14px;color:#36322f}section{padding:62px 0;border-top:1px solid var(--line)}.card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:20px;margin:16px 0;box-shadow:0 1px 2px rgba(0,0,0,.04)}.hero-card,.figure{background:#fff;border:1px solid var(--ink);border-radius:8px;padding:14px;box-shadow:var(--shadow);margin:18px 0}.hero-card img,.figure img{width:100%;display:block;border:1px solid var(--line);border-radius:8px;background:#fff}.caption{font-size:13px;color:var(--muted);margin:10px 2px 0}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}.metric{background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px}.metric strong{display:block;font:800 28px var(--mono);line-height:1;margin-bottom:6px}.callout{border-left:4px solid var(--green);background:#e7f0ed;padding:16px 18px;border-radius:0 8px 8px 0;margin:18px 0}.warnbox{border-left-color:var(--red);background:#fff0ed}.blue{border-left-color:var(--blue);background:#eaf2ff}.gold{border-left-color:var(--gold);background:#fff7dd}.violet{border-left-color:var(--violet);background:#f4edff}code,pre{font-family:var(--mono)}pre{background:#151923;color:#f8fafc;border-radius:8px;padding:16px;overflow:auto;font-size:13px;line-height:1.6}table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:16px 0;font-size:14px}th{background:var(--soft);text-align:left;font:800 12px var(--mono);text-transform:uppercase}td,th{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}tr:last-child td{border-bottom:0}.diagram{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px;margin:16px 0;overflow:auto}.flow{display:grid;grid-template-columns:repeat(5,minmax(145px,1fr));gap:10px}.node{border:1px solid var(--line);background:var(--soft);border-radius:8px;padding:12px;min-height:110px}.node b{display:block;margin-bottom:6px}.mini{font-size:13px;color:var(--muted)}.formula{font-family:var(--mono);background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px;margin:14px 0;color:#1f2937;overflow:auto}.pill{display:inline-block;border:1px solid var(--line);border-radius:999px;background:#fff;padding:4px 8px;font:700 12px var(--mono);color:var(--muted);margin:2px}.tokenbar{display:grid;gap:8px;margin:12px 0}.tok{display:grid;grid-template-columns:110px 1fr 120px;gap:10px;align-items:center}.tok span:nth-child(2){height:18px;border-radius:999px;background:var(--green)}.tok.bad span:nth-child(2){background:var(--red)}.tok.masked{opacity:.55}.waterfall{display:grid;gap:8px}.wf{display:grid;grid-template-columns:170px 1fr 80px;gap:8px;align-items:center}.wf span:nth-child(2){height:20px;border-radius:6px;background:linear-gradient(90deg,var(--blue),var(--green));display:block}
+    @media(max-width:960px){.hero,.two{grid-template-columns:1fr}.grid{grid-template-columns:1fr 1fr}.flow{grid-template-columns:1fr 1fr}.nav-inner{align-items:flex-start;flex-direction:column}}
+    @media(max-width:640px){.grid,.flow{grid-template-columns:1fr}.tok,.wf{grid-template-columns:1fr}.hero-card{padding:8px}}
   </style>
 </head>
 <body>
-<nav class="nav"><div class="nav-inner"><div class="brand">Structured Output and Evals</div><div class="links"><a href="visual-walkthroughs.html">Library</a><a href="#schema">Schema</a><a href="#guided">Guided decoding</a><a href="#evals">Evals</a><a href="#profile">Latency</a></div></div></nav>
+<nav class="nav"><div class="nav-inner"><div class="brand">Structured Output and Evals</div><div class="links"><a href="visual-walkthroughs.html">Library</a><a href="#contract">Contract</a><a href="#guided">Guided decoding</a><a href="#repair">Repair</a><a href="#evals">Evals</a><a href="#judge">Judges</a><a href="#profile">Latency</a><a href="#release">Release gate</a></div></div></nav>
 <main class="shell">
   <section class="hero">
     <div>
       <div class="label">Lecture 13 extension</div>
       <h1>Reliability starts at the token boundary.</h1>
-      <p class="lead">Production inference is not complete when the model emits fluent text. Many products need valid JSON, safe tool calls, stable business fields, and measurable quality across releases.</p>
-      <div class="grid" style="margin-top:20px"><div class="metric"><strong>99.9%</strong>JSON validity target</div><div class="metric"><strong>P99</strong>schema latency budget</div><div class="metric"><strong>CI</strong>eval gate before rollout</div></div>
+      <p class="lead">Production inference is not complete when the model emits fluent text. Applications need contracts: valid JSON, safe tool calls, stable fields, measured quality, bounded latency, and release gates that catch regressions before users do.</p>
+      <div class="grid" style="margin-top:20px"><div class="metric"><strong>Syntax</strong>parse and schema validity</div><div class="metric"><strong>Semantics</strong>field correctness and task success</div><div class="metric"><strong>SLO</strong>latency and cost budgets</div></div>
     </div>
     <aside class="hero-card"><img src="assets/production-systems/structured-output-evals.jpg" alt="Structured output and eval harness"></aside>
   </section>
 
-  <section id="schema">
+  <section id="contract">
     <div class="label">Part 1</div>
-    <h2>JSON schema turns language into a contract.</h2>
-    <p>A schema states the shape of the answer the application expects. The model may still reason in text internally, but the serving boundary should return typed fields.</p>
-    <pre>{
+    <h2>Structured output is an API contract, not a formatting preference.</h2>
+    <p>If a model is powering a workflow, the downstream system does not consume "nice prose." It consumes values. An invoice agent needs a number for total. A browser agent needs a tool name and typed arguments. A support automation needs a category enum. A database-writing agent needs validated fields.</p>
+    <div class="two">
+      <div class="card">
+        <h3>Prompt-only contract</h3>
+        <pre>System:
+Return JSON with invoice_id, total, currency.
+
+Model:
+Sure, here is the JSON:
+{
+  invoice_id: INV-42,
+  total: "about twelve hundred",
+  currency: "dollars"
+}</pre>
+      </div>
+      <div class="card">
+        <h3>Schema contract</h3>
+        <pre>{
   "type": "object",
-  "required": ["invoice_id", "total", "currency", "risk_flags"],
+  "required": ["invoice_id", "total", "currency"],
   "properties": {
     "invoice_id": {"type": "string"},
     "total": {"type": "number"},
-    "currency": {"enum": ["USD", "EUR", "INR"]},
-    "risk_flags": {"type": "array", "items": {"type": "string"}}
+    "currency": {"enum": ["USD", "EUR", "INR"]}
   }
 }</pre>
-    <div class="callout blue"><strong>Key distinction:</strong> a prompt asks politely. A schema constrains the application contract. Guided decoding is how that contract reaches the token sampler.</div>
+      </div>
+    </div>
+    <table>
+      <tr><th>Layer</th><th>Guarantee</th><th>Does not guarantee</th></tr>
+      <tr><td>Prompt instruction</td><td>Model is nudged toward a format</td><td>validity or consistency</td></tr>
+      <tr><td>JSON parser</td><td>output is parseable JSON</td><td>schema or semantic correctness</td></tr>
+      <tr><td>JSON schema</td><td>types, required fields, enums</td><td>the values are true</td></tr>
+      <tr><td>Business rules</td><td>domain constraints</td><td>full task correctness</td></tr>
+      <tr><td>Eval harness</td><td>measured behavior across examples</td><td>perfect future behavior</td></tr>
+    </table>
   </section>
 
   <section id="guided">
     <div class="label">Part 2</div>
-    <h2>Guided decoding masks impossible next tokens.</h2>
-    <p>At each generation step the decoder has a vocabulary distribution. A grammar or finite-state machine removes tokens that would make the output invalid. For a JSON object, after <code>{"currency": "</code>, the only valid continuations might be <code>USD</code>, <code>EUR</code>, or <code>INR</code>.</p>
-    <div class="two">
-      <div class="card">
-        <h3>Free decoding</h3>
-        <pre>model logits:
-  "USD" 0.30
-  "dollars" 0.28
-  "N/A" 0.14
-  "\n" 0.08
-result: may be invalid</pre>
-      </div>
-      <div class="card">
-        <h3>Guided decoding</h3>
-        <pre>valid token mask:
-  "USD" allowed
-  "EUR" allowed
-  "INR" allowed
-  everything else = -infinity
-result: syntactically valid</pre>
+    <h2>Guided decoding turns a schema into a token mask.</h2>
+    <p>The model still produces logits for every token in the vocabulary. Guided decoding changes the sampler. At each step, a grammar, regex, JSON schema, or finite-state machine says which tokens can legally come next. Illegal tokens are masked before sampling.</p>
+    <div class="figure"><img src="assets/production-systems/guided-decoding-token-mask.jpg" alt="Guided decoding token mask"><p class="caption">PaperBanana figure: schema/FSM constraints flow into the sampler as a token mask.</p></div>
+    <div class="formula">masked_logit[token] = logit[token] if token is valid else -infinity</div>
+    <div class="card">
+      <h3>Hand walkthrough: currency enum</h3>
+      <p>Partial output: <code>{"currency": "</code>. The model's raw logits might prefer "dollars" because it is natural English. The schema says only three values are legal.</p>
+      <div class="tokenbar">
+        <div class="tok"><b>USD</b><span style="width:58%"></span><em>allowed</em></div>
+        <div class="tok"><b>EUR</b><span style="width:32%"></span><em>allowed</em></div>
+        <div class="tok"><b>INR</b><span style="width:26%"></span><em>allowed</em></div>
+        <div class="tok bad masked"><b>dollars</b><span style="width:74%"></span><em>masked</em></div>
+        <div class="tok bad masked"><b>newline</b><span style="width:22%"></span><em>masked</em></div>
       </div>
     </div>
     <table>
-      <tr><th>Method</th><th>Use it for</th><th>Trade-off</th></tr>
-      <tr><td>Logit biasing</td><td>Encourage or discourage specific tokens</td><td>Soft control, not a guarantee</td></tr>
-      <tr><td>JSON mode</td><td>Well-formed JSON</td><td>May not enforce your exact schema</td></tr>
-      <tr><td>Grammar-guided decoding</td><td>Strict structured output</td><td>More sampler overhead</td></tr>
-      <tr><td>Post-parse repair</td><td>Fallback for malformed output</td><td>Adds latency and can hide regressions</td></tr>
+      <tr><th>Method</th><th>Mechanism</th><th>Best use</th><th>Trade-off</th></tr>
+      <tr><td>Logit biasing</td><td>Add or subtract score from selected tokens</td><td>preference steering</td><td>soft, not guaranteed</td></tr>
+      <tr><td>JSON mode</td><td>bias or constrain toward valid JSON</td><td>generic JSON responses</td><td>may not enforce exact schema</td></tr>
+      <tr><td>Grammar-guided decoding</td><td>FSM/parser masks invalid tokens</td><td>strict formats, SQL-like grammars, tool args</td><td>sampler overhead and implementation complexity</td></tr>
+      <tr><td>Constrained beam/search</td><td>search only valid continuations</td><td>small output spaces</td><td>can be slower than sampling</td></tr>
     </table>
+    <div class="callout warnbox"><strong>Important:</strong> guided decoding gives syntactic validity. It does not prove the invoice total, citation, diagnosis, or tool argument is correct.</div>
+  </section>
+
+  <section id="repair">
+    <div class="label">Part 3</div>
+    <h2>Retries and repair loops are useful, but they can hide bad systems.</h2>
+    <p>A repair loop asks the model to fix malformed output. It can rescue occasional failures, but if repair rate becomes normal, your product is paying for a second model call and hiding a regression.</p>
+    <div class="diagram">
+      <div class="flow">
+        <div class="node"><b>Generate</b><span class="mini">Model emits structured candidate.</span></div>
+        <div class="node"><b>Parse</b><span class="mini">JSON parser accepts or rejects.</span></div>
+        <div class="node"><b>Validate</b><span class="mini">Schema and business rules.</span></div>
+        <div class="node"><b>Repair</b><span class="mini">Only if cheap and safe.</span></div>
+        <div class="node"><b>Fallback</b><span class="mini">Escalate or return controlled error.</span></div>
+      </div>
+    </div>
+    <pre>if parse_fails:
+  repair_once_with_small_model()
+elif schema_fails:
+  repair_once_with_error_message()
+elif semantic_check_fails:
+  route_to_stronger_model_or_human_review()
+else:
+  return result
+
+emit metrics:
+  parse_failure_rate
+  schema_failure_rate
+  repair_rate
+  repair_success_rate
+  added_latency_ms</pre>
+    <div class="callout blue"><strong>Design rule:</strong> a repair loop is an exception handler, not the main path. Alert if repair rate changes after a model, prompt, schema, or decoding update.</div>
   </section>
 
   <section id="evals">
-    <div class="label">Part 3</div>
-    <h2>An eval harness is production CI for behavior.</h2>
-    <p>Unit tests tell you if code still runs. Evals tell you if model behavior still works. For structured output, evaluate syntax, field-level correctness, semantic correctness, safety, latency, and cost.</p>
+    <div class="label">Part 4</div>
+    <h2>An eval harness is CI for model behavior.</h2>
+    <p>Unit tests say the code runs. Evals say the model still behaves. For structured output, the harness must test both machine validity and task correctness.</p>
+    <div class="figure"><img src="assets/production-systems/eval-harness-release-gate.jpg" alt="Eval harness release gate"><p class="caption">PaperBanana figure: a release gate combines deterministic checks, judge checks, latency profile, and cost profile.</p></div>
     <div class="card">
       <h3>Minimal eval record</h3>
-      <pre>example_id: invoice_042
-input: scanned invoice text
+      <pre>id: invoice_042
+input: "raw OCR text from invoice..."
 expected:
   invoice_id: INV-2026-042
   total: 1287.50
   currency: USD
+  risk_flags: ["late_fee"]
 checks:
-  parse_json == true
-  schema_valid == true
-  exact(invoice_id)
-  abs(total - expected.total) < 0.01
-  currency in allowed_enum
-  p99_latency_budget_ms < 1200</pre>
+  parse_json: true
+  schema_valid: true
+  exact.invoice_id: true
+  numeric.total.abs_error <= 0.01
+  enum.currency: true
+  contains.risk_flags: late_fee
+  p99_latency_ms <= 1200
+  cost_per_1000_requests <= budget</pre>
     </div>
     <div class="grid">
-      <div class="card"><h3>Golden sets</h3><p>Curated examples with known expected outputs. Small, high quality, reviewed by humans.</p></div>
-      <div class="card"><h3>Synthetic sets</h3><p>Generated variations to stress formats, edge cases, languages, and long contexts.</p></div>
-      <div class="card"><h3>Production samples</h3><p>Anonymized real traffic to catch drift and mismatches between evals and reality.</p></div>
+      <div class="card"><h3>Golden set</h3><p>Small, reviewed examples that represent the product's contract. This is where exact field-level checks belong.</p></div>
+      <div class="card"><h3>Synthetic edge set</h3><p>Generated adversarial variants: missing fields, weird dates, long contexts, multilingual text, malformed tables.</p></div>
+      <div class="card"><h3>Production replay</h3><p>Anonymized traffic samples. This catches distribution drift that handcrafted tests miss.</p></div>
     </div>
-    <div class="callout warn"><strong>Do not only use judge models.</strong> Deterministic checks should catch parse validity, schema validity, enums, numeric tolerances, citation existence, and tool argument shape before any LLM judge is involved.</div>
+    <table>
+      <tr><th>Metric</th><th>Definition</th><th>Why it matters</th></tr>
+      <tr><td>JSON validity</td><td>parseable JSON / total outputs</td><td>application cannot consume malformed output</td></tr>
+      <tr><td>Schema validity</td><td>schema-valid outputs / parseable outputs</td><td>types and required fields hold</td></tr>
+      <tr><td>Field accuracy</td><td>correct fields / expected fields</td><td>business correctness</td></tr>
+      <tr><td>Repair rate</td><td>outputs needing repair / total outputs</td><td>hidden cost and reliability signal</td></tr>
+      <tr><td>Refusal correctness</td><td>correctly refused or complied / policy examples</td><td>safety and helpfulness balance</td></tr>
+      <tr><td>Latency profile</td><td>P50/P90/P99 by stage</td><td>prevents quality from destroying SLO</td></tr>
+    </table>
+  </section>
+
+  <section id="judge">
+    <div class="label">Part 5</div>
+    <h2>LLM judges are useful only when boxed in.</h2>
+    <p>Judge models can grade semantics when exact checks are impossible, but they are not magic truth machines. They need rubrics, calibration, disagreement handling, and spot checks.</p>
+    <div class="two">
+      <div class="card">
+        <h3>Bad judge prompt</h3>
+        <pre>Is this answer good?
+Return yes or no.</pre>
+        <p>This is vague. It will drift, over-reward verbosity, and fail to expose which behavior regressed.</p>
+      </div>
+      <div class="card">
+        <h3>Better judge rubric</h3>
+        <pre>Grade from 0-2 for each:
+1. all required fields present
+2. values supported by source text
+3. no unsupported risk flags
+4. no unsafe advice
+Return JSON with scores and evidence spans.</pre>
+        <p>The judge output is itself structured and auditable.</p>
+      </div>
+    </div>
+    <div class="callout gold"><strong>Best practice:</strong> deterministic checks first, judge second, human audit for calibration. A judge should explain residual semantic quality, not replace easy checks.</div>
   </section>
 
   <section id="profile">
-    <div class="label">Part 4</div>
-    <h2>Benchmark the system, not just the model.</h2>
-    <p>A benchmark should separate queue time, tokenization, prefill, first-token latency, inter-token latency, post-processing, guardrail time, and network overhead.</p>
+    <div class="label">Part 6</div>
+    <h2>Benchmark the whole structured-output system.</h2>
+    <p>Structured output changes latency. Guided decoding can slow sampling. Validation adds post-processing. Repair adds extra calls. Benchmark the full pipeline, not just model tokens/sec.</p>
+    <div class="waterfall">
+      <div class="wf"><b>Gateway + auth</b><span style="width:8%"></span><em>8 ms</em></div>
+      <div class="wf"><b>Input guardrail</b><span style="width:12%"></span><em>12 ms</em></div>
+      <div class="wf"><b>Queue</b><span style="width:40%"></span><em>40 ms</em></div>
+      <div class="wf"><b>Prefill</b><span style="width:55%"></span><em>55 ms</em></div>
+      <div class="wf"><b>Decode</b><span style="width:92%"></span><em>420 ms</em></div>
+      <div class="wf"><b>Schema validation</b><span style="width:6%"></span><em>6 ms</em></div>
+      <div class="wf"><b>Repair p95</b><span style="width:65%"></span><em>280 ms</em></div>
+    </div>
     <table>
-      <tr><th>Metric</th><th>Question it answers</th></tr>
-      <tr><td>Queue time</td><td>Is demand exceeding scheduler capacity?</td></tr>
-      <tr><td>Prefill time</td><td>Are prompts too long or cache hits too low?</td></tr>
-      <tr><td>TTFT</td><td>How quickly does the user see progress?</td></tr>
-      <tr><td>ITL / TPOT</td><td>Is decode rhythm smooth?</td></tr>
-      <tr><td>Validation time</td><td>Are guardrails or repair loops dominating?</td></tr>
-      <tr><td>Cost/request</td><td>Did output length or model routing drift?</td></tr>
+      <tr><th>Benchmark slice</th><th>Question</th></tr>
+      <tr><td>no constraints</td><td>baseline quality and latency</td></tr>
+      <tr><td>JSON schema / guided decoding</td><td>validity gain versus sampler overhead</td></tr>
+      <tr><td>schema + validators</td><td>end-to-end app contract</td></tr>
+      <tr><td>schema + repair</td><td>tail latency and hidden cost</td></tr>
+      <tr><td>candidate model versus baseline</td><td>release decision</td></tr>
     </table>
-    <div class="callout"><strong>Final lesson:</strong> schema, evals, and latency profiling are part of inference engineering because they decide whether a faster system is actually shippable.</div>
+  </section>
+
+  <section id="release">
+    <div class="label">Part 7</div>
+    <h2>The release gate ties quality to production.</h2>
+    <pre>release_gate(candidate):
+  require json_validity >= 99.9%
+  require schema_validity >= 99.5%
+  require field_accuracy >= baseline - 0.5%
+  require refusal_correctness >= baseline
+  require repair_rate <= baseline + 1%
+  require p99_ttft <= baseline * 1.10
+  require p99_total_latency <= baseline * 1.15
+  require cost_per_request <= baseline * 1.15
+  require canary_rollback_ready == true</pre>
+    <div class="card">
+      <h3>The lesson</h3>
+      <p>Structured output and evals belong in inference engineering because they change how decoding runs, how latency is measured, how deployments are gated, and how failures are debugged. A fast model that returns invalid tool calls is not a production system.</p>
+    </div>
   </section>
 </main>
 </body>

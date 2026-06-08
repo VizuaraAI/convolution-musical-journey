@@ -89,6 +89,43 @@ Decode capacity depends on active sequences and output tokens/sec.
 
 If traffic has long prompts and short outputs, the system needs more prefill capacity. If traffic has short prompts and long outputs, it needs more decode capacity.
 
+## Interference trace
+
+Example:
+
+```text
+64 active decode streams want one token every ~50 ms.
+One new 12k-token prompt arrives.
+
+Unified worker:
+  decode step: 45 ms
+  long prefill chunk: 180 ms
+  next decode step: 45 ms
+
+Expected stream gap: ~50 ms
+Observed stream gap: ~225 ms
+```
+
+The user sees this as streaming jitter. The model did not get worse; the scheduler inserted prefill work between decode iterations.
+
+## Break-even rule
+
+```text
+benefit =
+  avoided_decode_stall_ms
++ avoided_prefill_queue_ms
++ better_pool_utilization_ms
+
+cost =
+  KV_transfer_ms
++ connector_overhead_ms
++ extra_failure_retry_ms
+
+Use disaggregation if benefit > cost.
+```
+
+GQA and MQA reduce the transfer tax because the KV cache size is proportional to the number of KV heads.
+
 ## Relationship to earlier lectures
 
 - PagedAttention makes the KV memory manageable.
@@ -109,4 +146,3 @@ KV_transfer_time + orchestration_overhead
 ```
 
 That is the entire trade-off.
-

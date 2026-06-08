@@ -155,7 +155,62 @@ P90: stressed user
 P99: the user who files the ticket
 ```
 
-## 7. Release gates
+## 7. Repair loops
+
+Repair loops are useful as exception handlers, not as the main path.
+
+```text
+if parse_fails:
+  repair_once_with_small_model()
+elif schema_fails:
+  repair_once_with_error_message()
+elif semantic_check_fails:
+  route_to_stronger_model_or_human_review()
+else:
+  return result
+```
+
+Track:
+
+- parse failure rate
+- schema failure rate
+- repair rate
+- repair success rate
+- added latency
+
+If repair rate rises after a prompt, model, schema, or decoding change, that is a production regression.
+
+## 8. LLM judges
+
+Use deterministic checks first:
+
+- parse JSON
+- validate schema
+- exact fields
+- enum membership
+- numeric tolerances
+- citation existence
+
+Use LLM judges only for residual semantic quality. A good judge returns structured scores with evidence, not a vague yes/no.
+
+Bad:
+
+```text
+Is this answer good?
+```
+
+Better:
+
+```text
+Grade 0-2 for:
+1. all required fields present
+2. values supported by source
+3. no unsupported flags
+4. no unsafe advice
+Return JSON with scores and evidence spans.
+```
+
+## 9. Release gates
 
 A model, prompt, quantization, or guided-decoding change should pass:
 
@@ -168,4 +223,3 @@ cost_per_request <= baseline * 1.15
 ```
 
 This ties structured output back to production systems. Schema validity, latency, and cost are serving metrics.
-

@@ -293,6 +293,31 @@ footer{text-align:center;border-top:1px solid var(--line);padding:38px 24px;back
     </div>
     <div class="timeline" id="timelineVis"></div>
     <div class="callout red" id="timelineText"><strong>Unified pool.</strong> Long prefills and decode iterations share the same queue. Throughput can be high, but TPOT becomes noisy when prompt bursts arrive.</div>
+    <div class="figure-card">
+      <img src="assets/production-systems/pd-interference-timeline.jpg" alt="Prefill decode interference timeline comparing colocated and disaggregated serving">
+      <p class="figure-caption"><strong>New detail.</strong> In the colocated lane, the decode stream is not slow because attention math changed; it is slow because the scheduler inserted large prefill work between decode iterations. Disaggregation turns that temporal interference into an explicit KV handoff.</p>
+    </div>
+    <div class="card">
+      <h3>Numerical interference trace</h3>
+      <pre class="code-block">Traffic at t=0:
+  64 active decode streams, each wants 1 token every 50 ms
+  1 new long-context request arrives with 12,000 prompt tokens
+
+Unified worker:
+  Step A: decode 64 tokens                  -> 45 ms
+  Step B: prefill chunk of long prompt       -> 180 ms
+  Step C: decode 64 tokens                  -> 45 ms
+
+Observed stream gap:
+  expected token gap ~= 50 ms
+  actual token gap   ~= 225 ms
+  user sees stutter
+
+Disaggregated:
+  Prefill worker runs 12K prompt separately
+  Decode worker keeps 45-55 ms cadence
+  user sees steady stream, but waits for KV handoff before first token</pre>
+    </div>
   </div>
 </section>
 
@@ -305,6 +330,7 @@ footer{text-align:center;border-top:1px solid var(--line);padding:38px 24px;back
       <img src="assets/disaggregated-pd.png" alt="Disaggregated prefill-decode architecture: prefill-only GPU transfers KV cache to decode-only GPU, reducing ITL spikes.">
       <p class="figure-caption"><strong>The picture to remember.</strong> The left worker does high-arithmetic-intensity prefill for many input tokens. The right worker does memory-bandwidth-bound decode for one token at a time. KV cache transfer is the bridge. Without the split, ITL spikes whenever long prefills enter the unified worker; with the split, decode cadence stays flatter.</p>
     </div>
+    <div class="callout orange"><strong>Important nuance.</strong> The decode worker does not receive "the prompt text." It receives model state: the K/V tensors for every prompt token, every layer, and every KV head. That is why the handoff is large and topology-sensitive.</div>
     <div class="system-vis">
       <div class="pool ingress">
         <h4>Ingress router</h4>
@@ -351,6 +377,10 @@ footer{text-align:center;border-top:1px solid var(--line);padding:38px 24px;back
     <div class="equation">
       KV bytes = tokens × layers × 2 × kv_heads × head_dim × bytes_per_value
     </div>
+    <div class="figure-card">
+      <img src="assets/production-systems/kv-transfer-tax.jpg" alt="KV transfer tax formula and fabric bandwidth comparison">
+      <p class="figure-caption"><strong>New detail.</strong> The KV transfer tax scales linearly with prompt tokens and layers. GQA/MQA reduce this tax by reducing KV heads; long-context dense MHA makes it painful.</p>
+    </div>
     <div class="calc">
       <div class="card">
         <h3>Interactive KV transfer calculator</h3>
@@ -369,6 +399,26 @@ footer{text-align:center;border-top:1px solid var(--line);padding:38px 24px;back
       </div>
     </div>
     <div class="callout green"><strong>The design rule.</strong> Disaggregation is attractive when the KV transfer tax is smaller than the decode interference you avoid.</div>
+    <div class="two-col">
+      <div class="card">
+        <h3>Break-even test</h3>
+        <pre class="code-block">benefit =
+  avoided_decode_stall_ms
++ avoided_prefill_queue_ms
++ better_pool_utilization_ms
+
+cost =
+  KV_transfer_ms
++ connector_overhead_ms
++ extra_failure_retry_ms
+
+Use disagg if benefit > cost.</pre>
+      </div>
+      <div class="card">
+        <h3>What GQA buys</h3>
+        <p>Because KV size is proportional to <code>kv_heads</code>, grouped-query attention and multi-query attention reduce not only memory footprint but also the P/D transfer tax. This is one of the cleanest links between the attention-variants lecture and production serving architecture.</p>
+      </div>
+    </div>
     <div class="card">
       <h3>Network ladder for a 1.34 GB KV cache</h3>
       <p>For a Llama-70B-style model, a 4K prompt creates roughly 1.34 GB of KV cache. On ordinary networking this is painfully slow; on local datacenter fabric it becomes plausible.</p>

@@ -146,6 +146,66 @@ Batch inference optimizes throughput:
 
 Never let unbounded batch jobs share the same priority queue as online decode. Batch work can use idle capacity, but it must yield to realtime traffic.
 
+## 6. Request lifecycle trace
+
+Every request should be traceable as a sequence of owned stages:
+
+```text
+edge
+  -> gateway
+  -> input guardrails
+  -> smart router
+  -> engine queue
+  -> prefill
+  -> decode
+  -> output validation
+  -> output filtering
+  -> telemetry
+```
+
+Useful metric breakdown:
+
+| Stage | Metric | Bad smell |
+|---|---|---|
+| Gateway | requests/sec, token/min, 429s | one tenant causes global pain |
+| Router | cache hit rate, fallback rate, model mix | 70B traffic rises without product reason |
+| Queue | queue depth, wait time | queue grows while GPU is not saturated |
+| Prefill | prefill ms, prompt tokens/sec | TTFT jumps after prompt-template change |
+| Decode | ITL/TPOT, output tok/sec | stream pauses between tokens |
+| Output | schema validity, safety flags | fluent text breaks downstream app |
+
+## 7. Autoscaling
+
+Bad autoscaler:
+
+```text
+if cpu_utilization > 70%:
+  add_replica()
+```
+
+Better autoscaler:
+
+```text
+pressure =
+  w1 * queue_time_p95
++ w2 * active_tokens / token_capacity
++ w3 * vram_pressure
++ w4 * p99_ttft_slo_violation
++ w5 * decode_itl_slo_violation
+```
+
+If a replica takes 45 seconds to warm, scale when the queue predicts pain, not after P99 is already broken.
+
+## 8. Incident patterns
+
+| Symptom | Likely cause | First action |
+|---|---|---|
+| TTFT P99 rises, ITL normal | prefill queue, cache miss, prompt length drift | inspect prompt tokens and prefix hit rate |
+| ITL spikes, TTFT normal | decode overloaded, memory bandwidth pressure | reduce max batch tokens or add decode capacity |
+| Cost/request jumps | output length drift or model-tier routing drift | compare output token distribution and model mix |
+| GPU low, queue high | scheduler/admission issue | inspect engine admission logs |
+| Cache hit rate collapses | prompt prefix changed | diff prompt templates and prefix hashing |
+
 ## Final mental model
 
 Production inference is a set of controlled trade-offs:
@@ -156,4 +216,3 @@ Production inference is a set of controlled trade-offs:
 - canaries trade rollout speed for safety
 - guardrails trade latency for correctness and policy compliance
 - batch lanes trade freshness for efficiency
-
