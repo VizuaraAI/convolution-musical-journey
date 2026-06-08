@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820" role="img" aria-labelledby="title desc">
+  <title id="title">Structured output and eval harness</title>
+  <desc id="desc">A diagram showing schema-guided decoding and evaluation gates for production LLM systems.</desc>
+  <rect width="1400" height="820" fill="#fbfaf7"/>
+  <defs>
+    <style>
+      .title{font:700 36px Arial,sans-serif;fill:#161616}
+      .label{font:700 22px Arial,sans-serif;fill:#161616}
+      .small{font:500 17px Arial,sans-serif;fill:#3d3a36}
+      .mono{font:700 16px monospace;fill:#161616}
+      .box{rx:16;stroke:#161616;stroke-width:2;fill:#fff}
+      .blue{fill:#eaf2ff;stroke:#315d8d}
+      .green{fill:#e7f0ed;stroke:#2f765f}
+      .gold{fill:#fff7dd;stroke:#92742f}
+      .red{fill:#fff0ed;stroke:#9a4a3c}
+      .violet{fill:#f4edff;stroke:#72569a}
+      .arrow{stroke:#161616;stroke-width:3;fill:none;marker-end:url(#arrow)}
+    </style>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#161616"/>
+    </marker>
+  </defs>
+  <text x="70" y="70" class="title">Structured Output Is a Serving Feature</text>
+  <text x="70" y="105" class="small">Correct JSON is not a prompt trick. It is decoding, validation, repair, and regression testing.</text>
+
+  <rect x="80" y="165" width="210" height="140" class="box violet"/>
+  <text x="112" y="210" class="label">Request</text>
+  <text x="112" y="242" class="small">task + schema</text>
+  <text x="112" y="272" class="small">latency SLO</text>
+
+  <rect x="360" y="130" width="245" height="210" class="box blue"/>
+  <text x="392" y="174" class="label">Decoder Control</text>
+  <text x="392" y="206" class="small">JSON schema</text>
+  <text x="392" y="236" class="small">grammar FSM</text>
+  <text x="392" y="266" class="small">logit masks</text>
+  <text x="392" y="296" class="small">tool-call format</text>
+
+  <rect x="685" y="165" width="210" height="140" class="box gold"/>
+  <text x="717" y="210" class="label">LLM Engine</text>
+  <text x="717" y="242" class="small">tokens stream</text>
+  <text x="717" y="272" class="small">only valid next tokens</text>
+
+  <rect x="970" y="130" width="255" height="210" class="box green"/>
+  <text x="1002" y="174" class="label">Validators</text>
+  <text x="1002" y="206" class="small">parse JSON</text>
+  <text x="1002" y="236" class="small">schema check</text>
+  <text x="1002" y="266" class="small">business rules</text>
+  <text x="1002" y="296" class="small">semantic checks</text>
+
+  <path d="M290 235 H360" class="arrow"/>
+  <path d="M605 235 H685" class="arrow"/>
+  <path d="M895 235 H970" class="arrow"/>
+
+  <rect x="160" y="435" width="250" height="185" class="box red"/>
+  <text x="192" y="480" class="label">Failure Modes</text>
+  <text x="192" y="512" class="small">truncated JSON</text>
+  <text x="192" y="542" class="small">wrong enum</text>
+  <text x="192" y="572" class="small">schema passes, answer bad</text>
+  <text x="192" y="602" class="small">repair loop too slow</text>
+
+  <rect x="505" y="405" width="305" height="245" class="box violet"/>
+  <text x="537" y="450" class="label">Eval Harness</text>
+  <text x="537" y="482" class="small">golden extraction set</text>
+  <text x="537" y="512" class="small">validity rate</text>
+  <text x="537" y="542" class="small">field accuracy</text>
+  <text x="537" y="572" class="small">judge model spot checks</text>
+  <text x="537" y="602" class="small">latency and cost profile</text>
+  <text x="537" y="632" class="small">canary promotion gate</text>
+
+  <rect x="905" y="435" width="300" height="185" class="box green"/>
+  <text x="937" y="480" class="label">Ship Decision</text>
+  <text x="937" y="512" class="small">promote if quality holds</text>
+  <text x="937" y="542" class="small">rollback if regressions</text>
+  <text x="937" y="572" class="small">track drift in production</text>
+
+  <path d="M1098 340 C1098 388 1058 410 1058 435" class="arrow"/>
+  <path d="M810 528 H905" class="arrow"/>
+  <path d="M505 528 H410" class="arrow"/>
+
+  <rect x="80" y="700" width="1145" height="60" rx="16" fill="#fff" stroke="#ded8cf" stroke-width="2"/>
+  <text x="112" y="737" class="mono">Rule of thumb:</text>
+  <text x="285" y="737" class="small">syntax belongs in constrained decoding; correctness belongs in evals; safety belongs in pre- and post-filters.</text>
+</svg>

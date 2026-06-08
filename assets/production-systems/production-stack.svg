@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820" role="img" aria-labelledby="title desc">
+  <title id="title">Production LLM inference stack</title>
+  <desc id="desc">A layered architecture for low latency and high throughput LLM inference.</desc>
+  <rect width="1400" height="820" fill="#fbfaf7"/>
+  <defs>
+    <style>
+      .title{font:700 36px Arial,sans-serif;fill:#161616}
+      .label{font:700 21px Arial,sans-serif;fill:#161616}
+      .small{font:500 17px Arial,sans-serif;fill:#3d3a36}
+      .mono{font:700 16px monospace;fill:#161616}
+      .box{rx:16;stroke:#161616;stroke-width:2;fill:#fff}
+      .blue{fill:#eaf2ff;stroke:#315d8d}
+      .green{fill:#e7f0ed;stroke:#2f765f}
+      .gold{fill:#fff7dd;stroke:#92742f}
+      .red{fill:#fff0ed;stroke:#9a4a3c}
+      .violet{fill:#f4edff;stroke:#72569a}
+      .arrow{stroke:#161616;stroke-width:3;fill:none;marker-end:url(#arrow)}
+    </style>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#161616"/>
+    </marker>
+  </defs>
+  <text x="70" y="70" class="title">Production LLM Inference Stack</text>
+  <text x="70" y="105" class="small">Every optimization from the course lands somewhere in this request path.</text>
+
+  <rect x="70" y="160" width="185" height="120" class="box violet"/>
+  <text x="100" y="205" class="label">Clients</text>
+  <text x="100" y="236" class="small">chat, agents, batch jobs</text>
+
+  <rect x="315" y="140" width="220" height="160" class="box blue"/>
+  <text x="345" y="184" class="label">API Gateway</text>
+  <text x="345" y="216" class="small">auth, quotas, schema</text>
+  <text x="345" y="246" class="small">prompt normalization</text>
+  <text x="345" y="276" class="small">guardrail precheck</text>
+
+  <rect x="600" y="120" width="235" height="200" class="box green"/>
+  <text x="630" y="164" class="label">Smart Router</text>
+  <text x="630" y="196" class="small">model choice</text>
+  <text x="630" y="226" class="small">cache-aware placement</text>
+  <text x="630" y="256" class="small">canary weights</text>
+  <text x="630" y="286" class="small">fallback chains</text>
+
+  <rect x="910" y="90" width="190" height="130" class="box gold"/>
+  <text x="940" y="134" class="label">Prefill Pool</text>
+  <text x="940" y="166" class="small">long prompts</text>
+  <text x="940" y="196" class="small">chunked prefill</text>
+
+  <rect x="1135" y="90" width="190" height="130" class="box gold"/>
+  <text x="1165" y="134" class="label">Decode Pool</text>
+  <text x="1165" y="166" class="small">token streaming</text>
+  <text x="1165" y="196" class="small">continuous batching</text>
+
+  <rect x="910" y="280" width="415" height="125" class="box blue"/>
+  <text x="940" y="324" class="label">Batch Inference Lane</text>
+  <text x="940" y="356" class="small">offline summarization, embeddings, reprocessing</text>
+  <text x="940" y="386" class="small">throughput optimized, looser latency SLO</text>
+
+  <rect x="315" y="420" width="220" height="145" class="box red"/>
+  <text x="345" y="464" class="label">Safety Layer</text>
+  <text x="345" y="496" class="small">input filters</text>
+  <text x="345" y="526" class="small">output filters</text>
+  <text x="345" y="556" class="small">PII and policy checks</text>
+
+  <rect x="600" y="420" width="235" height="145" class="box violet"/>
+  <text x="630" y="464" class="label">Eval Harness</text>
+  <text x="630" y="496" class="small">golden sets</text>
+  <text x="630" y="526" class="small">latency profile</text>
+  <text x="630" y="556" class="small">canary gates</text>
+
+  <rect x="910" y="460" width="415" height="145" class="box green"/>
+  <text x="940" y="504" class="label">Observability</text>
+  <text x="940" y="536" class="small">TTFT, ITL, queue depth, KV hit rate, cost/request</text>
+  <text x="940" y="566" class="small">per-model, per-tenant, per-region dashboards</text>
+
+  <path d="M255 220 H315" class="arrow"/>
+  <path d="M535 220 H600" class="arrow"/>
+  <path d="M835 190 H910" class="arrow"/>
+  <path d="M1100 155 H1135" class="arrow"/>
+  <path d="M835 250 C880 250 870 342 910 342" class="arrow"/>
+  <path d="M1125 220 C1125 248 1120 256 1120 280" class="arrow"/>
+  <path d="M425 300 V420" class="arrow"/>
+  <path d="M718 320 V420" class="arrow"/>
+  <path d="M1118 405 V460" class="arrow"/>
+
+  <rect x="70" y="655" width="1255" height="90" rx="16" fill="#fff" stroke="#ded8cf" stroke-width="2"/>
+  <text x="100" y="695" class="mono">Design principle:</text>
+  <text x="270" y="695" class="small">route by workload shape, preserve cache locality, batch without breaking tail latency, and gate every change with evals.</text>
+  <text x="100" y="725" class="mono">Course link:</text>
+  <text x="270" y="725" class="small">KV cache + PagedAttention + batching + quantization + parallelism + observability become one production system.</text>
+</svg>

@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820" role="img" aria-labelledby="title desc">
+  <title id="title">Low-latency high-throughput LLM system design</title>
+  <desc id="desc">A complete LLM inference architecture handling millions of requests.</desc>
+  <rect width="1400" height="820" fill="#fbfaf7"/>
+  <defs>
+    <style>
+      .title{font:700 36px Arial,sans-serif;fill:#161616}
+      .label{font:700 21px Arial,sans-serif;fill:#161616}
+      .small{font:500 16px Arial,sans-serif;fill:#3d3a36}
+      .mono{font:700 15px monospace;fill:#161616}
+      .box{rx:16;stroke:#161616;stroke-width:2;fill:#fff}
+      .blue{fill:#eaf2ff;stroke:#315d8d}
+      .green{fill:#e7f0ed;stroke:#2f765f}
+      .gold{fill:#fff7dd;stroke:#92742f}
+      .red{fill:#fff0ed;stroke:#9a4a3c}
+      .violet{fill:#f4edff;stroke:#72569a}
+      .arrow{stroke:#161616;stroke-width:3;fill:none;marker-end:url(#arrow)}
+    </style>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#161616"/>
+    </marker>
+  </defs>
+  <text x="70" y="68" class="title">Design: Millions of LLM Requests</text>
+  <text x="70" y="103" class="small">The final course answer: combine routing, cache, batching, disaggregation, evals, and ops.</text>
+
+  <rect x="60" y="150" width="175" height="105" class="box violet"/>
+  <text x="88" y="192" class="label">Edge</text>
+  <text x="88" y="222" class="small">CDN, auth, region</text>
+
+  <rect x="285" y="130" width="210" height="145" class="box blue"/>
+  <text x="315" y="174" class="label">Gateway</text>
+  <text x="315" y="204" class="small">rate limits</text>
+  <text x="315" y="232" class="small">guardrails</text>
+  <text x="315" y="260" class="small">schema contracts</text>
+
+  <rect x="545" y="105" width="230" height="195" class="box green"/>
+  <text x="575" y="149" class="label">Router</text>
+  <text x="575" y="179" class="small">cheap vs large model</text>
+  <text x="575" y="207" class="small">cache-aware replica</text>
+  <text x="575" y="235" class="small">canary traffic split</text>
+  <text x="575" y="263" class="small">fallback provider</text>
+
+  <rect x="830" y="90" width="220" height="140" class="box gold"/>
+  <text x="860" y="134" class="label">Online Pool</text>
+  <text x="860" y="164" class="small">vLLM / TRT-LLM</text>
+  <text x="860" y="192" class="small">PagedAttention</text>
+  <text x="860" y="220" class="small">continuous batching</text>
+
+  <rect x="1110" y="90" width="220" height="140" class="box gold"/>
+  <text x="1140" y="134" class="label">P/D Pools</text>
+  <text x="1140" y="164" class="small">prefill cluster</text>
+  <text x="1140" y="192" class="small">decode cluster</text>
+  <text x="1140" y="220" class="small">KV transfer budget</text>
+
+  <rect x="830" y="285" width="220" height="125" class="box green"/>
+  <text x="860" y="329" class="label">Cache Layer</text>
+  <text x="860" y="359" class="small">prefix cache</text>
+  <text x="860" y="387" class="small">radix tree, semantic</text>
+
+  <rect x="1110" y="285" width="220" height="125" class="box blue"/>
+  <text x="1140" y="329" class="label">Batch Lane</text>
+  <text x="1140" y="359" class="small">jobs, queues</text>
+  <text x="1140" y="387" class="small">throughput first</text>
+
+  <rect x="285" y="465" width="250" height="160" class="box red"/>
+  <text x="315" y="509" class="label">Deployment Gates</text>
+  <text x="315" y="539" class="small">eval harness</text>
+  <text x="315" y="567" class="small">shadow traffic</text>
+  <text x="315" y="595" class="small">canary, rollback</text>
+
+  <rect x="595" y="465" width="250" height="160" class="box violet"/>
+  <text x="625" y="509" class="label">Telemetry</text>
+  <text x="625" y="539" class="small">TTFT, ITL, P99</text>
+  <text x="625" y="567" class="small">GPU, VRAM, queue</text>
+  <text x="625" y="595" class="small">cost/request</text>
+
+  <rect x="905" y="465" width="250" height="160" class="box green"/>
+  <text x="935" y="509" class="label">Autoscaling</text>
+  <text x="935" y="539" class="small">warm pools</text>
+  <text x="935" y="567" class="small">queue depth</text>
+  <text x="935" y="595" class="small">tokens/sec demand</text>
+
+  <path d="M235 202 H285" class="arrow"/>
+  <path d="M495 202 H545" class="arrow"/>
+  <path d="M775 176 H830" class="arrow"/>
+  <path d="M1050 160 H1110" class="arrow"/>
+  <path d="M940 230 V285" class="arrow"/>
+  <path d="M775 252 C820 252 800 348 830 348" class="arrow"/>
+  <path d="M1050 348 H1110" class="arrow"/>
+  <path d="M410 275 V465" class="arrow"/>
+  <path d="M720 300 V465" class="arrow"/>
+  <path d="M1030 410 V465" class="arrow"/>
+
+  <rect x="60" y="690" width="1270" height="76" rx="16" fill="#fff" stroke="#ded8cf" stroke-width="2"/>
+  <text x="90" y="723" class="mono">Interview spine:</text>
+  <text x="250" y="723" class="small">clarify SLOs, split online and batch, route by workload, protect cache locality, batch carefully, measure P99, gate every release.</text>
+  <text x="90" y="751" class="mono">Main trade-off:</text>
+  <text x="250" y="751" class="small">low latency fights high utilization. The system exists to choose that trade-off per request class.</text>
+</svg>

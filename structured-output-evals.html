@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Structured Output and Evals - Visual Lecture Notes</title>
+  <style>
+    :root{--ink:#161616;--muted:#625f5a;--paper:#fbfaf7;--line:#ded8cf;--soft:#f0ebe3;--blue:#315d8d;--green:#2f765f;--red:#9a4a3c;--gold:#92742f;--violet:#72569a;--shadow:0 16px 42px rgba(30,28,25,.08);--font:"Avenir Next","Helvetica Neue",Arial,sans-serif;--mono:"SFMono-Regular",Consolas,monospace}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);background:linear-gradient(90deg,rgba(22,22,22,.035) 1px,transparent 1px),linear-gradient(180deg,rgba(22,22,22,.03) 1px,transparent 1px),var(--paper);background-size:28px 28px;font-family:var(--font);line-height:1.65;letter-spacing:0}.nav{position:sticky;top:0;background:rgba(251,250,247,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);z-index:5}.nav-inner{width:min(1120px,calc(100vw - 32px));margin:auto;display:flex;justify-content:space-between;gap:16px;align-items:center;padding:12px 0}.brand{font-weight:800}.links{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.nav a{color:var(--muted);text-decoration:none;border:1px solid var(--line);background:#fff;padding:7px 10px;border-radius:999px;font-size:12px}.shell{width:min(1120px,calc(100vw - 32px));margin:auto}.hero{min-height:calc(100vh - 64px);display:grid;grid-template-columns:minmax(0,1fr) minmax(330px,.72fr);gap:28px;align-items:center;padding:48px 0}.label{font:800 12px var(--mono);text-transform:uppercase;color:var(--gold);margin-bottom:10px}h1{font-size:clamp(48px,7vw,86px);line-height:.96;margin:0;letter-spacing:0}h2{font-size:clamp(30px,4vw,48px);line-height:1.05;margin:0 0 14px;letter-spacing:0}h3{font-size:22px;margin:26px 0 10px}.lead{font-size:20px;color:#3d3a36;max-width:780px;margin-top:22px}p{margin:0 0 14px;color:#36322f}section{padding:58px 0;border-top:1px solid var(--line)}.card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:20px;margin:16px 0}.hero-card{background:#fff;border:1px solid var(--ink);border-radius:8px;padding:14px;box-shadow:var(--shadow)}.hero-card img{width:100%;display:block;border:1px solid var(--line);border-radius:8px;background:#fff}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}.callout{border-left:4px solid var(--green);background:#e7f0ed;padding:16px 18px;border-radius:0 8px 8px 0;margin:18px 0}.warn{border-left-color:var(--red);background:#fff0ed}.blue{border-left-color:var(--blue);background:#eaf2ff}code,pre{font-family:var(--mono)}pre{background:#151923;color:#f8fafc;border-radius:8px;padding:16px;overflow:auto;font-size:13px;line-height:1.6}table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:16px 0;font-size:14px}th{background:var(--soft);text-align:left;font:800 12px var(--mono);text-transform:uppercase}td,th{padding:11px 12px;border-bottom:1px solid var(--line)}tr:last-child td{border-bottom:0}.metric{background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px}.metric strong{display:block;font:800 28px var(--mono);line-height:1;margin-bottom:6px}@media(max-width:860px){.hero,.two{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.nav-inner{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body>
+<nav class="nav"><div class="nav-inner"><div class="brand">Structured Output and Evals</div><div class="links"><a href="visual-walkthroughs.html">Library</a><a href="#schema">Schema</a><a href="#guided">Guided decoding</a><a href="#evals">Evals</a><a href="#profile">Latency</a></div></div></nav>
+<main class="shell">
+  <section class="hero">
+    <div>
+      <div class="label">Lecture 13 extension</div>
+      <h1>Reliability starts at the token boundary.</h1>
+      <p class="lead">Production inference is not complete when the model emits fluent text. Many products need valid JSON, safe tool calls, stable business fields, and measurable quality across releases.</p>
+      <div class="grid" style="margin-top:20px"><div class="metric"><strong>99.9%</strong>JSON validity target</div><div class="metric"><strong>P99</strong>schema latency budget</div><div class="metric"><strong>CI</strong>eval gate before rollout</div></div>
+    </div>
+    <aside class="hero-card"><img src="assets/production-systems/structured-output-evals.jpg" alt="Structured output and eval harness"></aside>
+  </section>
+
+  <section id="schema">
+    <div class="label">Part 1</div>
+    <h2>JSON schema turns language into a contract.</h2>
+    <p>A schema states the shape of the answer the application expects. The model may still reason in text internally, but the serving boundary should return typed fields.</p>
+    <pre>{
+  "type": "object",
+  "required": ["invoice_id", "total", "currency", "risk_flags"],
+  "properties": {
+    "invoice_id": {"type": "string"},
+    "total": {"type": "number"},
+    "currency": {"enum": ["USD", "EUR", "INR"]},
+    "risk_flags": {"type": "array", "items": {"type": "string"}}
+  }
+}</pre>
+    <div class="callout blue"><strong>Key distinction:</strong> a prompt asks politely. A schema constrains the application contract. Guided decoding is how that contract reaches the token sampler.</div>
+  </section>
+
+  <section id="guided">
+    <div class="label">Part 2</div>
+    <h2>Guided decoding masks impossible next tokens.</h2>
+    <p>At each generation step the decoder has a vocabulary distribution. A grammar or finite-state machine removes tokens that would make the output invalid. For a JSON object, after <code>{"currency": "</code>, the only valid continuations might be <code>USD</code>, <code>EUR</code>, or <code>INR</code>.</p>
+    <div class="two">
+      <div class="card">
+        <h3>Free decoding</h3>
+        <pre>model logits:
+  "USD" 0.30
+  "dollars" 0.28
+  "N/A" 0.14
+  "\n" 0.08
+result: may be invalid</pre>
+      </div>
+      <div class="card">
+        <h3>Guided decoding</h3>
+        <pre>valid token mask:
+  "USD" allowed
+  "EUR" allowed
+  "INR" allowed
+  everything else = -infinity
+result: syntactically valid</pre>
+      </div>
+    </div>
+    <table>
+      <tr><th>Method</th><th>Use it for</th><th>Trade-off</th></tr>
+      <tr><td>Logit biasing</td><td>Encourage or discourage specific tokens</td><td>Soft control, not a guarantee</td></tr>
+      <tr><td>JSON mode</td><td>Well-formed JSON</td><td>May not enforce your exact schema</td></tr>
+      <tr><td>Grammar-guided decoding</td><td>Strict structured output</td><td>More sampler overhead</td></tr>
+      <tr><td>Post-parse repair</td><td>Fallback for malformed output</td><td>Adds latency and can hide regressions</td></tr>
+    </table>
+  </section>
+
+  <section id="evals">
+    <div class="label">Part 3</div>
+    <h2>An eval harness is production CI for behavior.</h2>
+    <p>Unit tests tell you if code still runs. Evals tell you if model behavior still works. For structured output, evaluate syntax, field-level correctness, semantic correctness, safety, latency, and cost.</p>
+    <div class="card">
+      <h3>Minimal eval record</h3>
+      <pre>example_id: invoice_042
+input: scanned invoice text
+expected:
+  invoice_id: INV-2026-042
+  total: 1287.50
+  currency: USD
+checks:
+  parse_json == true
+  schema_valid == true
+  exact(invoice_id)
+  abs(total - expected.total) < 0.01
+  currency in allowed_enum
+  p99_latency_budget_ms < 1200</pre>
+    </div>
+    <div class="grid">
+      <div class="card"><h3>Golden sets</h3><p>Curated examples with known expected outputs. Small, high quality, reviewed by humans.</p></div>
+      <div class="card"><h3>Synthetic sets</h3><p>Generated variations to stress formats, edge cases, languages, and long contexts.</p></div>
+      <div class="card"><h3>Production samples</h3><p>Anonymized real traffic to catch drift and mismatches between evals and reality.</p></div>
+    </div>
+    <div class="callout warn"><strong>Do not only use judge models.</strong> Deterministic checks should catch parse validity, schema validity, enums, numeric tolerances, citation existence, and tool argument shape before any LLM judge is involved.</div>
+  </section>
+
+  <section id="profile">
+    <div class="label">Part 4</div>
+    <h2>Benchmark the system, not just the model.</h2>
+    <p>A benchmark should separate queue time, tokenization, prefill, first-token latency, inter-token latency, post-processing, guardrail time, and network overhead.</p>
+    <table>
+      <tr><th>Metric</th><th>Question it answers</th></tr>
+      <tr><td>Queue time</td><td>Is demand exceeding scheduler capacity?</td></tr>
+      <tr><td>Prefill time</td><td>Are prompts too long or cache hits too low?</td></tr>
+      <tr><td>TTFT</td><td>How quickly does the user see progress?</td></tr>
+      <tr><td>ITL / TPOT</td><td>Is decode rhythm smooth?</td></tr>
+      <tr><td>Validation time</td><td>Are guardrails or repair loops dominating?</td></tr>
+      <tr><td>Cost/request</td><td>Did output length or model routing drift?</td></tr>
+    </table>
+    <div class="callout"><strong>Final lesson:</strong> schema, evals, and latency profiling are part of inference engineering because they decide whether a faster system is actually shippable.</div>
+  </section>
+</main>
+</body>
+</html>

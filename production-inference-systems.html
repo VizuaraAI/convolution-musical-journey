@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Production Inference Systems - Visual Lecture Notes</title>
+  <style>
+    :root{--ink:#161616;--muted:#625f5a;--paper:#fbfaf7;--line:#ded8cf;--soft:#f0ebe3;--blue:#315d8d;--green:#2f765f;--red:#9a4a3c;--gold:#92742f;--violet:#72569a;--shadow:0 16px 42px rgba(30,28,25,.08);--font:"Avenir Next","Helvetica Neue",Arial,sans-serif;--mono:"SFMono-Regular",Consolas,monospace}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;color:var(--ink);background:linear-gradient(90deg,rgba(22,22,22,.035) 1px,transparent 1px),linear-gradient(180deg,rgba(22,22,22,.03) 1px,transparent 1px),var(--paper);background-size:28px 28px;font-family:var(--font);line-height:1.65;letter-spacing:0}
+    .nav{position:sticky;top:0;z-index:5;background:rgba(251,250,247,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}.nav-inner{width:min(1120px,calc(100vw - 32px));margin:auto;display:flex;justify-content:space-between;gap:16px;align-items:center;padding:12px 0}.brand{font-weight:800}.nav a{color:var(--muted);text-decoration:none;border:1px solid var(--line);background:#fff;padding:7px 10px;border-radius:999px;font-size:12px}.links{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+    .shell{width:min(1120px,calc(100vw - 32px));margin:auto}.hero{min-height:calc(100vh - 64px);display:grid;grid-template-columns:minmax(0,1fr) minmax(330px,.68fr);gap:28px;align-items:center;padding:48px 0}.label{font:800 12px var(--mono);text-transform:uppercase;color:var(--gold);margin-bottom:10px}h1{font-size:clamp(48px,7vw,86px);line-height:.96;margin:0;letter-spacing:0}h2{font-size:clamp(30px,4vw,48px);line-height:1.05;margin:0 0 14px;letter-spacing:0}h3{font-size:22px;margin:26px 0 10px}.lead{font-size:20px;color:#3d3a36;max-width:780px;margin-top:22px}p{margin:0 0 14px;color:#36322f}.muted{color:var(--muted)}section{padding:58px 0;border-top:1px solid var(--line)}.card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:20px;box-shadow:0 1px 2px rgba(0,0,0,.04);margin:16px 0}.hero-card{background:#fff;border:1px solid var(--ink);border-radius:8px;padding:14px;box-shadow:var(--shadow)}.hero-card img,.figure img{width:100%;display:block;border:1px solid var(--line);border-radius:8px;background:#fff}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}.stat{background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px}.stat strong{display:block;font:800 28px var(--mono);line-height:1;margin-bottom:6px}.callout{border-left:4px solid var(--green);background:#e7f0ed;padding:16px 18px;border-radius:0 8px 8px 0;margin:18px 0}.warn{border-left-color:var(--red);background:#fff0ed}.blue{border-left-color:var(--blue);background:#eaf2ff}.gold{border-left-color:var(--gold);background:#fff7dd}code,pre{font-family:var(--mono)}pre{background:#151923;color:#f8fafc;border-radius:8px;padding:16px;overflow:auto;font-size:13px;line-height:1.6}table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:16px 0;font-size:14px}th{background:var(--soft);text-align:left;font:800 12px var(--mono);text-transform:uppercase}td,th{padding:11px 12px;border-bottom:1px solid var(--line)}tr:last-child td{border-bottom:0}.pill{display:inline-block;border:1px solid var(--line);border-radius:999px;background:#fff;padding:4px 8px;font:700 12px var(--mono);color:var(--muted);margin:2px}
+    @media(max-width:860px){.hero,.two{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.nav-inner{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body>
+<nav class="nav"><div class="nav-inner"><div class="brand">Production Inference Systems</div><div class="links"><a href="visual-walkthroughs.html">Library</a><a href="#cold">Cold starts</a><a href="#routing">Routing</a><a href="#deploy">Deployments</a><a href="#guardrails">Guardrails</a><a href="#batch">Batch vs online</a></div></div></nav>
+<main class="shell">
+  <section class="hero">
+    <div>
+      <div class="label">Final track: production systems</div>
+      <h1>From fast kernels to a real service.</h1>
+      <p class="lead">Earlier lectures taught the engine: KV cache, FlashAttention, PagedAttention, batching, quantization, speculative decoding, and parallelism. Production systems are where those ideas become routing policy, deployment policy, safety policy, and cost policy.</p>
+      <div class="grid" style="margin-top:20px">
+        <div class="stat"><strong>P99</strong><span class="muted">latency is the product metric</span></div>
+        <div class="stat"><strong>KV</strong><span class="muted">cache locality is a routing signal</span></div>
+        <div class="stat"><strong>SLO</strong><span class="muted">decides online vs batch</span></div>
+      </div>
+    </div>
+    <aside class="hero-card"><img src="assets/production-systems/production-stack.jpg" alt="Production LLM inference stack"></aside>
+  </section>
+
+  <section id="cold">
+    <div class="label">Part 1</div>
+    <h2>Cold starts are weight movement problems.</h2>
+    <p>A cold start is not just "a pod is slow." For LLM inference it usually means the system must reserve a GPU, create CUDA context, load tens or hundreds of GB of weights, initialize kernels, allocate KV cache blocks, warm the tokenizer path, and only then accept traffic.</p>
+    <div class="two">
+      <div class="card">
+        <h3>Cold path</h3>
+        <pre>request arrives
+no warm replica has capacity
+scheduler asks cluster for GPU
+container starts
+model weights load to HBM
+engine builds CUDA graph / kernels
+KV block pool allocated
+first request finally runs</pre>
+      </div>
+      <div class="card">
+        <h3>Warm path</h3>
+        <pre>request arrives
+router finds warm replica
+prefix cache checked
+continuous batch admits request
+prefill starts immediately
+tokens stream</pre>
+      </div>
+    </div>
+    <div class="callout blue"><strong>Rule:</strong> do not autoscale from zero for interactive LLMs unless the SLO is loose. Keep a warm pool sized for the expected burst, and scale the warm pool using queue depth, active tokens, and GPU memory pressure rather than CPU utilization.</div>
+    <table>
+      <tr><th>Technique</th><th>What it buys</th><th>Trade-off</th></tr>
+      <tr><td>Warm replicas</td><td>Low TTFT after bursts</td><td>Idle GPU cost</td></tr>
+      <tr><td>Model weight pinning</td><td>Avoid repeated HBM load</td><td>Less flexibility per GPU</td></tr>
+      <tr><td>Small-model fast lane</td><td>Cheap requests avoid large model queue</td><td>Requires routing confidence</td></tr>
+      <tr><td>Admission control</td><td>Protects P99 during overload</td><td>Some requests get 429 or async fallback</td></tr>
+    </table>
+  </section>
+
+  <section id="routing">
+    <div class="label">Part 2</div>
+    <h2>Cache-aware routing beats blind load balancing.</h2>
+    <p>Traditional load balancing asks: "Which server is least loaded?" LLM routing must ask a second question: "Which server already has useful KV state?" If two requests share a long system prompt, chat history, or document prefix, routing them to the same cache domain can save prefill work.</p>
+    <div class="card">
+      <h3>Step-by-step routing trace</h3>
+      <pre>R1: tenant=finance, prefix_hash=abc, prompt=9000 tokens
+router sees no cache hit
+send to prefill replica P4
+P4 computes prompt KV and publishes prefix_hash=abc
+
+R2: tenant=finance, prefix_hash=abc, prompt=9200 tokens
+least-loaded replica is P1
+but P4 has a 9000-token prefix hit
+router sends R2 to P4 if queue penalty < saved prefill time</pre>
+    </div>
+    <div class="callout"><strong>Decision formula:</strong> choose the cache-hit replica if <code>queue_delay_hit + residual_prefill</code> is lower than <code>queue_delay_empty + full_prefill</code>. This ties directly to prefix caching, RadixAttention, and PagedAttention from earlier lectures.</div>
+    <table>
+      <tr><th>Routing signal</th><th>Useful for</th><th>Risk</th></tr>
+      <tr><td>Prompt length</td><td>Prefill-heavy routing</td><td>Short prompts can still be hard</td></tr>
+      <tr><td>Expected output length</td><td>Decode capacity planning</td><td>Often only estimated</td></tr>
+      <tr><td>Prefix hash</td><td>KV reuse</td><td>Bad if unique request IDs poison the prefix</td></tr>
+      <tr><td>Tenant tier</td><td>SLO and rate-limit policy</td><td>Not the same as task difficulty</td></tr>
+      <tr><td>Classifier difficulty</td><td>Model selection</td><td>Classifier drift</td></tr>
+    </table>
+  </section>
+
+  <section id="deploy">
+    <div class="label">Part 3</div>
+    <h2>Canary deployments for models are not web deploys.</h2>
+    <p>A normal backend canary watches error rate and latency. An LLM canary must also watch output quality, refusal rate, structured-output validity, token length drift, cost per request, cache hit rate, and safety filter triggers.</p>
+    <div class="grid">
+      <div class="card"><h3>1. Shadow</h3><p>Send production inputs to the candidate model but do not return its outputs. Compare latency, schema validity, safety flags, and eval score offline.</p></div>
+      <div class="card"><h3>2. Canary</h3><p>Route 1 percent of low-risk traffic. Hold back high-risk tenants, long-context requests, and expensive workflows until basic signals are clean.</p></div>
+      <div class="card"><h3>3. Ramp</h3><p>Increase to 5, 25, 50, and 100 percent only if P99, cost, quality, and safety stay within guard bands.</p></div>
+    </div>
+    <pre>promotion_gate(candidate):
+  require eval_score >= baseline - tolerance
+  require json_validity >= baseline
+  require p99_ttft <= baseline * 1.10
+  require avg_output_tokens <= baseline * 1.15
+  require safety_flag_rate <= baseline + guard_band
+  require rollback_plan == tested</pre>
+    <div class="callout warn"><strong>Common incident:</strong> a prompt or model update increases average output length. Quality may look better in demos, but cost/request and decode occupancy explode. This is why output-token distribution is a production metric.</div>
+  </section>
+
+  <section id="guardrails">
+    <div class="label">Part 4</div>
+    <h2>Guardrails live before and after generation.</h2>
+    <p>Guardrails are not a single classifier. They are a pipeline around inference. The pre-generation layer rejects or rewrites unsafe inputs. The decoding layer enforces structure. The post-generation layer filters policy violations, PII, malformed JSON, and business-rule failures.</p>
+    <div class="two">
+      <div class="card">
+        <h3>Input side</h3>
+        <p><span class="pill">auth</span><span class="pill">tenant policy</span><span class="pill">PII detection</span><span class="pill">prompt injection checks</span><span class="pill">rate limits</span></p>
+      </div>
+      <div class="card">
+        <h3>Output side</h3>
+        <p><span class="pill">schema validation</span><span class="pill">safety classifier</span><span class="pill">citation check</span><span class="pill">tool arg validation</span><span class="pill">repair or fallback</span></p>
+      </div>
+    </div>
+    <div class="callout gold"><strong>Latency trade-off:</strong> every guardrail adds work. Put cheap deterministic checks first, route risky requests to stronger models or stricter policies, and reserve expensive judge models for sampled audit or high-risk flows.</div>
+  </section>
+
+  <section id="batch">
+    <div class="label">Part 5</div>
+    <h2>Batch and online inference are different products.</h2>
+    <table>
+      <tr><th>Dimension</th><th>Online inference</th><th>Batch inference</th></tr>
+      <tr><td>User expectation</td><td>First token quickly, stream smoothly</td><td>Finish eventually, maximize throughput</td></tr>
+      <tr><td>Scheduler goal</td><td>Protect P99 TTFT and ITL</td><td>Maximize tokens/sec and GPU occupancy</td></tr>
+      <tr><td>Batching</td><td>Continuous, bounded by latency SLO</td><td>Large batches, queue until efficient</td></tr>
+      <tr><td>Failures</td><td>Fallback or graceful error now</td><td>Retry, checkpoint, resume</td></tr>
+      <tr><td>Examples</td><td>chat, coding agent, voice assistant</td><td>document processing, evals, embeddings, reindexing</td></tr>
+    </table>
+    <div class="card">
+      <h3>The production answer</h3>
+      <p>Do not send batch jobs through the same hot online queue unless they are explicitly low-priority and preemptible. Batch traffic can fill idle GPUs, but it must yield to online decode or it will destroy tail latency.</p>
+    </div>
+  </section>
+</main>
+</body>
+</html>

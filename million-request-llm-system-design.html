@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Million Request LLM System Design - Final Answer</title>
+  <style>
+    :root{--ink:#161616;--muted:#625f5a;--paper:#fbfaf7;--line:#ded8cf;--soft:#f0ebe3;--blue:#315d8d;--green:#2f765f;--red:#9a4a3c;--gold:#92742f;--violet:#72569a;--shadow:0 16px 42px rgba(30,28,25,.08);--font:"Avenir Next","Helvetica Neue",Arial,sans-serif;--mono:"SFMono-Regular",Consolas,monospace}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;color:var(--ink);background:linear-gradient(90deg,rgba(22,22,22,.035) 1px,transparent 1px),linear-gradient(180deg,rgba(22,22,22,.03) 1px,transparent 1px),var(--paper);background-size:28px 28px;font-family:var(--font);line-height:1.65;letter-spacing:0}.nav{position:sticky;top:0;background:rgba(251,250,247,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);z-index:5}.nav-inner{width:min(1120px,calc(100vw - 32px));margin:auto;display:flex;justify-content:space-between;gap:16px;align-items:center;padding:12px 0}.brand{font-weight:800}.links{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.nav a{color:var(--muted);text-decoration:none;border:1px solid var(--line);background:#fff;padding:7px 10px;border-radius:999px;font-size:12px}.shell{width:min(1120px,calc(100vw - 32px));margin:auto}.hero{min-height:calc(100vh - 64px);display:grid;grid-template-columns:minmax(0,1fr) minmax(330px,.72fr);gap:28px;align-items:center;padding:48px 0}.label{font:800 12px var(--mono);text-transform:uppercase;color:var(--gold);margin-bottom:10px}h1{font-size:clamp(48px,7vw,86px);line-height:.96;margin:0;letter-spacing:0}h2{font-size:clamp(30px,4vw,48px);line-height:1.05;margin:0 0 14px;letter-spacing:0}h3{font-size:22px;margin:26px 0 10px}.lead{font-size:20px;color:#3d3a36;max-width:780px;margin-top:22px}p{margin:0 0 14px;color:#36322f}section{padding:58px 0;border-top:1px solid var(--line)}.card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:20px;margin:16px 0}.hero-card{background:#fff;border:1px solid var(--ink);border-radius:8px;padding:14px;box-shadow:var(--shadow)}.hero-card img{width:100%;display:block;border:1px solid var(--line);border-radius:8px;background:#fff}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}.callout{border-left:4px solid var(--green);background:#e7f0ed;padding:16px 18px;border-radius:0 8px 8px 0;margin:18px 0}.warn{border-left-color:var(--red);background:#fff0ed}.blue{border-left-color:var(--blue);background:#eaf2ff}pre{background:#151923;color:#f8fafc;border-radius:8px;padding:16px;overflow:auto;font:13px/1.6 var(--mono)}table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:16px 0;font-size:14px}th{background:var(--soft);text-align:left;font:800 12px var(--mono);text-transform:uppercase}td,th{padding:11px 12px;border-bottom:1px solid var(--line)}tr:last-child td{border-bottom:0}.metric{background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px}.metric strong{display:block;font:800 28px var(--mono);line-height:1;margin-bottom:6px}ol{padding-left:22px}li{margin:8px 0}@media(max-width:860px){.hero,.two{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.nav-inner{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body>
+<nav class="nav"><div class="nav-inner"><div class="brand">Final System Design Answer</div><div class="links"><a href="visual-walkthroughs.html">Library</a><a href="#clarify">Clarify</a><a href="#architecture">Architecture</a><a href="#engine">Engine</a><a href="#tradeoffs">Trade-offs</a><a href="#answer">Answer script</a></div></div></nav>
+<main class="shell">
+  <section class="hero">
+    <div>
+      <div class="label">Asked at Anthropic, NVIDIA, Microsoft, Meta, DeepMind</div>
+      <h1>Design a low-latency, high-throughput LLM inference system.</h1>
+      <p class="lead">This is the complete capstone answer that ties together the course: hardware, KV cache, attention kernels, batching, PagedAttention, disaggregation, routing, structured output, evals, and production operations.</p>
+      <div class="grid" style="margin-top:20px"><div class="metric"><strong>1</strong>clarify workload</div><div class="metric"><strong>2</strong>split request lanes</div><div class="metric"><strong>3</strong>optimize the engine</div></div>
+    </div>
+    <aside class="hero-card"><img src="assets/production-systems/final-system-design.jpg" alt="Final system design architecture"></aside>
+  </section>
+
+  <section id="clarify">
+    <div class="label">Step 1</div>
+    <h2>Start by constraining the problem.</h2>
+    <p>Do not jump straight to GPUs. The correct architecture depends on workload shape.</p>
+    <div class="card">
+      <h3>Clarifying questions</h3>
+      <ol>
+        <li>What model sizes are we serving: 8B, 70B, MoE, or multiple tiers?</li>
+        <li>What are prompt and output length distributions, not just averages?</li>
+        <li>What are the SLOs: TTFT, ITL, total latency, and availability?</li>
+        <li>Is traffic streaming chat, agents, tool calls, batch jobs, or mixed?</li>
+        <li>How strict are structured output, safety, privacy, and audit requirements?</li>
+        <li>How much traffic is bursty, regional, or tenant-isolated?</li>
+      </ol>
+    </div>
+    <div class="callout blue"><strong>Good interviewer signal:</strong> show that "millions of requests" is not enough. Tokens/sec, context length, output length, and P99 SLO decide the design.</div>
+  </section>
+
+  <section id="architecture">
+    <div class="label">Step 2</div>
+    <h2>Use separate lanes for separate workloads.</h2>
+    <table>
+      <tr><th>Lane</th><th>Traffic</th><th>Optimization target</th></tr>
+      <tr><td>Realtime online</td><td>Chat, agents, voice, coding</td><td>Low TTFT and stable ITL</td></tr>
+      <tr><td>Long-context online</td><td>RAG, document Q&A, repo agents</td><td>Prefill capacity and cache reuse</td></tr>
+      <tr><td>Batch lane</td><td>summaries, evals, embeddings, reprocessing</td><td>Max tokens/sec and low cost</td></tr>
+      <tr><td>Fallback lane</td><td>overload, regional outage, rare tasks</td><td>availability over cost</td></tr>
+    </table>
+    <pre>client -> edge -> API gateway
+  -> auth, quota, rate limit
+  -> input guardrails and prompt normalization
+  -> router:
+       choose model tier
+       choose online vs batch
+       choose cache-local replica
+       choose canary or stable version
+  -> serving engine:
+       prefill, decode, stream
+  -> output validation, safety filters, telemetry</pre>
+  </section>
+
+  <section id="engine">
+    <div class="label">Step 3</div>
+    <h2>The serving engine is where course optimizations compose.</h2>
+    <div class="grid">
+      <div class="card"><h3>PagedAttention</h3><p>Stores KV cache in blocks, avoids contiguous allocation waste, and enables high concurrency.</p></div>
+      <div class="card"><h3>Continuous batching</h3><p>Admits new requests each decode step so finished sequences do not leave the GPU idle.</p></div>
+      <div class="card"><h3>Chunked prefill</h3><p>Breaks long prompts into pieces so prefill does not starve decode.</p></div>
+      <div class="card"><h3>Prefix caching</h3><p>Reuses KV for shared system prompts, histories, and document prefixes.</p></div>
+      <div class="card"><h3>Quantization</h3><p>Reduces weight bandwidth and memory footprint, with quality checks before rollout.</p></div>
+      <div class="card"><h3>Speculative decoding</h3><p>Uses a small draft model to reduce large-model forward passes when acceptance rate is high.</p></div>
+    </div>
+    <div class="callout"><strong>Scaling:</strong> replicate for throughput, tensor-parallelize when one model replica does not fit or needs more bandwidth, pipeline-parallelize only when crossing nodes is unavoidable, and use disaggregated serving when long prefill bursts interfere with decode SLOs.</div>
+  </section>
+
+  <section id="tradeoffs">
+    <div class="label">Step 4</div>
+    <h2>Name the trade-offs explicitly.</h2>
+    <table>
+      <tr><th>Choice</th><th>Win</th><th>Cost</th></tr>
+      <tr><td>Larger batches</td><td>Higher GPU utilization</td><td>Higher queueing and tail latency</td></tr>
+      <tr><td>Cache-aware routing</td><td>Less prefill work</td><td>Can imbalance load</td></tr>
+      <tr><td>Disaggregated P/D</td><td>Protects decode from prefill bursts</td><td>KV transfer tax and more orchestration</td></tr>
+      <tr><td>Quantization</td><td>Lower memory and cost</td><td>Possible quality regression</td></tr>
+      <tr><td>Speculative decoding</td><td>Lower latency when draft is accurate</td><td>Extra model and acceptance-rate sensitivity</td></tr>
+      <tr><td>Strict guided decoding</td><td>Valid structured output</td><td>Sampler overhead and grammar complexity</td></tr>
+      <tr><td>Warm pools</td><td>Low cold-start latency</td><td>Idle GPU spend</td></tr>
+    </table>
+  </section>
+
+  <section id="answer">
+    <div class="label">Final script</div>
+    <h2>A complete interview answer.</h2>
+    <div class="card">
+      <p>I would first characterize the workload by prompt length, output length, request rate, concurrency, streaming requirements, and SLOs for TTFT, inter-token latency, total latency, and availability. Millions of requests is not the sizing unit; tokens/sec and context-length distribution are.</p>
+      <p>The architecture starts with a regional edge and API gateway for auth, quotas, rate limits, request shaping, and input safety checks. Behind that I would use a smart inference router. It chooses the model tier, decides online vs batch, applies canary traffic rules, and routes cache-sensitive requests to replicas that already hold useful prefix KV state.</p>
+      <p>For the online serving engine I would use a vLLM or TensorRT-LLM style runtime with PagedAttention for KV memory management, continuous batching for throughput, prefix caching for repeated prompts, chunked prefill to protect decode, and speculative decoding where the draft acceptance rate is high. I would quantize only after evals show quality holds.</p>
+      <p>For large models I would replicate model instances for throughput, use tensor parallelism inside high-bandwidth NVLink domains, and only use pipeline parallelism across nodes when model capacity forces it. If traffic has many long prompts, I would split prefill and decode pools so compute-heavy prefill does not disrupt memory-bandwidth-bound decode. I would account for the KV transfer tax before choosing disaggregation.</p>
+      <p>I would separate batch workloads from realtime traffic. Batch jobs can queue for high GPU utilization, but online decode should not wait behind offline summarization or eval workloads. Under overload I would use admission control, lower-tier fallback, shorter max output, or async handoff depending on product requirements.</p>
+      <p>Every release goes through offline evals, shadow traffic, canary rollout, and rollback gates. The dashboard tracks TTFT, ITL, total latency, queue depth, GPU utilization, VRAM, KV cache hit rate, output-token distribution, schema validity, safety flags, and cost per request. The main trade-off is latency versus utilization: batching, caching, and routing are how I choose that trade-off per request class instead of globally.</p>
+    </div>
+  </section>
+</main>
+</body>
+</html>
